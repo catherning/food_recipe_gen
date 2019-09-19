@@ -233,7 +233,7 @@ def build_vocab_recipe1m(args):
 
         pickle.dump(counter_ingrs, open(ingrs_file, 'wb'))
         pickle.dump(counter_toks, open(instrs_file, 'wb'))
-        pickle.dump(counter_ingrs_raw, open(os.path.join(args.save_path, 'allingrs_raw_count.pkl', 'wb')))
+        pickle.dump(counter_ingrs_raw, open(os.path.join(args.save_path, 'allingrs_raw_count.pkl'), 'wb'))
 
     # manually add missing entries for better clustering
     base_words = ['peppers', 'tomato', 'spinach_leaves', 'turkey_breast', 'lettuce_leaf',
