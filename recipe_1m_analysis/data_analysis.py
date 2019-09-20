@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
+
+# https://github.com/facebookresearch/inversecooking/blob/master/src/build_vocab.py
     
 
 # In[ ]:
@@ -155,29 +157,15 @@ def update_counter(list_, counter_toks, istrain=False):
             counter_toks.update(tokens)
 # In[ ]:
 
-def build_vocab_recipe1m(args):
-    print ("Loading data...")
-    dets = json.load(open(os.path.join(args.recipe1m_path, 'det_ingrs.json'), 'r'))
-    layer1 = json.load(open(os.path.join(args.recipe1m_path, 'layer1.json'), 'r'))
-
-
-    print("Loaded data.")
-    print("Found %d recipes in the dataset." % (len(layer1)))
-    replace_dict_ingrs = {'and': ['&', "'n"], '': ['%', ',', '.', '#', '[', ']', '!', '?']}
-    replace_dict_instrs = {'and': ['&', "'n"], '': ['#', '[', ']']}
-
-    idx2ind = {}
-    for i, entry in enumerate(dets):
-        idx2ind[entry['id']] = i
+def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs):
+    #####
+    # 1. Count words in dataset and clean
 
     ingrs_file = os.path.join(args.save_path, 'allingrs_count.pkl')
     instrs_file = os.path.join(args.save_path, 'allwords_count.pkl')
 
-    #####
-    # 1. Count words in dataset and clean
-    #####
     if os.path.exists(ingrs_file) and os.path.exists(instrs_file) and not args.forcegen:
-        print ("loading pre-extracted word counters")
+        print("loading pre-extracted word counters")
         counter_ingrs = pickle.load(open(ingrs_file, 'rb'))
         counter_toks = pickle.load(open(instrs_file, 'rb'))
     else:
@@ -217,6 +205,7 @@ def build_vocab_recipe1m(args):
                     instrs_list.append(instr)
                     acc_len += len(instr)
 
+            #TODO can move up ?
             # discard recipes with too few or too many ingredients or instruction words
             if len(ingrs_list) < args.minnumingrs or len(instrs_list) < args.minnuminstrs \
                     or len(instrs_list) >= args.maxnuminstrs or len(ingrs_list) >= args.maxnumingrs \
@@ -254,13 +243,11 @@ def build_vocab_recipe1m(args):
                   'philadelphia', 'cracker_crust', 'chicken_breast']
 
     for base_word in base_words:
-
         if base_word not in counter_ingrs.keys():
             counter_ingrs[base_word] = 1
 
     counter_ingrs, cluster_ingrs = cluster_ingredients(counter_ingrs)
     counter_ingrs, cluster_ingrs = remove_plurals(counter_ingrs, cluster_ingrs)
-
     # If the word frequency is less than 'threshold', then the word is discarded.
     words = [word for word, cnt in counter_toks.items() if cnt >= args.threshold_words]
     ingrs = {word: cnt for word, cnt in counter_ingrs.items() if cnt >= args.threshold_ingrs}
@@ -282,21 +269,26 @@ def build_vocab_recipe1m(args):
     vocab_ingrs = Vocabulary()
     idx = vocab_ingrs.add_word('<end>')
     # this returns the next idx to add words to
+
     # Add the ingredients to the vocabulary.
     for k, _ in ingrs.items():
         for ingr in cluster_ingrs[k]:
             idx = vocab_ingrs.add_word(ingr, idx)
         idx += 1
     _ = vocab_ingrs.add_word('<pad>', idx)
-
     print("Total ingr vocabulary size: {}".format(len(vocab_ingrs)))
     print("Total token vocabulary size: {}".format(len(vocab_toks)))
 
-    dataset = {'train': [], 'val': [], 'test': []}
+    return vocab_ingrs, vocab_toks
 
+
+def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs, vocab_ingrs):
     ######
     # 2. Tokenize and build dataset based on vocabularies.
     ######
+
+    dataset = {'train': [], 'val': [], 'test': []}
+
     for i, entry in tqdm(enumerate(layer1)):
 
         # get all instructions for this recipe
@@ -323,9 +315,9 @@ def build_vocab_recipe1m(args):
         for instr in instrs:
             instr = instr['text']
             instr = get_instruction(instr, replace_dict_instrs)
-            if len(instr) > 0:
-                acc_len += len(instr)
+            if len(instr) > 0:                
                 instrs_list.append(instr)
+                acc_len += len(instr)
 
         # we discard recipes with too many or too few ingredients or instruction words
         if len(labels) < args.minnumingrs or len(instrs_list) < args.minnuminstrs \
@@ -349,6 +341,32 @@ def build_vocab_recipe1m(args):
     print('Dataset size:')
     for split in dataset.keys():
         print(split, ':', len(dataset[split]))
+
+
+def build_vocab_recipe1m(args):
+    print ("Loading data...")
+    dets = json.load(open(os.path.join(args.recipe1m_path, 'det_ingrs.json'), 'r'))
+    layer1 = json.load(open(os.path.join(args.recipe1m_path, 'layer1.json'), 'r'))
+
+
+    print("Loaded data.")
+    print("Found %d recipes in the dataset." % (len(layer1)))
+    replace_dict_ingrs = {'and': ['&', "'n"], '': ['%', ',', '.', '#', '[', ']', '!', '?']}
+    replace_dict_instrs = {'and': ['&', "'n"], '': ['#', '[', ']']}
+
+    idx2ind = {}
+    for i, entry in enumerate(dets):
+        idx2ind[entry['id']] = i
+
+    #####
+    # 1. Count words in dataset and clean
+    #####
+    vocab_ingrs, vocab_toks = clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs)
+
+    ######
+    # 2. Tokenize and build dataset based on vocabularies.
+    ######
+    dataset = tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs, vocab_ingrs)
 
     return vocab_ingrs, vocab_toks, dataset
 
@@ -379,7 +397,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--suff', type=str, default='')
 
-    parser.add_argument('--threshold_ingrs', type=int, default=6, #original 10
+    parser.add_argument('--threshold_ingrs', type=int, default=10, #test with 6 ?
                         help='minimum ingr count threshold')
 
     parser.add_argument('--threshold_words', type=int, default=10,
