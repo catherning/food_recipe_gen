@@ -396,7 +396,7 @@ def main(args):
     #####
     # 1. Count words in dataset and clean
     #####
-    vocab_ingrs, vocab_toks = clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs)
+    vocab_ingrs = clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs)
 
     ######
     # 2. Tokenize and build dataset based on vocabularies.
