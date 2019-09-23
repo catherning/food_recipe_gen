@@ -83,14 +83,12 @@ def get_instruction(instruction, replace_dict, instruction_mode=True):
 # In[ ]:
 
 def remove_plurals(counter_ingrs, ingr_clusters):
-    def delete(item):
-        del counter_ingrs[item]
-        del ingr_clusters[item]
+    del_ingrs = []
 
     for k, v in counter_ingrs.items():
 
         if len(k) == 0:
-            delete(k)
+            del_ingrs.append(k)
             continue
 
         gotit = 0
@@ -98,15 +96,18 @@ def remove_plurals(counter_ingrs, ingr_clusters):
             if k[:-2] in counter_ingrs.keys():
                 counter_ingrs[k[:-2]] += v
                 ingr_clusters[k[:-2]].extend(ingr_clusters[k])
-                delete(k)
+                del_ingrs.append(k)
                 gotit = 1
 
         if k[-1] == 's' and gotit == 0:
             if k[:-1] in counter_ingrs.keys():
                 counter_ingrs[k[:-1]] += v
                 ingr_clusters[k[:-1]].extend(ingr_clusters[k])
-                delete(k)
-
+                del_ingrs.append(k)
+                
+    for item in del_ingrs:
+        del counter_ingrs[item]
+        del ingr_clusters[item]
     return counter_ingrs, ingr_clusters
 
 # In[ ]:
@@ -187,7 +188,6 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
 
         counter_toks = Counter()
         counter_ingrs = Counter()
-        counter_ingrs_raw = Counter()
 
         for i, entry in tqdm(enumerate(layer1)):
 
@@ -229,13 +229,11 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
                 counter_ingrs.update(ingrs_list)
     
         with open(ingrs_file, 'wb') as f:
-            counter_ingrs = pickle.dump(f)
+            pickle.dump(counter_ingrs, f)
 
         with open(instrs_file, 'wb') as f:
-            counter_toks = pickle.dump(f)
+            pickle.dump(counter_toks, f)
 
-        with open(os.path.join(args.save_path, 'allingrs_raw_count.pkl'), 'wb') as f:
-            counter_ingrs_raw = pickle.dump(f)
 
     # manually add missing entries for better clustering
     base_words = ['peppers', 'tomato', 'spinach_leaves', 'turkey_breast', 'lettuce_leaf',
@@ -266,6 +264,10 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
     words = [word for word, cnt in counter_toks.items() if cnt >= args.threshold_words]
     ingrs = {word: cnt for word, cnt in counter_ingrs.items() if cnt >= args.threshold_ingrs}
 
+    # Cleaning memory
+    del counter_ingrs
+    del counter_toks
+
     # Recipe vocab
     # Create a vocab wrapper and add some special tokens.
     vocab_toks = Vocabulary()
@@ -278,9 +280,14 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
         vocab_toks.add_word(word)
     vocab_toks.add_word('<pad>')
 
+    # Cleaning memory
+    del words
+
     with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_toks.pkl'), 'wb') as f:
         pickle.dump(vocab_toks, f)
     print("Total token vocabulary size: {}".format(len(vocab_toks)))
+
+    del vocab_toks
 
     # Ingredient vocab
     # Create a vocab wrapper for ingredients
@@ -294,6 +301,9 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
             idx = vocab_ingrs.add_word(ingr, idx)
         idx += 1
     _ = vocab_ingrs.add_word('<pad>', idx)
+
+    with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
+        pickle.dump(vocab_ingrs, f)
     print("Total ingr vocabulary size: {}".format(len(vocab_ingrs)))
 
 
@@ -332,8 +342,10 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
         acc_len = raw_instr(instrs, instrs_list, replace_dict_instrs)
 
         # we discard recipes with too many or too few ingredients or instruction words
-        if len(labels) < args.minnumingrs or len(instrs_list) < args.minnuminstrs \
-                or len(instrs_list) >= args.maxnuminstrs or len(labels) >= args.maxnumingrs \
+        if len(labels) < args.minnumingrs \
+                or len(instrs_list) < args.minnuminstrs \
+                or len(instrs_list) >= args.maxnuminstrs \
+                or len(labels) >= args.maxnumingrs \
                 or acc_len < args.minnumwords:
             continue
 
@@ -350,12 +362,21 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
                     'ingredients': ingrs_list, 'title': title}
         dataset[entry['partition']].append(newentry)
 
-    print('Dataset size:')
+    print("Dataset size:")
     for split in dataset.keys():
+        with open(os.path.join(args.save_path, args.suff+'recipe1m_' + split + '.pkl'), 'wb') as f:
+            pickle.dump(dataset[split], f)
+
         print(split, ':', len(dataset[split]))
 
 
-def build_vocab_recipe1m(args):
+def main(args):
+    """
+    Builds vocab recipe1m
+    :param args:
+    :return:
+    """
+
     print ("Loading data...")
     with open(os.path.join(args.recipe1m_path, 'det_ingrs.json'), 'r') as f:
         dets = json.load(f)
@@ -380,22 +401,8 @@ def build_vocab_recipe1m(args):
     ######
     # 2. Tokenize and build dataset based on vocabularies.
     ######
-    dataset = tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs, vocab_ingrs)
+    tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs, vocab_ingrs)
 
-    return vocab_ingrs, dataset
-
-# In[ ]:
-def main(args):
-
-    vocab_ingrs, dataset = build_vocab_recipe1m(args)
-
-    with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
-        pickle.dump(vocab_ingrs, f)
-
-
-    for split in dataset.keys():
-        with open(os.path.join(args.save_path, args.suff+'recipe1m_' + split + '.pkl'), 'wb') as f:
-            pickle.dump(dataset[split], f)
 
 # In[ ]:
 if __name__ == '__main__':
@@ -410,7 +417,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--suff', type=str, default='')
 
-    parser.add_argument('--threshold_ingrs', type=int, default=10, #test with 6 ?
+    parser.add_argument('--threshold_ingrs', type=int, default=10,
                         help='minimum ingr count threshold')
 
     parser.add_argument('--threshold_words', type=int, default=10,
@@ -419,11 +426,11 @@ if __name__ == '__main__':
     parser.add_argument('--maxnuminstrs', type=int, default=20,
                         help='max number of instructions (sentences)')
 
-    parser.add_argument('--maxnumingrs', type=int, default=20,
-                        help='max number of ingredients')
-
     parser.add_argument('--minnuminstrs', type=int, default=2,
                         help='min number of instructions (sentences)')
+
+    parser.add_argument('--maxnumingrs', type=int, default=20,
+                        help='max number of ingredients')
 
     parser.add_argument('--minnumingrs', type=int, default=2,
                         help='min number of ingredients')
