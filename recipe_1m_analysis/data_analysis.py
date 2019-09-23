@@ -83,12 +83,14 @@ def get_instruction(instruction, replace_dict, instruction_mode=True):
 # In[ ]:
 
 def remove_plurals(counter_ingrs, ingr_clusters):
-    del_ingrs = []
+    def delete(item):
+        del counter_ingrs[item]
+        del ingr_clusters[item]
 
     for k, v in counter_ingrs.items():
 
         if len(k) == 0:
-            del_ingrs.append(k)
+            delete(k)
             continue
 
         gotit = 0
@@ -96,17 +98,15 @@ def remove_plurals(counter_ingrs, ingr_clusters):
             if k[:-2] in counter_ingrs.keys():
                 counter_ingrs[k[:-2]] += v
                 ingr_clusters[k[:-2]].extend(ingr_clusters[k])
-                del_ingrs.append(k)
+                delete(k)
                 gotit = 1
 
         if k[-1] == 's' and gotit == 0:
             if k[:-1] in counter_ingrs.keys():
                 counter_ingrs[k[:-1]] += v
                 ingr_clusters[k[:-1]].extend(ingr_clusters[k])
-                del_ingrs.append(k)
-    for item in del_ingrs:
-        del counter_ingrs[item]
-        del ingr_clusters[item]
+                delete(k)
+
     return counter_ingrs, ingr_clusters
 
 # In[ ]:
@@ -157,6 +157,16 @@ def update_counter(list_, counter_toks, istrain=False):
             counter_toks.update(tokens)
 # In[ ]:
 
+def raw_instr(instrs, instrs_list, replace_dict_instrs):
+    acc_len = 0
+    for instr in instrs:
+        instr = instr['text']
+        instr = get_instruction(instr, replace_dict_instrs)
+        if len(instr) > 0:
+            instrs_list.append(instr)
+            acc_len += len(instr)
+    return acc_len
+
 def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs):
     #####
     # 1. Count words in dataset and clean
@@ -166,8 +176,11 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
 
     if os.path.exists(ingrs_file) and os.path.exists(instrs_file) and not args.forcegen:
         print("loading pre-extracted word counters")
-        counter_ingrs = pickle.load(open(ingrs_file, 'rb'))
-        counter_toks = pickle.load(open(instrs_file, 'rb'))
+        with open(ingrs_file, 'rb') as f:
+            counter_ingrs = pickle.load(f)
+        with open(instrs_file, 'rb') as f:
+            counter_toks = pickle.load(f)
+
     else:
         if not os.path.exists(args.save_path):
             os.makedirs(args.save_path)
@@ -197,18 +210,13 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
                     ingrs_list.append(det_ingr_undrs)
 
             # get raw text for instructions of this entry
-            acc_len = 0
-            for instr in instrs:
-                instr = instr['text']
-                instr = get_instruction(instr, replace_dict_instrs)
-                if len(instr) > 0:
-                    instrs_list.append(instr)
-                    acc_len += len(instr)
+            acc_len = raw_instr(instrs, instrs_list, replace_dict_instrs)
 
-            #TODO can move up ?
             # discard recipes with too few or too many ingredients or instruction words
-            if len(ingrs_list) < args.minnumingrs or len(instrs_list) < args.minnuminstrs \
-                    or len(instrs_list) >= args.maxnuminstrs or len(ingrs_list) >= args.maxnumingrs \
+            if len(ingrs_list) < args.minnumingrs \
+                    or len(instrs_list) < args.minnuminstrs \
+                    or len(instrs_list) >= args.maxnuminstrs \
+                    or len(ingrs_list) >= args.maxnumingrs \
                     or acc_len < args.minnumwords:
                 continue
 
@@ -219,10 +227,15 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
                 counter_toks.update(title)
             if entry['partition'] == 'train':
                 counter_ingrs.update(ingrs_list)
+    
+        with open(ingrs_file, 'wb') as f:
+            counter_ingrs = pickle.dump(f)
 
-        pickle.dump(counter_ingrs, open(ingrs_file, 'wb'))
-        pickle.dump(counter_toks, open(instrs_file, 'wb'))
-        pickle.dump(counter_ingrs_raw, open(os.path.join(args.save_path, 'allingrs_raw_count.pkl'), 'wb'))
+        with open(instrs_file, 'wb') as f:
+            counter_toks = pickle.dump(f)
+
+        with open(os.path.join(args.save_path, 'allingrs_raw_count.pkl'), 'wb') as f:
+            counter_ingrs_raw = pickle.dump(f)
 
     # manually add missing entries for better clustering
     base_words = ['peppers', 'tomato', 'spinach_leaves', 'turkey_breast', 'lettuce_leaf',
@@ -248,6 +261,7 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
 
     counter_ingrs, cluster_ingrs = cluster_ingredients(counter_ingrs)
     counter_ingrs, cluster_ingrs = remove_plurals(counter_ingrs, cluster_ingrs)
+
     # If the word frequency is less than 'threshold', then the word is discarded.
     words = [word for word, cnt in counter_toks.items() if cnt >= args.threshold_words]
     ingrs = {word: cnt for word, cnt in counter_ingrs.items() if cnt >= args.threshold_ingrs}
@@ -264,6 +278,10 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
         vocab_toks.add_word(word)
     vocab_toks.add_word('<pad>')
 
+    with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_toks.pkl'), 'wb') as f:
+        pickle.dump(vocab_toks, f)
+    print("Total token vocabulary size: {}".format(len(vocab_toks)))
+
     # Ingredient vocab
     # Create a vocab wrapper for ingredients
     vocab_ingrs = Vocabulary()
@@ -277,9 +295,9 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
         idx += 1
     _ = vocab_ingrs.add_word('<pad>', idx)
     print("Total ingr vocabulary size: {}".format(len(vocab_ingrs)))
-    print("Total token vocabulary size: {}".format(len(vocab_toks)))
 
-    return vocab_ingrs, vocab_toks
+
+    return vocab_ingrs
 
 
 def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs, vocab_ingrs):
@@ -311,13 +329,7 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
                     labels.append(label_idx)
 
         # get raw text for instructions of this entry
-        acc_len = 0
-        for instr in instrs:
-            instr = instr['text']
-            instr = get_instruction(instr, replace_dict_instrs)
-            if len(instr) > 0:                
-                instrs_list.append(instr)
-                acc_len += len(instr)
+        acc_len = raw_instr(instrs, instrs_list, replace_dict_instrs)
 
         # we discard recipes with too many or too few ingredients or instruction words
         if len(labels) < args.minnumingrs or len(instrs_list) < args.minnuminstrs \
@@ -345,9 +357,11 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
 
 def build_vocab_recipe1m(args):
     print ("Loading data...")
-    dets = json.load(open(os.path.join(args.recipe1m_path, 'det_ingrs.json'), 'r'))
-    layer1 = json.load(open(os.path.join(args.recipe1m_path, 'layer1.json'), 'r'))
-
+    with open(os.path.join(args.recipe1m_path, 'det_ingrs.json'), 'r') as f:
+        dets = json.load(f)
+    
+    with open(os.path.join(args.recipe1m_path, 'layer1.json'), 'r') as f:
+        layer1 = json.load(f)
 
     print("Loaded data.")
     print("Found %d recipes in the dataset." % (len(layer1)))
@@ -368,17 +382,16 @@ def build_vocab_recipe1m(args):
     ######
     dataset = tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs, vocab_ingrs)
 
-    return vocab_ingrs, vocab_toks, dataset
+    return vocab_ingrs, dataset
 
 # In[ ]:
 def main(args):
 
-    vocab_ingrs, vocab_toks, dataset = build_vocab_recipe1m(args)
+    vocab_ingrs, dataset = build_vocab_recipe1m(args)
 
     with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
         pickle.dump(vocab_ingrs, f)
-    with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_toks.pkl'), 'wb') as f:
-        pickle.dump(vocab_toks, f)
+
 
     for split in dataset.keys():
         with open(os.path.join(args.save_path, args.suff+'recipe1m_' + split + '.pkl'), 'wb') as f:
