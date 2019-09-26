@@ -117,3 +117,4 @@ dmypy.json
 .pyre/
 *.pkl
 *.hdf5
+*.jpg
