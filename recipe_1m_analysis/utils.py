@@ -1,6 +1,7 @@
 import os
 import pickle
-import sys
+import torch
+from torch.utils.data import Dataset, DataLoader
 
 FOLDER_PATH = "D:\\Documents\\food_recipe_gen\\recipe_1m_analysis\\data"
 DATA_FILES = ["allingrs_count.pkl",
@@ -40,3 +41,47 @@ class Vocabulary(object):
 
     def __len__(self):
         return len(self.idx2word)
+
+
+
+class RecipesDataset(Dataset):
+    """Recipes dataset."""
+
+    def __init__(self, file):
+        """
+        Args:
+            file (string): Path to the file
+        """
+        with open(file,'rb') as f:
+            self.data=pickle.load(f)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        
+        sample = {'title': self.data[idx]["title"], 
+                  'ingredients': self.data[idx]["ingredients"],
+                  'instructions':self.data[idx]["tokenized"],}
+
+        return sample
+
+recipe_dataset=RecipesDataset(os.path.join(FOLDER_PATH,DATA_FILES[2]))
+dataset_loader = torch.utils.data.DataLoader(recipe_dataset,
+                                             batch_size=32, shuffle=True,
+                                             num_workers=4)
+
+with open(os.path.join(FOLDER_PATH,DATA_FILES[3]),'rb') as f:
+    vocab_ingrs=pickle.load(f)
+
+
+recipe=recipe_dataset[0]
+ingr=recipe["ingredients"]
+ingr_idx=[]
+for el in ingr:
+    ingr_idx.append(vocab_ingrs.word2idx[el])
+
+one_hot_enc = torch.nn.functional.one_hot(torch.LongTensor(ingr_idx), max(vocab_ingrs.idx2word.keys()))
+print(one_hot_enc.shape)
