@@ -3,7 +3,7 @@ import pickle
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-FOLDER_PATH = "D:\\Documents\\food_recipe_gen\\recipe_1m_analysis\\data"
+FOLDER_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)),"data")
 DATA_FILES = ["allingrs_count.pkl",
                 "allwords_count.pkl",
                 "recipe1m_test.pkl",
