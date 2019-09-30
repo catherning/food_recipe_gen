@@ -1,3 +1,14 @@
+import os
+import pickle
+import sys
+
+FOLDER_PATH = "D:\\Documents\\food_recipe_gen\\recipe_1m_analysis\\data"
+DATA_FILES = ["allingrs_count.pkl",
+                "allwords_count.pkl",
+                "recipe1m_test.pkl",
+                "recipe1m_vocab_ingrs.pkl",
+                "recipe1m_vocab_toks.pkl"]
+
 class Vocabulary(object):
     """Simple vocabulary wrapper."""
     def __init__(self):
