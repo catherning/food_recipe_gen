@@ -4,7 +4,7 @@
 # https://github.com/facebookresearch/inversecooking/blob/master/src/build_vocab.py
     
 
-# In[ ]:
+
 
 import nltk
 import pickle
@@ -18,7 +18,7 @@ import re
 
 from utils import Vocabulary
 
-# In[ ]:
+
 
 def get_ingredient(det_ingr, replace_dict):
     det_ingr_undrs = det_ingr['text'].lower()
@@ -33,7 +33,7 @@ def get_ingredient(det_ingr, replace_dict):
 
     return det_ingr_undrs
 
-# In[ ]:
+
 
 def get_instruction(instruction, replace_dict, instruction_mode=True):
     instruction = instruction.lower()
@@ -48,7 +48,7 @@ def get_instruction(instruction, replace_dict, instruction_mode=True):
         instruction = ''
     return instruction
 
-# In[ ]:
+
 
 def remove_plurals(counter_ingrs, ingr_clusters):
     del_ingrs = []
@@ -78,7 +78,7 @@ def remove_plurals(counter_ingrs, ingr_clusters):
         del ingr_clusters[item]
     return counter_ingrs, ingr_clusters
 
-# In[ ]:
+
 def cluster_ingredients(counter_ingrs):
     mydict = dict()
     mydict_ingrs = dict()
@@ -118,13 +118,12 @@ def cluster_ingredients(counter_ingrs):
 
     return mydict, mydict_ingrs
 
-# In[ ]:
+
 def update_counter(list_, counter_toks, istrain=False):
     for sentence in list_:
         tokens = nltk.tokenize.word_tokenize(sentence)
         if istrain:
             counter_toks.update(tokens)
-# In[ ]:
 
 def raw_instr(instrs, instrs_list, replace_dict_instrs):
     acc_len = 0
@@ -372,7 +371,7 @@ def main(args):
     tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs, vocab_ingrs)
 
 
-# In[ ]:
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()

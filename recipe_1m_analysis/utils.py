@@ -68,20 +68,22 @@ class RecipesDataset(Dataset):
 
         return sample
 
-recipe_dataset=RecipesDataset(os.path.join(FOLDER_PATH,DATA_FILES[2]))
-dataset_loader = torch.utils.data.DataLoader(recipe_dataset,
-                                             batch_size=32, shuffle=True,
-                                             num_workers=4)
+if __name__ == "__main__":
 
-with open(os.path.join(FOLDER_PATH,DATA_FILES[3]),'rb') as f:
-    vocab_ingrs=pickle.load(f)
+    recipe_dataset=RecipesDataset(os.path.join(FOLDER_PATH,DATA_FILES[2]))
+    dataset_loader = torch.utils.data.DataLoader(recipe_dataset,
+                                                batch_size=32, shuffle=True,
+                                                num_workers=4)
+
+    with open(os.path.join(FOLDER_PATH,DATA_FILES[3]),'rb') as f:
+        vocab_ingrs=pickle.load(f)
 
 
-recipe=recipe_dataset[0]
-ingr=recipe["ingredients"]
-ingr_idx=[]
-for el in ingr:
-    ingr_idx.append(vocab_ingrs.word2idx[el])
+    recipe=recipe_dataset[0]
+    ingr=recipe["ingredients"]
+    ingr_idx=[]
+    for el in ingr:
+        ingr_idx.append(vocab_ingrs.word2idx[el])
 
-one_hot_enc = torch.nn.functional.one_hot(torch.LongTensor(ingr_idx), max(vocab_ingrs.idx2word.keys()))
-print(one_hot_enc.shape)
+    one_hot_enc = torch.nn.functional.one_hot(torch.LongTensor(ingr_idx), max(vocab_ingrs.idx2word.keys()))
+    print(one_hot_enc.shape)
