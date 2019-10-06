@@ -15,20 +15,20 @@ import numpy as np
 import re
 
 from utils import Vocabulary
+import ingr_normalization as ingr_norm
 
-
-def get_ingredient(det_ingr, replace_dict):
-    det_ingr_undrs = det_ingr['text'].lower()
-    det_ingr_undrs = ''.join(i for i in det_ingr_undrs if not i.isdigit())
-
-    for rep, char_list in replace_dict.items():
-        for c_ in char_list:
-            if c_ in det_ingr_undrs:
-                det_ingr_undrs = det_ingr_undrs.replace(c_, rep)
-    det_ingr_undrs = det_ingr_undrs.strip()
-    det_ingr_undrs = det_ingr_undrs.replace(' ', '_')
-
-    return det_ingr_undrs
+# def get_ingredient(det_ingr, replace_dict):
+#     det_ingr_undrs = det_ingr['text'].lower()
+#     det_ingr_undrs = ''.join(i for i in det_ingr_undrs if not i.isdigit())
+#
+#     for rep, char_list in replace_dict.items():
+#         for c_ in char_list:
+#             if c_ in det_ingr_undrs:
+#                 det_ingr_undrs = det_ingr_undrs.replace(c_, rep)
+#     det_ingr_undrs = det_ingr_undrs.strip()
+#     det_ingr_undrs = det_ingr_undrs.replace(' ', '_')
+#
+#     return det_ingr_undrs
 
 
 def get_instruction(instruction, replace_dict, instruction_mode=True):
@@ -135,6 +135,7 @@ def raw_instr(instrs, instrs_list, replace_dict_instrs):
 def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs):
     #####
     # 1. Count words in dataset and clean
+    #####
 
     ingrs_file = os.path.join(args.save_path, 'allingrs_count.pkl')
     instrs_file = os.path.join(args.save_path, 'allwords_count.pkl')
@@ -165,14 +166,14 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
             det_ingrs = dets[idx2ind[entry['id']]]['ingredients']
 
             valid = dets[idx2ind[entry['id']]]['valid']
-            det_ingrs_filtered = []
 
             for j, det_ingr in enumerate(det_ingrs):
                 if len(det_ingr) > 0 and valid[j]:
-                    det_ingr_undrs = get_ingredient(
-                        det_ingr, replace_dict_ingrs)
-                    det_ingrs_filtered.append(det_ingr_undrs)
-                    ingrs_list.append(det_ingr_undrs)
+                    # det_ingr_undrs = get_ingredient(det_ingr, replace_dict_ingrs)
+                    det_ingr_undrs = ingr_norm.normalize_ingredient(det_ingr["text"])
+
+                    if det_ingr_undrs is not None:
+                        ingrs_list.append(det_ingr_undrs)
 
             # get raw text for instructions of this entry
             acc_len = raw_instr(instrs, instrs_list, replace_dict_instrs)
@@ -192,7 +193,7 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
             if entry['partition'] == 'train':
                 counter_toks.update(title)
             if entry['partition'] == 'train':
-                counter_ingrs.update(ingrs_list)
+                counter_ingrs.update([ingr.name for ingr in ingrs_list])
 
         with open(ingrs_file, 'wb') as f:
             pickle.dump(counter_ingrs, f)
@@ -212,7 +213,7 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
                   'bouillon_granules', 'lettuce_leaf', 'stuffing_mix', 'parsley_flakes', 'chicken_breast',
                   'basil_leaves', 'baguettes', 'green_tea', 'peanut_butter', 'green_onion', 'fresh_cilantro',
                   'breaded_chicken', 'hot_pepper', 'dried_lavender', 'white_chocolate',
-                  'dill_weed', 'cake_mix', 'cheese_spread', 'turkey_breast', 'chucken_thighs', 'basil_leaves',
+                  'dill_weed', 'cake_mix', 'cheese_spread', 'turkey_breast', 'chicken_thighs', 'basil_leaves',
                   'mandarin_orange', 'laurel', 'cabbage_head', 'pistachio', 'cheese_dip',
                   'thyme_leave', 'boneless_pork', 'red_pepper', 'onion_dip', 'skinless_chicken', 'dark_chocolate',
                   'canned_corn', 'muffin', 'cracker_crust', 'bread_crumbs', 'frozen_broccoli',
@@ -267,7 +268,7 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
         for ingr in cluster_ingrs[k]:
             idx = vocab_ingrs.add_word(ingr, idx)
         idx += 1
-    _ = vocab_ingrs.add_word('<pad>', idx)
+    vocab_ingrs.add_word('<pad>', idx)
 
     with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
         pickle.dump(vocab_ingrs, f)
@@ -298,11 +299,14 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
 
         for j, det_ingr in enumerate(det_ingrs):
             if len(det_ingr) > 0 and valid[j]:
-                det_ingr_undrs = get_ingredient(det_ingr, replace_dict_ingrs)
-                ingrs_list.append(det_ingr_undrs)
-                label_idx = vocab_ingrs(det_ingr_undrs)
-                if label_idx is not vocab_ingrs('<pad>') and label_idx not in labels:
-                    labels.append(label_idx)
+                # det_ingr_undrs = get_ingredient(det_ingr, replace_dict_ingrs)
+                det_ingr_undrs = ingr_norm.normalize_ingredient(det_ingr["text"])
+
+                if det_ingr_undrs is not None:
+                    ingrs_list.append(det_ingr_undrs)
+                    label_idx = vocab_ingrs(det_ingr_undrs.name)
+                    if label_idx is not vocab_ingrs('<pad>') and label_idx not in labels:
+                        labels.append(label_idx)
 
         # get raw text for instructions of this entry
         acc_len = raw_instr(instrs, instrs_list, replace_dict_instrs)
