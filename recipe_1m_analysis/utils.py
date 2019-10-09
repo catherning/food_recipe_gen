@@ -3,6 +3,12 @@ import pickle
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+###
+# Add following lines in the file where you want to import the current utils file 
+# import sys
+# sys.path.insert(0, "D:\\Documents\\food_recipe_gen\\recipe_1m_analysis")
+###
+
 FOLDER_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data")
 DATA_FILES = ["allingrs_count.pkl",
               "allwords_count.pkl",

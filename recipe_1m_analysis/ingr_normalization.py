@@ -9,21 +9,6 @@ from textblob import Word
 
 Ingredient = namedtuple("Ingredient", "name amount plural")
 
-# with open(os.path.join("D:\\Google Drive\\Catherning Folder\\THU\\Thesis\\Recipe datasets\\Recipe1M\\recipe1M_layers",
-#                        'det_ingrs.json'), 'r') as f:
-#     dets = json.load(f)
-
-# replace_dict_ingrs = {'and': ['&', "'n"], '': [
-#     '%', ',', '.', '#', '[', ']', '!', '?']}
-#
-# units_dict = {
-#     "g": ["g", "lb", "ounce"],
-#     "teaspoon": ["teaspoon", "cup", "bottle"],
-#     "box": ["box", "can", "pack", "package"],
-#     "piece": ["piece", "slice"],
-#     "cm": ["cm", "inch"]
-# }
-
 units = re.compile(
     r'^(cubes?|cups?|c(a?ns?)?|[tT]|bulbs?|sprigs?|glass(es)?|dice|blocks?|an?|l|fl(uid)?\.?|ears?|lea(f|ves)|jars?|cartons?|strips?|heads?|wedges?|envelopes?|pints?|stalks?|sticks?|pinch(es)?|qts?|quarts?|handful|weight|bottles?|grinds?|tb\.?|lbs?\.?|oz\.?|mls?|g|cloves?|containers?|tablespoons?|teaspoons?|dash(es)?|pounds?|pinch|box(es)?|cans?|(milli)?lit[er]{2}s?|pkg\.?|pack(et)s?|packages?|whole|bars?|bags?|tbsps?\.?|tbs\.?|ts|tsps?\.?|ounces?|dash|pieces?|slices?|bunch(es)?|sticks?|fl\.?|gallons?|squares?|knobs?|grams?|kgs?|tub(es)?|kilograms?|tins?|%|drizzles?|splash(es)?|chunks?|inch(es)?)$')
 number = re.compile(r'((\d+)?\.\d+|(\d+(/\d+)?-)?\d+(/\d+)?)')
@@ -61,24 +46,6 @@ unit_conversions['kilogram', 'kgs', 'kg', 'kilograms'] = ('g', 0.001)
 # modifier_unifications['nonfat', 'non-fat'] = 'fat-free'
 # modifier_unifications['low-fat', 'reduced-fat'] = 'fat-reduced'
 # modifier_unifications['flatleaf'] = 'flat-leaf'
-
-
-# def get_ingredient(det_ingr, replace_dict):
-#     FLAG_DIGIT = False
-#     det_ingr_undrs = det_ingr['text'].lower()
-#     for i in det_ingr_undrs:
-#         if i.isdigit():
-#             FLAG_DIGIT = True
-#     det_ingr_undrs = ''.join(i for i in det_ingr_undrs if not i.isdigit())
-#
-#     for rep, char_list in replace_dict.items():
-#         for c_ in char_list:
-#             if c_ in det_ingr_undrs:
-#                 det_ingr_undrs = det_ingr_undrs.replace(c_, rep)
-#     det_ingr_undrs = det_ingr_undrs.strip()
-#     det_ingr_undrs = det_ingr_undrs.replace(' ', '_')
-#
-#     return det_ingr_undrs, FLAG_DIGIT
 
 
 def make_fraction(string):
@@ -195,26 +162,3 @@ def normalize_ingredient(raw_name):
         )
     else:
         return None
-
-
-# for i in range(0, 10):
-#     det_ingrs = dets[i]['ingredients']
-#
-#     for j, det_ingr in enumerate(det_ingrs):
-#         det_ingr_undrs, flag_digit = get_ingredient(
-#             det_ingr, replace_dict_ingrs)
-#         if flag_digit:
-#             # known_unit = False
-#             # for v in units_dict.values():
-#             #     for unit in v:
-#             #         if unit in det_ingr["text"]:
-#             #             known_unit = True
-#             #
-#             # if not known_unit:
-#             #     print(det_ingr)
-#
-#             norm_ingr = normalize_ingredient(det_ingr["text"])
-#             print(norm_ingr.name)
-#             print(norm_ingr.amount)
-#             print(norm_ingr.plural)
-
