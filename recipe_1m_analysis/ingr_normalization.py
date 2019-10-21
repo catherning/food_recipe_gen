@@ -94,18 +94,23 @@ def normalize_ingredient(raw_name):
     raw_name = raw_name.lower()
     for splitter in cut_list:
         if splitter in raw_name:
-            raw_name = raw_name.split(splitter)[0]
+          raw_name = raw_name.split(splitter)[0]
     raw_name = illegal_characters.sub("", raw_name)
-    raw_name = unidecode(raw_name).replace("_", " ").replace(',', '').strip()
+    raw_name = unidecode(raw_name).replace(" ", "_").replace(',', '').strip()
     for replacement in replacements:
         raw_name = raw_name.replace(replacement, replacements[replacement])
-    parts = raw_name.split()
+    
+    # Splits the full raw name in parts, and look at the type of each current one by one
+    parts = raw_name.split("_")
     parts.reverse()  # because pop(0) is terrible
     while parts:
         current = parts.pop()
+
+        # current to leave out
         if current in blacklist or ":" in current:
             continue
-
+        
+        # The current is a number
         is_number = number.match(current)
         if is_number:
             if num == 0:
@@ -125,23 +130,30 @@ def normalize_ingredient(raw_name):
                             unit = next_token[is_number.end():]
                         else:
                             num += make_fraction(next_token)
+        
+        # The current is a unit
         elif units.match(current):
             if current in ('a', 'an'):
                 if num == 0:
                     num = 1
             elif unit is None:
                 unit = current
+
+        # Current is a modifier
         # elif current in modifiers or current[-2:] in ('ly', 'ed'):
         #     adjectives.add(modifier_unifications.get(current, current))
+        
+        # Otherwise current is just a name of ingr
         else:
             lemma = lemmatize(current)
             if lemma != current:
                 current = lemma
                 plural = True
             if name:
-                name += " " + current
+                name += "_" + current
             else:
                 name = current
+    
     num = float(num) if num else None
     if unit is not None and "/" in unit:
         unit = unit.split("/")[0]
@@ -153,6 +165,7 @@ def normalize_ingredient(raw_name):
         unit, multiplier = unit_conversions[unit]
         if num is not None:
             num *= multiplier
+            
     if name:
         return Ingredient(
             name=name,
