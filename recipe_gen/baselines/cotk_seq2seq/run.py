@@ -5,7 +5,7 @@ def run(*argv):
     import time
 
     import sys
-    sys.path.insert(0, "D:\\Documents\\THU\\Cotk\\cotk_seq2seq_exposure_bias")
+    sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
     from utils import Storage
 
     parser = argparse.ArgumentParser(description='A seq2seq model with GRU encoder and decoder. Attention, beamsearch,\
