@@ -254,7 +254,7 @@ class Seq2seq(nn.Module):
         for i in range(n):
             pair = random.choice(self.data.pairs)
             print('>', " ".join(pair[0]))
-            print('=', " ".join(pair[1]))
+            print('=', [" ".join(instr) for instr in pair[1]])
             loss, output_words, _ = self.evaluate(pair[0], pair[1])
             output_sentence = ' '.join(output_words)
             print('<', output_sentence)
