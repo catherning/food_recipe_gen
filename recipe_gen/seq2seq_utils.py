@@ -108,6 +108,7 @@ class Data:
 
 
     def tensorFromSentence(self,vocab, sentence,instructions=False):
+        # TODO: padding ?
         if instructions:
             indexes=[]
             for sent in sentence:
@@ -115,7 +116,7 @@ class Data:
         else:
             indexes = self.list2idx(vocab, sentence)
         indexes.append(self.EOS_token)
-        return torch.tensor(indexes, dtype=torch.long).view(-1, 1)
+        return torch.tensor(indexes, dtype=torch.long)#.view(-1, 1)
 
 
     def tensorsFromPair(self,pair):

@@ -89,7 +89,8 @@ class AttnDecoderRNN(DecoderRNN):
         output = F.relu(output)
         output, hidden = self.gru(output, hidden)
 
-        output = F.log_softmax(self.out(output[0]), dim=1)
+
+        output = self.softmax(self.out(output[0])) # can use CrossEntropy instead if remove log softmax
         return output, hidden, attn_weights
 
 
@@ -149,8 +150,7 @@ class Seq2seq(nn.Module):
             max_len = target_length
         else:
             max_len = self.max_length
-        loss = 0
-
+        
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
@@ -165,14 +165,13 @@ class Seq2seq(nn.Module):
             use_teacher_forcing = False
 
         decoded_words = []
-        decoder_outputs = []
+        decoder_outputs = torch.zeros(max_len,len(self.data.vocab_tokens), device=self.device)
 
         if use_teacher_forcing:
             for di in range(max_len):
                 decoder_output, decoder_hidden = self.decoder(
                     decoder_input, decoder_hidden)
-                # loss += self.criterion(decoder_output, target_tensor[di])
-                decoder_outputs.append(decoder_output)
+                decoder_outputs[di]=decoder_output
                 decoder_input = target_tensor[di]  # Teacher forcing
 
         else:
@@ -180,10 +179,7 @@ class Seq2seq(nn.Module):
                 decoder_output, decoder_hidden = self.decoder(
                     decoder_input, decoder_hidden)
                 topv, topi = decoder_output.topk(1)
-
-                decoder_outputs.append(decoder_output)
-                # if target_tensor is not None:
-                #     loss += self.criterion(decoder_output, target_tensor[di])
+                decoder_outputs[di]=decoder_output
 
                 if topi.item() == self.data.EOS_token:
                     decoded_words.append('<EOS>')
@@ -193,9 +189,6 @@ class Seq2seq(nn.Module):
                         self.data.vocab_tokens.idx2word[topi.item()])
 
                 decoder_input = topi.squeeze().detach()  # detach from history as input
-                
-        # if target_tensor is not None:
-        #     loss /= target_length
 
         return decoder_outputs, decoded_words, None
 
@@ -275,7 +268,6 @@ class Seq2seqAtt(Seq2seq):
 
         self.decoder = AttnDecoderRNN(
             hidden_size, output_size, dropout_p=0.1, max_length=max_length)
-
         self.decoder_optimizer = optim.SGD(
             self.decoder.parameters(), lr=learning_rate)
 
@@ -289,7 +281,6 @@ class Seq2seqAtt(Seq2seq):
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
-        # loss = 0
         decoder_input = torch.tensor(
             [[self.data.SOS_token]], device=self.device)
         decoder_hidden = encoder_hidden
@@ -302,15 +293,14 @@ class Seq2seqAtt(Seq2seq):
 
         decoded_words = []
         decoder_attentions = torch.zeros(self.max_length, self.max_length)
-        decoder_outputs = []
+        decoder_outputs = torch.zeros(max_len,len(self.data.vocab_tokens), device=self.device)
 
         if use_teacher_forcing:
             for di in range(max_len):
                 decoder_output, decoder_hidden, decoder_attention = self.decoder(
                     decoder_input, decoder_hidden, encoder_outputs)
                 decoder_attentions[di] = decoder_attention.data
-                # loss += self.criterion(decoder_output, target_tensor[di])
-                decoder_outputs.append(decoder_output)
+                decoder_outputs[di]=decoder_output
                 decoder_input = target_tensor[di]
 
         else:
@@ -320,9 +310,7 @@ class Seq2seqAtt(Seq2seq):
                 decoder_attentions[di] = decoder_attention.data
                 topv, topi = decoder_output.topk(1)
 
-                decoder_outputs.append(decoder_output)
-                # if target_tensor is not None:
-                #     loss += self.criterion(decoder_output, target_tensor[di])
+                decoder_outputs[di]=decoder_output
 
                 if topi.item() == self.data.EOS_token:
                     decoded_words.append('<EOS>')
@@ -332,8 +320,6 @@ class Seq2seqAtt(Seq2seq):
                         self.data.vocab_tokens.idx2word[topi.item()])
 
                 decoder_input = topi.squeeze().detach()  # detach from history as input
-        # if target_tensor is not None:
-        #     loss /= target_length
 
         return decoder_outputs,decoded_words, decoder_attentions[:di + 1]
 

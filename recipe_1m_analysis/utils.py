@@ -25,6 +25,14 @@ class Vocabulary(object):
         self.idx2word = {}
         self.idx = 0
 
+    def __call__(self, word):
+        if word not in self.word2idx:
+            return self.word2idx['<pad>']
+        return self.word2idx[word]
+
+    def __len__(self):
+        return len(self.idx2word)
+
     def add_word(self, word, idx=None):
         if idx is None:
             if word not in self.word2idx:
@@ -41,14 +49,6 @@ class Vocabulary(object):
                     self.idx2word[idx] = [word]
 
                 return idx
-
-    def __call__(self, word):
-        if word not in self.word2idx:
-            return self.word2idx['<pad>']
-        return self.word2idx[word]
-
-    def __len__(self):
-        return len(self.idx2word)
 
 
 class RecipesDataset(Dataset):
