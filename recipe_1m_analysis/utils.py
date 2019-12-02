@@ -9,6 +9,9 @@ from torch.utils.data import Dataset, DataLoader
 # sys.path.insert(0, "D:\\Documents\\food_recipe_gen\\recipe_1m_analysis")
 ###
 
+MAX_LENGTH = 100
+# MAX_LENGTH = 300
+MAX_INGR = 10
 FOLDER_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data")
 DATA_FILES = ["allingrs_count.pkl",
               "allwords_count.pkl",
@@ -54,13 +57,23 @@ class Vocabulary(object):
 class RecipesDataset(Dataset):
     """Recipes dataset."""
 
-    def __init__(self, file):
-        """
-        Args:
-            file (string): Path to the file
-        """
-        with open(file, 'rb') as f:
-            self.data = pickle.load(f)
+    def __init__(self,FOLDER_PATH,DATA_FILES,max_ingr=10,max_length=MAX_LENGTH):
+        self.SOS_token = 0
+        self.EOS_token = 1
+        self.UNK_token = 2 # TODO: use the predefined special tokens ids from the vocabs!!!!
+        self.max_length = max_length
+        self.max_ingr = max_ingr
+
+        with open(os.path.join(FOLDER_PATH,DATA_FILES[3]),'rb') as f:
+            self.vocab_ingrs=pickle.load(f)
+            
+        with open(os.path.join(FOLDER_PATH,DATA_FILES[4]),'rb') as f:
+            self.vocab_tokens=pickle.load(f)
+
+        with open(os.path.join(FOLDER_PATH,DATA_FILES[2]),'rb') as f:
+            self.data=pickle.load(f)
+        
+        self.process_data()
 
     def __len__(self):
         return len(self.data)
@@ -69,16 +82,88 @@ class RecipesDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        sample = {'title': self.data[idx]["title"],
-                  'ingredients': self.data[idx]["ingredients"],
-                  'instructions': self.data[idx]["tokenized"], }
+        # sample = {#'title': self.data[idx]["title"],
+        #           'ingredients': self.data[idx][0],
+        #           'instructions': self.data[idx][1], }
+        sample =self.data[idx]
 
         return sample
+    
+    def preprocess_data(self):
+
+        pairs=[]
+        for recipe in self.data:
+            pairs.append([recipe["ingredients"],recipe["tokenized"]])
+
+        length=0
+        for i,pair in enumerate(pairs):
+            length_t = len([item for sublist in pair[1] for item in sublist])
+            
+            if length_t>length:
+                length=length_t
+
+        pairs = self.filterPairs(pairs)  
+        return pairs
+
+    def process_data(self):
+        self.pairs = pairs = self.preprocess_data()
+        self.data = []
+        for pair in pairs:
+            self.data.append(self.tensorsFromPair(pair))
+
+    def filterSinglePair(self,p):
+        length=0
+        for ingr in p[0]:
+            if ingr not in self.vocab_ingrs.word2idx:
+                return False
+            
+        for sent in p[1]:
+            
+            for word in sent:
+                # TODO check how steps tokenized ? Put into vocab ???
+                if word not in self.vocab_tokens.word2idx:
+                    return False
+            length+=len(sent)
+        
+        return length < self.max_length and len(p[0])<self.max_ingr
+
+
+    def filterPairs(self,pairs):
+        return [pair for pair in pairs if self.filterSinglePair(pair)]
+
+
+    def list2idx(self,vocab, sentence): 
+        # if doesn't find, use unk_token kind of useless because filtered before
+        return torch.Tensor([vocab.word2idx.get(word,self.UNK_token) for word in sentence])
+
+
+    def tensorFromSentence(self,vocab, sentence,instructions=False):
+        max_size = instructions * self.max_length + (1-instructions) * self.max_ingr
+        tensor_ = torch.zeros(max_size,dtype=torch.long) 
+        if instructions:
+            indexes=[]
+            b_id=0
+            for sent in sentence:
+                tokenized = self.list2idx(vocab, sent)
+                tensor_[b_id:b_id+len(tokenized)]= tokenized
+                b_id += len(tokenized)
+        else:
+            tokenized = self.list2idx(vocab, sentence)
+            tensor_[:len(tokenized)]= tokenized
+            b_id = len(tokenized)
+
+        tensor_[b_id]=self.EOS_token
+        return tensor_
+
+
+    def tensorsFromPair(self,pair):
+        input_tensor = self.tensorFromSentence(self.vocab_ingrs, pair[0])
+        target_tensor = self.tensorFromSentence(self.vocab_tokens, pair[1],instructions=True)
+        return (input_tensor, target_tensor)
 
 
 if __name__ == "__main__":
-
-    recipe_dataset = RecipesDataset(os.path.join(FOLDER_PATH, DATA_FILES[2]))
+    recipe_dataset = RecipesDataset(FOLDER_PATH, DATA_FILES,max_ingr=MAX_INGR,max_length=MAX_LENGTH)
     dataset_loader = torch.utils.data.DataLoader(recipe_dataset,
                                                  batch_size=32, shuffle=True,
                                                  num_workers=4)
@@ -87,10 +172,13 @@ if __name__ == "__main__":
         vocab_ingrs = pickle.load(f)
 
     recipe = recipe_dataset[0]
-    ingr = recipe["ingredients"]
-    ingr_idx = []
-    for el in ingr:
-        ingr_idx.append(vocab_ingrs.word2idx[el])
 
-    one_hot_enc = torch.nn.functional.one_hot(torch.LongTensor(ingr_idx), max(vocab_ingrs.idx2word.keys()))
-    print(one_hot_enc.shape)
+    for i_batch, sample_batched in enumerate(dataset_loader):
+        print(i_batch, sample_batched[0],
+          sample_batched[1])
+
+        if i_batch == 1:
+            break
+
+    # one_hot_enc = torch.nn.functional.one_hot(torch.LongTensor(ingr_idx), max(vocab_ingrs.idx2word.keys()))
+    # print(one_hot_enc.shape)
