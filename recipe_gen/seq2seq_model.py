@@ -3,6 +3,7 @@
 
 # from __future__ import unicode_literals, print_function, division
 from recipe_gen.seq2seq_utils import *
+from recipe_1m_analysis.utils import MAX_LENGTH,MAX_INGR
 from io import open
 import unicodedata
 import re
@@ -21,11 +22,11 @@ sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
 
 
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, max_length=MAX_LENGTH,device="cpu"):
+    def __init__(self, input_size, hidden_size, max_ingr=MAX_INGR,device="cpu"):
         super(EncoderRNN, self).__init__()
         self.hidden_size = hidden_size
         self.device = device
-        self.max_length = max_length
+        self.max_ingr = max_ingr
 
         self.embedding = nn.Embedding(input_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
@@ -40,14 +41,15 @@ class EncoderRNN(nn.Module):
         return torch.zeros(1, 1, self.hidden_size)
 
     def forward_all(self, input_tensor):
-        input_length = input_tensor.size(0)
+        # input_length = input_tensor.size(0)
         encoder_hidden = self.initHidden().to(self.device)
-        encoder_outputs = torch.zeros(
-            self.max_length, self.hidden_size, device=self.device)
+        encoder_outputs = torch.zeros(#self.batch_size, #XXX: ??
+            self.max_ingr, self.hidden_size, device=self.device)
 
-        for ei in range(input_length):
+        for ei in range(self.max_ingr):
+            # TODO: couldn't give directly all input_tensor, not step by step ???
             encoder_output, encoder_hidden = self.forward(
-                input_tensor[ei], encoder_hidden)
+                input_tensor[:,ei], encoder_hidden)
             encoder_outputs[ei] = encoder_output[0, 0]
 
         return encoder_outputs, encoder_hidden
@@ -124,14 +126,19 @@ class Attention(nn.Module):
 
 
 class Seq2seq(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, data, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu"):
+    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR,max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu"):
         super().__init__()
         # all params in arg storage object ?
         self.max_length = max_length
+        self.max_ingr = max_ingr
         self.data = data
+        self.dataloader = torch.utils.data.DataLoader(data,
+                                                 batch_size=batch_size, shuffle=True,
+                                                 num_workers=4)
+        self.batch_size = batch_size
         self.device = device
 
-        self.encoder = EncoderRNN(input_size, hidden_size, max_length=max_length,device=device)
+        self.encoder = EncoderRNN(input_size, hidden_size, max_ingr=max_ingr,device=device)
         self.decoder = DecoderRNN(hidden_size, output_size)
 
         self.encoder_optimizer = optim.SGD(
@@ -145,11 +152,11 @@ class Seq2seq(nn.Module):
         self.criterion = nn.NLLLoss()
 
     def forward(self, input_tensor, target_tensor):
-        if target_tensor is not None:
-            target_length = target_tensor.size(0)
-            max_len = target_length
-        else:
-            max_len = self.max_length
+        # if target_tensor is not None:
+        #     target_length = target_tensor.size(0)
+        #     max_len = target_length
+        # else:
+        #     max_len = self.max_length
         
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
@@ -165,17 +172,17 @@ class Seq2seq(nn.Module):
             use_teacher_forcing = False
 
         decoded_words = []
-        decoder_outputs = torch.zeros(max_len,len(self.data.vocab_tokens), device=self.device)
+        decoder_outputs = torch.zeros(self.max_length,len(self.data.vocab_tokens), device=self.device)
 
         if use_teacher_forcing:
-            for di in range(max_len):
+            for di in range(self.max_length):
                 decoder_output, decoder_hidden = self.decoder(
                     decoder_input, decoder_hidden)
                 decoder_outputs[di]=decoder_output
                 decoder_input = target_tensor[di]  # Teacher forcing
 
         else:
-            for di in range(max_len):
+            for di in range(self.max_length):
                 decoder_output, decoder_hidden = self.decoder(
                     decoder_input, decoder_hidden)
                 topv, topi = decoder_output.topk(1)
@@ -213,11 +220,15 @@ class Seq2seq(nn.Module):
         plot_loss_total = 0  # Reset every plot_every
 
         # TODO: use dataloader
-        training_pairs = [self.data.data[random.randint(
-            0, len(self.data.data)-1)] for i in range(n_iters)]
+        # training_pairs = [self.data.data[random.randint(
+        #     0, len(self.data.data)-1)] for i in range(n_iters)]
+        # for iter in range(1, n_iters + 1):
+        #     training_pair = training_pairs[iter - 1]
+        # TODO: first look at all dim size for encoder AND decoder, then convert with batch
 
-        for iter in range(1, n_iters + 1):
-            training_pair = training_pairs[iter - 1]
+        for i_batch, training_pair in enumerate(self.dataloader):
+            if i_batch ==n_iters:
+                break
             input_tensor = training_pair[0].to(self.device)
             target_tensor = training_pair[1].to(self.device)
 
@@ -262,8 +273,8 @@ class Seq2seq(nn.Module):
 
 
 class Seq2seqAtt(Seq2seq):
-    def __init__(self, input_size, hidden_size, output_size, data, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu"):
-        super().__init__(input_size, hidden_size, output_size, data, max_length=max_length,
+    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu"):
+        super().__init__(input_size, hidden_size, output_size, batch_size, data, max_length=max_length,
                          learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device)
 
         self.decoder = AttnDecoderRNN(
