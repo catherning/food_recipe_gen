@@ -6,6 +6,7 @@ import pandas as pd
 import sys
 sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
 from recipe_1m_analysis.utils import Vocabulary, FOLDER_PATH, DATA_FILES
+import recipe_1m_analysis.ingr_normalization as ingr_norm
 
 filepath = "D:\\Documents\\THU\\Other recipe models\\KitcheNette-master\\KitcheNette-master\\results\\prediction_unknowns_smaller_kitchenette_trained.mdl.csv"
 
@@ -22,14 +23,17 @@ class PairingData:
         data = pd.read_csv(filepath)
         self.pairing_scores = {}
         count_error=0
-        # TODO: norm ingr ingr_norm.normalize_ingredient(row["ingr1"]) before 2idx
+        # TODO: norm ingr ingr_norm.normalize_ingredient(row["ingr1"]) before 2idx 
         for index, row in data.iterrows():
             if row["prediction"] > min_score:
                 try:
                     self.pairing_scores[frozenset(
-                        (self.vocab_ingrs.word2idx[row["ingr1"]], self.vocab_ingrs.word2idx[row["ingr2"]]))] = row["prediction"]
+                        (self.vocab_ingrs.word2idx[ingr_norm.normalize_ingredient(row["ingr1"]).name], self.vocab_ingrs.word2idx[ingr_norm.normalize_ingredient(row["ingr2"]).name]))] = row["prediction"]
                 except KeyError:
                     count_error+=1
+                # except AttributeError:
+                #     print(row["ingr1"],ingr_norm.normalize_ingredient(row["ingr1"]))
+                #     print(row["ingr2"],ingr_norm.normalize_ingredient(row["ingr2"]))
 
         print(f"{len(self)} pairs in total")
         print(f"{count_error} pair(s) not added because of an absent ingredient")

@@ -17,18 +17,7 @@ import re
 from utils import Vocabulary
 import ingr_normalization as ingr_norm
 
-# def get_ingredient(det_ingr, replace_dict):
-#     det_ingr_undrs = det_ingr['text'].lower()
-#     det_ingr_undrs = ''.join(i for i in det_ingr_undrs if not i.isdigit())
-#
-#     for rep, char_list in replace_dict.items():
-#         for c_ in char_list:
-#             if c_ in det_ingr_undrs:
-#                 det_ingr_undrs = det_ingr_undrs.replace(c_, rep)
-#     det_ingr_undrs = det_ingr_undrs.strip()
-#     det_ingr_undrs = det_ingr_undrs.replace(' ', '_')
-#
-#     return det_ingr_undrs
+# TODO: clean all this mess
 
 
 def get_instruction(instruction, replace_dict, instruction_mode=True):
@@ -169,7 +158,7 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
 
             for j, det_ingr in enumerate(det_ingrs):
                 if len(det_ingr) > 0 and valid[j]:
-                    # det_ingr_undrs = get_ingredient(det_ingr, replace_dict_ingrs)
+    
                     det_ingr_undrs = ingr_norm.normalize_ingredient(det_ingr["text"])
 
                     if det_ingr_undrs is not None:
@@ -192,7 +181,7 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
             title = nltk.tokenize.word_tokenize(entry['title'].lower())
             if entry['partition'] == 'train':
                 counter_toks.update(title)
-            if entry['partition'] == 'train':
+            # if entry['partition'] == 'train':
                 counter_ingrs.update([ingr.name for ingr in ingrs_list])
 
         with open(ingrs_file, 'wb') as f:
@@ -226,49 +215,42 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
     counter_ingrs, cluster_ingrs = cluster_ingredients(counter_ingrs)
     counter_ingrs, cluster_ingrs = remove_plurals(counter_ingrs, cluster_ingrs)
 
-    # If the word frequency is less than 'threshold', then the word is discarded.
-    words = [word for word, cnt in counter_toks.items() if cnt >=
-             args.threshold_words]
-    ingrs = {word: cnt for word, cnt in counter_ingrs.items() if cnt >=
-             args.threshold_ingrs}
-
-    # Cleaning memory
-    del counter_ingrs
-    del counter_toks
-
-    # Recipe vocab
+    ## Recipe vocab
     # Create a vocab wrapper and add some special tokens.
     vocab_toks = Vocabulary()
+    vocab_toks.add_word('<pad>')
     vocab_toks.add_word('<start>')
     vocab_toks.add_word('<end>')
     vocab_toks.add_word('<eoi>')
 
     # Add the words to the vocabulary.
-    for i, word in enumerate(words):
-        vocab_toks.add_word(word)
-    vocab_toks.add_word('<pad>')
-
-    # Cleaning memory
-    del words
+    for word, cnt in counter_toks.items():
+        # If the word frequency is less than 'threshold', then the word is discarded.
+        if cnt >= args.threshold_words:
+            vocab_toks.add_word(word)
 
     with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_toks.pkl'), 'wb') as f:
         pickle.dump(vocab_toks, f)
     print("Total token vocabulary size: {}".format(len(vocab_toks)))
 
+    # Cleaning memory
+    del counter_ingrs
+    del counter_toks
     del vocab_toks
 
-    # Ingredient vocab
+    ## Ingredient vocab
     # Create a vocab wrapper for ingredients
     vocab_ingrs = Vocabulary()
+    vocab_ingrs.add_word('<pad>')
     idx = vocab_ingrs.add_word('<end>')
-    # this returns the next idx to add words to
 
     # Add the ingredients to the vocabulary.
-    for k, _ in ingrs.items():
-        for ingr in cluster_ingrs[k]:
-            idx = vocab_ingrs.add_word(ingr, idx)
-        idx += 1
-    vocab_ingrs.add_word('<pad>', idx)
+    for word,cnt in counter_ingrs.items():
+        if cnt >= args.threshold_ingrs:
+            for ingr in cluster_ingrs[word]:
+                idx = vocab_ingrs.add_word(ingr, idx)
+            idx += 1
+        
 
     with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
         pickle.dump(vocab_ingrs, f)

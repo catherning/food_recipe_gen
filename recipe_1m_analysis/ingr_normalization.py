@@ -9,9 +9,11 @@ from textblob import Word
 
 Ingredient = namedtuple("Ingredient", "name amount plural")
 
+# removed |cloves?|, that is also an ingredient
 units = re.compile(
-    r'^(cubes?|cups?|c(a?ns?)?|[tT]|bulbs?|sprigs?|glass(es)?|dice|blocks?|an?|l|fl(uid)?\.?|ears?|lea(f|ves)|jars?|cartons?|strips?|heads?|wedges?|envelopes?|pints?|stalks?|sticks?|pinch(es)?|qts?|quarts?|handful|weight|bottles?|grinds?|tb\.?|lbs?\.?|oz\.?|mls?|g|cloves?|containers?|tablespoons?|teaspoons?|dash(es)?|pounds?|pinch|box(es)?|cans?|(milli)?lit[er]{2}s?|pkg\.?|pack(et)s?|packages?|whole|bars?|bags?|tbsps?\.?|tbs\.?|ts|tsps?\.?|ounces?|dash|pieces?|slices?|bunch(es)?|sticks?|fl\.?|gallons?|squares?|knobs?|grams?|kgs?|tub(es)?|kilograms?|tins?|%|drizzles?|splash(es)?|chunks?|inch(es)?)$')
+    r'^(cubes?|cups?|c(a?ns?)?|[tT]|bulbs?|sprigs?|glass(es)?|dice|blocks?|an?|l|fl(uid)?\.?|ears?|lea(f|ves)|jars?|cartons?|strips?|heads?|wedges?|envelopes?|pints?|stalks?|sticks?|pinch(es)?|qts?|quarts?|handful|weight|bottles?|grinds?|tb\.?|lbs?\.?|oz\.?|mls?|g|containers?|tablespoons?|teaspoons?|dash(es)?|pounds?|pinch|box(es)?|cans?|(milli)?lit[er]{2}s?|pkg\.?|pack(et)s?|packages?|whole|bars?|bags?|tbsps?\.?|tbs\.?|ts|tsps?\.?|ounces?|dash|pieces?|slices?|bunch(es)?|sticks?|fl\.?|gallons?|squares?|knobs?|grams?|kgs?|tub(es)?|kilograms?|tins?|%|drizzles?|splash(es)?|chunks?|inch(es)?)$')
 number = re.compile(r'((\d+)?\.\d+|(\d+(/\d+)?-)?\d+(/\d+)?)')
+# TODO: add "whole" to blacklist ?????
 blacklist = {'of', 'and', '&amp;', 'or', 'some', 'many', 'few', 'couple', 'as', 'needed', 'plus', 'more', 'to', 'serve',
              'taste', 'x', 'in', 'cook', 'with', 'at', 'room', 'temperature', 'only', 'cover', 'length',
              'into', 'if', 'then', 'out', 'preferably', 'well', 'good', 'better', 'best', 'about', 'all-purpose', 'all',
@@ -175,3 +177,6 @@ def normalize_ingredient(raw_name):
         )
     else:
         return None
+
+if __name__=="__main__":
+    print(normalize_ingredient("whole_cloves"))
