@@ -21,26 +21,26 @@ import sys
 sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
 
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, max_ingr=MAX_INGR,device="cpu"):
+    def __init__(self, input_size, hidden_size, batch_size,max_ingr=MAX_INGR,device="cpu"):
         super(EncoderRNN, self).__init__()
         self.hidden_size = hidden_size
         self.device = device
         self.max_ingr = max_ingr
+        self.batch_size=batch_size
 
         self.embedding = nn.Embedding(input_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
 
     def forward(self, input_, hidden):
-        embedded = self.embedding(input_).view(1, 1, -1)
+        embedded = self.embedding(input_).view(1, self.batch_size, -1)
         output = embedded
         output, hidden = self.gru(output, hidden)
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size)
+        return torch.zeros(1, self.batch_size, self.hidden_size)
 
     def forward_all(self, input_tensor):
-        # input_length = input_tensor.size(0)
         encoder_hidden = self.initHidden().to(self.device)
         encoder_outputs = torch.zeros(#self.batch_size, #XXX: ??
             self.max_ingr, self.hidden_size, device=self.device)
@@ -48,16 +48,17 @@ class EncoderRNN(nn.Module):
         for ei in range(self.max_ingr):
             # TODO: couldn't give directly all input_tensor, not step by step ???
             encoder_output, encoder_hidden = self.forward(
-                input_tensor[ei], encoder_hidden)
+                input_tensor[:,ei], encoder_hidden)
             encoder_outputs[ei] = encoder_output[0, 0]
 
         return encoder_outputs, encoder_hidden
 
 
 class DecoderRNN(nn.Module):
-    def __init__(self, hidden_size, output_size):
+    def __init__(self, hidden_size, output_size, batch_size):
         super(DecoderRNN, self).__init__()
         self.hidden_size = hidden_size
+        self.batch_size = batch_size
 
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
@@ -76,13 +77,13 @@ class DecoderRNN(nn.Module):
 
 
 class AttnDecoderRNN(DecoderRNN):
-    def __init__(self, hidden_size, output_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH):
-        super(AttnDecoderRNN, self).__init__(hidden_size, output_size)
+    def __init__(self, hidden_size, output_size, batch_size,dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH):
+        super(AttnDecoderRNN, self).__init__(hidden_size, output_size,batch_size)
         self.attention = Attention(
             hidden_size, dropout_p=dropout_p, max_ingr=max_ingr,max_length=max_length)
 
     def forward(self, input, hidden, encoder_outputs):
-        embedded = self.embedding(input).view(1, 1, -1)
+        embedded = self.embedding(input).view(1, self.batch_size, -1)
 
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
@@ -138,8 +139,8 @@ class Seq2seq(nn.Module):
         self.batch_size = batch_size
         self.device = device
 
-        self.encoder = EncoderRNN(input_size, hidden_size, max_ingr=max_ingr,device=device)
-        self.decoder = DecoderRNN(hidden_size, output_size)
+        self.encoder = EncoderRNN(input_size, hidden_size, batch_size,max_ingr=max_ingr,device=device)
+        self.decoder = DecoderRNN(hidden_size, output_size,batch_size)
 
         self.encoder_optimizer = optim.SGD(
             self.encoder.parameters(), lr=learning_rate)
@@ -215,17 +216,17 @@ class Seq2seq(nn.Module):
         plot_loss_total = 0  # Reset every plot_every
 
         # TODO: use dataloader
-        training_pairs = [self.data.data[random.randint(
-            0, len(self.data.data)-1)] for i in range(n_iters)]
-        for iter in range(1, n_iters + 1):
-            training_pair = training_pairs[iter - 1]
-        # TODO: first look at all dim size for encoder AND decoder, then convert with batch
+        # training_pairs = [self.data.data[random.randint(
+        #     0, len(self.data.data)-1)] for i in range(n_iters)]
+        # for iter in range(1, n_iters + 1):
+        #     training_pair = training_pairs[iter - 1]
+        # # TODO: first look at all dim size for encoder AND decoder, then convert with batch
 
-        # for i_batch, training_pair in enumerate(self.dataloader):
-        #     if i_batch ==n_iters:
-        #         break
-            input_tensor = training_pair[0].to(self.device)
-            target_tensor = training_pair[1].to(self.device)
+        for i_batch, training_pair in enumerate(self.dataloader):
+            if i_batch ==n_iters:
+                break
+            input_tensor = training_pair[0].to(self.device)#.view(1,-1)
+            target_tensor = training_pair[1].to(self.device)#.view(1,-1)
 
             loss = self.train_iter(input_tensor, target_tensor)
             print_loss_total += loss
@@ -273,22 +274,17 @@ class Seq2seqAtt(Seq2seq):
                          learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device)
 
         self.decoder = AttnDecoderRNN(
-            hidden_size, output_size, dropout_p=0.1, max_ingr=max_ingr,max_length=max_length)
+            hidden_size, output_size, batch_size,dropout_p=0.1, max_ingr=max_ingr,max_length=max_length)
         self.decoder_optimizer = optim.SGD(
             self.decoder.parameters(), lr=learning_rate)
 
     def forward(self, input_tensor, target_tensor):
-        if target_tensor is not None:
-            target_length = target_tensor.size(0)
-            max_len = target_length
-        else:
-            max_len = self.max_length
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
         decoder_input = torch.tensor(
-            [[self.data.SOS_token]], device=self.device)
+            [[self.data.SOS_token]*self.batch_size], device=self.device)
         decoder_hidden = encoder_hidden
 
         if self.training:
@@ -298,11 +294,11 @@ class Seq2seqAtt(Seq2seq):
             use_teacher_forcing = False
 
         decoded_words = []
-        decoder_attentions = torch.zeros(self.max_length, self.max_ingr)
-        decoder_outputs = torch.zeros(max_len,len(self.data.vocab_tokens), device=self.device)
+        decoder_attentions = torch.zeros(self.max_length, self.batch_size,self.max_ingr)
+        decoder_outputs = torch.zeros(self.max_length,self.batch_size,len(self.data.vocab_tokens), device=self.device)
 
         if use_teacher_forcing:
-            for di in range(max_len):
+            for di in range(self.max_length):
                 decoder_output, decoder_hidden, decoder_attention = self.decoder(
                     decoder_input, decoder_hidden, encoder_outputs)
                 decoder_attentions[di] = decoder_attention.data
@@ -310,7 +306,7 @@ class Seq2seqAtt(Seq2seq):
                 decoder_input = target_tensor[di]
 
         else:
-            for di in range(max_len):
+            for di in range(self.max_length):
                 decoder_output, decoder_hidden, decoder_attention = self.decoder(
                     decoder_input, decoder_hidden, encoder_outputs)
                 decoder_attentions[di] = decoder_attention.data
