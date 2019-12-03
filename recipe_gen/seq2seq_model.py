@@ -20,7 +20,6 @@ import torch.nn.functional as F
 import sys
 sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
 
-
 class EncoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, max_ingr=MAX_INGR,device="cpu"):
         super(EncoderRNN, self).__init__()
@@ -49,7 +48,7 @@ class EncoderRNN(nn.Module):
         for ei in range(self.max_ingr):
             # TODO: couldn't give directly all input_tensor, not step by step ???
             encoder_output, encoder_hidden = self.forward(
-                input_tensor[:,ei], encoder_hidden)
+                input_tensor[ei], encoder_hidden)
             encoder_outputs[ei] = encoder_output[0, 0]
 
         return encoder_outputs, encoder_hidden
@@ -77,10 +76,10 @@ class DecoderRNN(nn.Module):
 
 
 class AttnDecoderRNN(DecoderRNN):
-    def __init__(self, hidden_size, output_size, dropout_p=0.1, max_length=MAX_LENGTH):
+    def __init__(self, hidden_size, output_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH):
         super(AttnDecoderRNN, self).__init__(hidden_size, output_size)
         self.attention = Attention(
-            hidden_size, dropout_p=dropout_p, max_length=max_length)
+            hidden_size, dropout_p=dropout_p, max_ingr=max_ingr,max_length=max_length)
 
     def forward(self, input, hidden, encoder_outputs):
         embedded = self.embedding(input).view(1, 1, -1)
@@ -97,13 +96,14 @@ class AttnDecoderRNN(DecoderRNN):
 
 
 class Attention(nn.Module):
-    def __init__(self, hidden_size, dropout_p=0.1, max_length=MAX_LENGTH):
+    def __init__(self, hidden_size, dropout_p=0.1, max_ingr=MAX_INGR,max_length=MAX_LENGTH):
         super().__init__()
         self.dropout_p = dropout_p
+        self.max_ingr = max_ingr
         self.max_length = max_length
         self.hidden_size = hidden_size
 
-        self.attn = nn.Linear(self.hidden_size * 2, self.max_length)
+        self.attn = nn.Linear(self.hidden_size * 2, self.max_ingr)
         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.dropout = nn.Dropout(self.dropout_p)
 
@@ -152,11 +152,6 @@ class Seq2seq(nn.Module):
         self.criterion = nn.NLLLoss()
 
     def forward(self, input_tensor, target_tensor):
-        # if target_tensor is not None:
-        #     target_length = target_tensor.size(0)
-        #     max_len = target_length
-        # else:
-        #     max_len = self.max_length
         
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
@@ -220,15 +215,15 @@ class Seq2seq(nn.Module):
         plot_loss_total = 0  # Reset every plot_every
 
         # TODO: use dataloader
-        # training_pairs = [self.data.data[random.randint(
-        #     0, len(self.data.data)-1)] for i in range(n_iters)]
-        # for iter in range(1, n_iters + 1):
-        #     training_pair = training_pairs[iter - 1]
+        training_pairs = [self.data.data[random.randint(
+            0, len(self.data.data)-1)] for i in range(n_iters)]
+        for iter in range(1, n_iters + 1):
+            training_pair = training_pairs[iter - 1]
         # TODO: first look at all dim size for encoder AND decoder, then convert with batch
 
-        for i_batch, training_pair in enumerate(self.dataloader):
-            if i_batch ==n_iters:
-                break
+        # for i_batch, training_pair in enumerate(self.dataloader):
+        #     if i_batch ==n_iters:
+        #         break
             input_tensor = training_pair[0].to(self.device)
             target_tensor = training_pair[1].to(self.device)
 
@@ -273,12 +268,12 @@ class Seq2seq(nn.Module):
 
 
 class Seq2seqAtt(Seq2seq):
-    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu"):
-        super().__init__(input_size, hidden_size, output_size, batch_size, data, max_length=max_length,
+    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR,max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu"):
+        super().__init__(input_size, hidden_size, output_size, batch_size, data, max_ingr=max_ingr,max_length=max_length,
                          learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device)
 
         self.decoder = AttnDecoderRNN(
-            hidden_size, output_size, dropout_p=0.1, max_length=max_length)
+            hidden_size, output_size, dropout_p=0.1, max_ingr=max_ingr,max_length=max_length)
         self.decoder_optimizer = optim.SGD(
             self.decoder.parameters(), lr=learning_rate)
 
@@ -303,7 +298,7 @@ class Seq2seqAtt(Seq2seq):
             use_teacher_forcing = False
 
         decoded_words = []
-        decoder_attentions = torch.zeros(self.max_length, self.max_length)
+        decoder_attentions = torch.zeros(self.max_length, self.max_ingr)
         decoder_outputs = torch.zeros(max_len,len(self.data.vocab_tokens), device=self.device)
 
         if use_teacher_forcing:

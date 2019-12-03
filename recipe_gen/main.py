@@ -22,7 +22,10 @@ def main():
     model.evaluateRandomly(n=2)
 
     loss,output_words, attentions = model.evaluate("tomato salad beef lemon".split())
-    plt.matshow(attentions.numpy())
-
+    try:
+        plt.matshow(attentions.numpy())
+    except AttributeError:
+        print("No attention to show.")
+        
 if __name__=="__main__":
     main()

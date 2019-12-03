@@ -9,8 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 # sys.path.insert(0, "D:\\Documents\\food_recipe_gen\\recipe_1m_analysis")
 ###
 
-MAX_LENGTH = 100
-# MAX_LENGTH = 300
+MAX_LENGTH = 300
 MAX_INGR = 10
 FOLDER_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data")
 DATA_FILES = ["allingrs_count.pkl",
