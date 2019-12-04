@@ -16,14 +16,14 @@ def main():
 
     model = Seq2seqAtt(len(data.vocab_ingrs.idx2word.keys()),hidden_size,len(data.vocab_tokens.idx2word.keys()),BATCH_SIZE,data,device=device)
     model.to(device)
-    model.train_process(20, print_every=100)
+    model.train_process(1000, print_every=100)
 
 
     model.evaluateRandomly(n=2)
 
     loss,output_words, attentions = model.evaluate("tomato salad beef lemon".split())
     try:
-        plt.matshow(attentions.numpy())
+        plt.matshow(attentions[:,0,:].numpy())
     except AttributeError:
         print("No attention to show.")
         
