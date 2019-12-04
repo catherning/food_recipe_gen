@@ -9,9 +9,9 @@ from torch import nn, optim
 import numpy as np
 import tqdm
 
-from utils import Storage, cuda, BaseModel, SummaryHelper, get_mean, storage_to_list, \
+from recipe_gen.utils import Storage, cuda, BaseModel, SummaryHelper, get_mean, storage_to_list, \
     CheckpointManager, LongTensor
-from baselines.cotk_seq2seq_code.network import Network
+from network import Network
 
 class Seq2seq(BaseModel):
     def __init__(self, param):

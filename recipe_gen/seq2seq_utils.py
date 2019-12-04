@@ -8,6 +8,13 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 
+
+def flattenSequence(data, length):
+    arr = []
+    for i in range(length.size):
+        arr.append(data[0:length[i], i])
+    return torch.cat(arr, dim=0)
+
 def showPlot(points):
     plt.figure()
     fig, ax = plt.subplots()

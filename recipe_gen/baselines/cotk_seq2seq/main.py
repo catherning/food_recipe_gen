@@ -6,7 +6,7 @@ import json
 from cotk.dataloader import SingleTurnDialog
 from cotk.wordvector import WordVector, Glove
 
-from utils import debug, try_cache, cuda_init, Storage
+from recipe_gen.utils import debug, try_cache, cuda_init, Storage
 from seq2seq import Seq2seq
 
 def main(args, load_exclude_set, restoreCallback):

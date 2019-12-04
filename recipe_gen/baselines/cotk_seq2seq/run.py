@@ -6,7 +6,7 @@ def run(*argv):
 
     import sys
     sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
-    from utils import Storage
+    from recipe_gen.utils import Storage
 
     parser = argparse.ArgumentParser(description='A seq2seq model with GRU encoder and decoder. Attention, beamsearch,\
         dropout and batchnorm is supported.')

@@ -81,12 +81,7 @@ class RecipesDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        # sample = {#'title': self.data[idx]["title"],
-        #           'ingredients': self.data[idx][0],
-        #           'instructions': self.data[idx][1], }
-        sample =self.data[idx]
-
-        return sample
+        return self.data[idx]
     
     def preprocess_data(self):
 
