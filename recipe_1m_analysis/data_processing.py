@@ -219,9 +219,9 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
     # Create a vocab wrapper and add some special tokens.
     vocab_toks = Vocabulary()
     vocab_toks.add_word('<pad>')
-    vocab_toks.add_word('<start>')
-    vocab_toks.add_word('<end>')
-    vocab_toks.add_word('<eoi>')
+    vocab_toks.add_word('<sos>')
+    vocab_toks.add_word('<eos>')
+    vocab_toks.add_word('<unk>')
 
     # Add the words to the vocabulary.
     for word, cnt in counter_toks.items():
@@ -242,7 +242,9 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
     # Create a vocab wrapper for ingredients
     vocab_ingrs = Vocabulary()
     vocab_ingrs.add_word('<pad>')
-    idx = vocab_ingrs.add_word('<end>')
+    vocab_ingrs.add_word('<sos>')
+    vocab_ingrs.add_word('<eos>')
+    idx = vocab_ingrs.add_word('<unk>')
 
     # Add the ingredients to the vocabulary.
     for word,cnt in counter_ingrs.items():

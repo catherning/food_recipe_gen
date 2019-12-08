@@ -63,7 +63,7 @@ class DecoderRNN(nn.Module):
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
-        self.softmax = nn.LogSoftmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=1) # TODO: check right dim ?
 
     def forward(self, input, hidden):
         output = self.embedding(input).view(1, 1, -1)
@@ -195,7 +195,7 @@ class Seq2seq(nn.Module):
 
         return decoder_outputs, decoded_words, None
 
-    def train_iter(self, input_tensor, target_tensor):
+    def train_iter(self, input_tensor, target_tensor,target_length):
         self.encoder_optimizer.zero_grad()
         self.decoder_optimizer.zero_grad()
 
@@ -225,13 +225,16 @@ class Seq2seq(nn.Module):
         #     training_pair = training_pairs[iter - 1]
         # # TODO: first look at all dim size for encoder AND decoder, then convert with batch
 
-        for iter, training_pair in enumerate(self.dataloader,start=1):
+        for iter, batch in enumerate(self.dataloader,start=1):
             if iter ==n_iters:
                 break
-            input_tensor = training_pair[0].to(self.device)#.view(1,-1)
-            target_tensor = training_pair[1].to(self.device)#.view(1,-1)
 
-            loss = self.train_iter(input_tensor, target_tensor)
+            # split in train_iter? give directly batch to train_iter ?
+            input_tensor = batch["ingr"].to(self.device)#.view(1,-1)
+            target_tensor = batch["target_instr"].to(self.device)#.view(1,-1)
+            target_length = batch["target_length"].to(self.device)
+
+            loss = self.train_iter(input_tensor, target_tensor,target_length)
             print_loss_total += loss
             plot_loss_total += loss
 

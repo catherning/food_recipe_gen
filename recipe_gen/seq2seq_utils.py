@@ -9,11 +9,13 @@ import matplotlib.ticker as ticker
 import numpy as np
 
 
-def flattenSequence(data, length):
+def flattenSequence(data, lengths):
     arr = []
-    for i in range(length.size):
-        arr.append(data[0:length[i], i])
-    return torch.cat(arr, dim=0)
+    for length in lengths:
+        arr.append(data[:,0:length,:])
+    # TODO: fuse batch and length! 
+    # and check if 0:length is ok (special tokens)
+    return torch.cat(arr, dim=1)
 
 def showPlot(points):
     plt.figure()

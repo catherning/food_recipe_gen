@@ -57,9 +57,6 @@ class RecipesDataset(Dataset):
     """Recipes dataset."""
 
     def __init__(self,FOLDER_PATH,DATA_FILES,max_ingr=10,max_length=MAX_LENGTH):
-        self.SOS_token = 0
-        self.EOS_token = 1
-        self.UNK_token = 2 # TODO: use the predefined special tokens ids from the vocabs!!!!
         self.max_length = max_length
         self.max_ingr = max_ingr
 
@@ -72,6 +69,12 @@ class RecipesDataset(Dataset):
         with open(os.path.join(FOLDER_PATH,DATA_FILES[2]),'rb') as f:
             self.data=pickle.load(f)
         
+        # TODO: redo the data_processing at one point, and use the vocab special tokens
+        self.PAD_token = self.vocab_ingrs.word2idx["<pad>"]
+        self.SOS_token = 1#self.vocab_ingrs.word2idx["<start>"]
+        self.EOS_token = 2#self.vocab_ingrs.word2idx["<end>"]
+        self.UNK_token = 3#self.vocab_ingrs.word2idx["<unk>"]
+
         self.process_data()
 
     def __len__(self):
@@ -127,52 +130,53 @@ class RecipesDataset(Dataset):
 
 
     def list2idx(self,vocab, sentence): 
-        # if doesn't find, use unk_token kind of useless because filtered before
+        # if doesn't find, use unk_token kind of useless because filtered before ?
         return torch.Tensor([vocab.word2idx.get(word,self.UNK_token) for word in sentence])
 
 
     def tensorFromSentence(self,vocab, sentence,instructions=False):
         max_size = instructions * self.max_length + (1-instructions) * self.max_ingr
-        tensor_ = torch.zeros(max_size,dtype=torch.long) 
+        tensor_ = torch.ones(max_size,dtype=torch.long) * self.PAD_token
+        length=0
         if instructions:
-            indexes=[]
-            b_id=0
+            tensor_[0]= self.SOS_token
+            b_id=1
             for sent in sentence:
                 tokenized = self.list2idx(vocab, sent)
-                tensor_[b_id:b_id+len(tokenized)]= tokenized
-                b_id += len(tokenized)
+                sent_len = len(tokenized)
+                tensor_[b_id:b_id+sent_len]= tokenized
+                b_id += sent_len
+                length+=sent_len
         else:
             tokenized = self.list2idx(vocab, sentence)
             tensor_[:len(tokenized)]= tokenized
             b_id = len(tokenized)
 
-        tensor_[b_id]=self.EOS_token
-        return tensor_
+        #XXX: if dim error sometimes, could be because of that ? 
+        # the filter keeps instructions of length max_length-1, but we add 2 special tokens
+        tensor_[b_id]=self.EOS_token # could remove it ?
+        return tensor_,length # could return b_id-1 = length ? 
 
 
     def tensorsFromPair(self,pair):
-        input_tensor = self.tensorFromSentence(self.vocab_ingrs, pair[0])
-        target_tensor = self.tensorFromSentence(self.vocab_tokens, pair[1],instructions=True)
-        return (input_tensor, target_tensor)
+        input_tensor,_ = self.tensorFromSentence(self.vocab_ingrs, pair[0])
+        target_tensor,target_length = self.tensorFromSentence(self.vocab_tokens, pair[1],instructions=True)
+        return {"ingr":input_tensor,
+                "target_instr": target_tensor,
+                "target_length":target_length}
 
 
 if __name__ == "__main__":
     recipe_dataset = RecipesDataset(FOLDER_PATH, DATA_FILES,max_ingr=MAX_INGR,max_length=MAX_LENGTH)
     dataset_loader = torch.utils.data.DataLoader(recipe_dataset,
-                                                 batch_size=32, shuffle=True,
+                                                 batch_size=4, shuffle=True,
                                                  num_workers=4)
 
-    with open(os.path.join(FOLDER_PATH, DATA_FILES[3]), 'rb') as f:
-        vocab_ingrs = pickle.load(f)
-
-    recipe = recipe_dataset[0]
+    # with open(os.path.join(FOLDER_PATH, DATA_FILES[3]), 'rb') as f:
+    #     vocab_ingrs = pickle.load(f)
 
     for i_batch, sample_batched in enumerate(dataset_loader):
-        print(i_batch, sample_batched[0],
-          sample_batched[1])
+        print(i_batch, sample_batched)
 
         if i_batch == 1:
             break
-
-    # one_hot_enc = torch.nn.functional.one_hot(torch.LongTensor(ingr_idx), max(vocab_ingrs.idx2word.keys()))
-    # print(one_hot_enc.shape)
