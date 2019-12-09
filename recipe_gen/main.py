@@ -12,9 +12,9 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data = RecipesDataset(FOLDER_PATH,DATA_FILES)
     hidden_size = 256
-    BATCH_SIZE = 16
+    BATCH_SIZE = 4
 
-    model = Seq2seqAtt(len(data.vocab_ingrs.idx2word.keys()),hidden_size,len(data.vocab_tokens.idx2word.keys()),BATCH_SIZE,data,device=device)
+    model = Seq2seqAtt(len(data.vocab_ingrs),hidden_size,len(data.vocab_tokens),BATCH_SIZE,data,device=device)
     model.to(device)
     model.train_process(1000, print_every=100)
 

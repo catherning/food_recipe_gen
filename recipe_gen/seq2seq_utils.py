@@ -10,12 +10,12 @@ import numpy as np
 
 
 def flattenSequence(data, lengths):
+    # input has already <sos> removed for target, because decoded outputs for prediction doesn't have it.
+    # this function will cut the <eos>
     arr = []
-    for length in lengths:
-        arr.append(data[:,0:length,:])
-    # TODO: fuse batch and length! 
-    # and check if 0:length is ok (special tokens)
-    return torch.cat(arr, dim=1)
+    for i,length in enumerate(lengths):
+        arr.append(data[i,:length])
+    return torch.cat(arr, dim=0)
 
 def showPlot(points):
     plt.figure()
