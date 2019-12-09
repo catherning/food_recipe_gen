@@ -90,14 +90,22 @@ class Attention(nn.Module):
         self.max_length = max_length
         self.hidden_size = hidden_size
 
+        self.dropout = nn.Dropout(self.dropout_p)
         self.attn = nn.Linear(self.hidden_size * 2, self.max_ingr)
         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
-        self.dropout = nn.Dropout(self.dropout_p)
 
     def forward(self, embedded, hidden, encoder_outputs):
-        """key:encoder_outputs
-        value:hidden
+        """From pytorch seq2seq tuto
+        key: encoder_outputs
         query: embedded
+        value: hidden
+
+        TODO: write dim of the inputs, and outputs
+
+        or ?
+        K: embedded
+        Q: hidden
+        V: encoder_outputs
         """
         embedded = self.dropout(embedded)
 
@@ -106,8 +114,29 @@ class Attention(nn.Module):
         attn_applied = torch.bmm(attn_weights.unsqueeze(0),
                                  encoder_outputs.unsqueeze(0))
 
+        # Kind of attention fusion layer ?
+        # equivalent in user pref paper to cat w_(r,t) with attn_applied, 
+        # but no attn_combine layer in the paper before putting in the GRU ?
         output = torch.cat((embedded[0], attn_applied[0]), 1)
         output = self.attn_combine(output).unsqueeze(0)
+
+        return output, attn_weights
+
+class IngrAtt(Attention):
+    def __init__(self,filepath):
+        super().__init__()
+
+    def forward(self,embedded,encoder_outputs,hidden):
+        """Def from user pref paper
+        K: encoder_outputs
+        Q: hidden
+        V: encoder_outputs
+        """
+        attn_weights = F.softmax(
+            self.attn(torch.cat((encoder_outputs[0], hidden[0]), 1)), dim=1)
+        attn_applied = torch.bmm(attn_weights.unsqueeze(0),
+                                 encoder_outputs.unsqueeze(0))
+        output = torch.cat((embedded[0], attn_applied[0]), 1)
 
         return output, attn_weights
 
