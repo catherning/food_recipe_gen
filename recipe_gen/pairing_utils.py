@@ -39,6 +39,10 @@ class PairingData:
         print(f"{count_error} pair(s) not added because of an absent ingredient")
 
     def bestPairingsFromIngr(self, ingr_id):
+        """
+        ex: ingr_id = 2
+        returns [(frozenset({16, 2}), 0.01891073), (frozenset({129, 2}), 0.0022993684)]
+        """
         ingr_pairs = {k: v for k, v in self.pairing_scores.items()
                       if ingr_id in k}
         return [(pair, self.pairing_scores[pair]) for pair in heapq.nlargest(self.top_k, ingr_pairs, key=self.pairing_scores.get)]

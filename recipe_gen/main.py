@@ -11,13 +11,17 @@ from recipe_gen.seq2seq_utils import *
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data = RecipesDataset(FOLDER_PATH,DATA_FILES)
-    hidden_size = 256
+    hidden_size = 128
     BATCH_SIZE = 4
+    load = True
+    model = Seq2seqAtt(len(data.vocab_ingrs),hidden_size,len(data.vocab_tokens),BATCH_SIZE,data,device=device,savepath=os.path.join(os.getcwd(),"recipe_gen","results"))
 
-    model = Seq2seqAtt(len(data.vocab_ingrs),hidden_size,len(data.vocab_tokens),BATCH_SIZE,data,device=device)
-    model.to(device)
-    model.train_process(1000, print_every=100)
-
+    if load:
+        model.load_state_dict(torch.load(os.path.join(os.getcwd(),"recipe_gen","results","model_12-11-15-59_500")))
+        model.to(device)
+    else:
+        model.to(device)
+        model.train_process(500, print_every=50)
 
     model.evaluateRandomly(n=2)
 
