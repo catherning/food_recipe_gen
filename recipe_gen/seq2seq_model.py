@@ -10,6 +10,7 @@ import time
 import unicodedata
 from functools import reduce
 from io import open
+from datetime import datetime 
 
 import torch
 import torch.nn as nn
@@ -24,17 +25,27 @@ sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
 
 
 class Seq2seq(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu"):
+    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu",savepath="./results/"):
         super().__init__()
         # all params in arg storage object ?
         self.max_length = max_length
         self.max_ingr = max_ingr
         self.data = data
-        self.dataloader = torch.utils.data.DataLoader(data,
+
+        train_size = int(0.8 * len(self.data))
+        test_size = len(self.data) - train_size
+        train_dataset, test_dataset = torch.utils.data.random_split(self.data, [train_size, test_size])
+
+        self.train_dataloader = torch.utils.data.DataLoader(train_dataset,
                                                       batch_size=batch_size, shuffle=True,
                                                       num_workers=4)
+        self.test_dataloader = torch.utils.data.DataLoader(test_dataset,
+                                                      batch_size=batch_size, shuffle=True,
+                                                      num_workers=4)
+
         self.batch_size = batch_size
         self.device = device
+        self.savepath = savepath
 
         self.encoder = EncoderRNN(
             input_size, hidden_size, batch_size, max_ingr=max_ingr, device=device)
@@ -117,7 +128,7 @@ class Seq2seq(nn.Module):
         print_loss_total = 0  # Reset every print_every
         plot_loss_total = 0  # Reset every plot_every
 
-        for iter, batch in enumerate(self.dataloader, start=1):
+        for iter, batch in enumerate(self.train_dataloader, start=1):
             if iter == n_iters:
                 break
 
@@ -133,8 +144,9 @@ class Seq2seq(nn.Module):
             if iter % print_every == 0:
                 print_loss_avg = print_loss_total / print_every
                 print_loss_total = 0
-                print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
-                                             iter, iter / n_iters * 100, print_loss_avg))
+                print(f"{timeSince(start, iter / n_iters)} ({iter} {int(iter / n_iters * 100)}%) loss={print_loss_avg})")
+
+                torch.save(self.state_dict(), os.path.join(self.savepath,f"model_{datetime.now().strftime('%m-%d-%H-%M')}_{iter}"))
 
             if iter % plot_every == 0:
                 plot_loss_avg = plot_loss_total / plot_every
@@ -146,16 +158,36 @@ class Seq2seq(nn.Module):
     def evaluate(self, sentence, target=None):
         self.eval()
         with torch.no_grad():
-            input_tensor = self.data.tensorFromSentence(
-                self.data.vocab_ingrs, sentence).to(self.device).view(1, -1)
+            input_tensor,_ = self.data.tensorFromSentence(
+                self.data.vocab_ingrs, sentence)
+            input_tensor = input_tensor.view(1, -1).to(self.device)
             if target is not None:
-                target_tensor = self.data.tensorFromSentence(
-                    self.data.vocab_tokens, target, instructions=True).to(self.device).view(1, -1)
+                target_tensor,_ = self.data.tensorFromSentence(
+                    self.data.vocab_tokens, target, instructions=True)
+                target_tensor=target_tensor.view(1, -1).to(self.device)
             else:
                 target_tensor = None
             return self.forward(input_tensor, target_tensor)
 
     def evaluateRandomly(self, n=10):
+        # self.batch_size = 1
+        # for iter, batch in enumerate(self.test_dataloader):
+        #     input_tensor = batch["ingr"].to(self.device)
+        #     target_tensor = batch["target_instr"].to(self.device)
+        #     target_length = batch["target_length"]  # .to(self.device)
+        #     # pair = random.choice(self.data.pairs)
+            
+        #     loss, output_words, _ = self.evaluate(input_tensor, target=target_tensor)
+        #     for i,(inp, target) in enumerate(zip(input_tensor,target_tensor)):
+        #         output_sentence = ' '.join(output_words[i])
+        #         print('>', " ".join(inp))
+        #         print('=', [" ".join(instr) for instr in target])
+        #         print('<', output_sentence)
+        #         print('')
+
+        #     if iter>0:
+        #         break
+
         for i in range(n):
             pair = random.choice(self.data.pairs)
             print('>', " ".join(pair[0]))
@@ -165,14 +197,33 @@ class Seq2seq(nn.Module):
             print('<', output_sentence)
             print('')
 
-    def evalProcess(self):
-        pass
+
+    def evalProcess(self, print_every=1000, plot_every=100):
+        start = time.time()
+        plot_losses = []
+        print_loss_total = 0  # Reset every print_every
+        plot_loss_total = 0  # Reset every plot_every
+
+        for iter, batch in enumerate(self.test_dataloader, start=1):
+
+            # split in train_iter? give directly batch to train_iter ?
+            input_tensor = batch["ingr"].to(self.device)
+            target_tensor = batch["target_instr"].to(self.device)
+            target_length = batch["target_length"]  # .to(self.device)
+
+            loss = self.train_iter(input_tensor, target_tensor, target_length)
+            print_loss_total += loss
+            plot_loss_total += loss
+
+        print_loss_avg = print_loss_total / print_every
+        # print_loss_total = 0
+        print('Loss %.4f' % (print_loss_avg))
 
 
 class Seq2seqAtt(Seq2seq):
-    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu"):
+    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu",savepath="./results/"):
         super().__init__(input_size, hidden_size, output_size, batch_size, data, max_ingr=max_ingr, max_length=max_length,
-                         learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device)
+                         learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device,savepath=savepath)
 
         self.decoder = AttnDecoderRNN(
             hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=max_ingr, max_length=max_length)
@@ -180,7 +231,7 @@ class Seq2seqAtt(Seq2seq):
             self.decoder.parameters(), lr=learning_rate)
 
     def forward(self, input_tensor, target_tensor):
-
+        self.batch_size = len(input_tensor)
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
@@ -211,7 +262,7 @@ class Seq2seqAtt(Seq2seq):
         else:
             for di in range(self.max_length):
                 decoder_output, decoder_hidden, decoder_attention = self.decoder(
-                    decoder_input, decoder_hidden, encoder_outputs)
+                    decoder_input, decoder_hidden, encoder_outputs)#,self.encoder.embedding)
                 decoder_attentions[di] = decoder_attention.data
                 topv, topi = decoder_output.topk(1)
 
