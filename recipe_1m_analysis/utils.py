@@ -139,8 +139,9 @@ class RecipesDataset(Dataset):
         tensor_ = torch.ones(max_size,dtype=torch.long) * self.PAD_token
         length=0
         if instructions:
-            tensor_[0]= self.SOS_token
-            b_id=1
+            # tensor_[0]= self.SOS_token
+            # b_id=1
+            b_id = 0
             for sent in sentence:
                 tokenized = self.list2idx(vocab, sent)
                 sent_len = len(tokenized)

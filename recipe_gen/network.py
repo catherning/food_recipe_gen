@@ -18,7 +18,11 @@ class EncoderRNN(nn.Module):
         self.gru = nn.GRU(hidden_size, hidden_size)
 
     def forward(self, input_, hidden):
-        # batch_size = len(input_)
+        """
+        input_: (batch)
+        hidden: (1,batch,hidden)
+        output: (1,batch,hidden)
+        """
         embedded = self.embedding(input_).view(1, self.batch_size, -1)
         output = embedded
         output, hidden = self.gru(output, hidden)
@@ -28,6 +32,9 @@ class EncoderRNN(nn.Module):
         return torch.zeros(1, self.batch_size, self.hidden_size)
 
     def forward_all(self, input_tensor):
+        """
+        input: (batch,max_ingr) ?
+        """
         self.batch_size = len(input_tensor)
         encoder_hidden = self.initHidden().to(self.device)
         encoder_outputs = torch.zeros(
@@ -72,8 +79,14 @@ class AttnDecoderRNN(DecoderRNN):
             hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
 
     def forward(self, input, hidden, encoder_outputs):
-        self.batch_size = len(input)
+        """
+        input: (1,batch)
+        hidden: (1,batch,hidden)
+        encoder_outputs: (max_ingr,hidden)
+        """
+        self.batch_size = input.shape[1]
         embedded = self.embedding(input).view(1, self.batch_size, -1)
+        # embedded (1,batch,hidden) ?
 
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
@@ -89,13 +102,19 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
             hidden_size, output_size, batch_size)
         self.attention = IngrAtt(
             hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
-        self.pairAttention = PairingAtt(filepath)
+        self.pairAttention = PairingAtt(filepath,hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
 
     def forward(self, input, hidden, encoder_outputs,encoder_embedding):
         embedded = self.embedding(input).view(1, self.batch_size, -1)
 
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
+
+        """
+        input: (1,batch)
+        hidden: (1,batch,hidden)
+        encoder_outputs: (max_ingr,hidden)
+        """
 
         ingr_id = torch.argmax(output,1)
 
@@ -128,9 +147,14 @@ class Attention(nn.Module):
         TODO: write dim of the inputs, and outputs
 
         or ?
-        K: embedded
-        Q: hidden
-        V: encoder_outputs
+        K: embedded (1,batch,hidden)
+        Q: hidden (1,batch,hidden)
+        V: encoder_outputs (max_ingr,hidden)
+
+        returns:
+        output: (1,batch,hidden)
+        attn_weights (batch,max_ingr)
+
         """
         embedded = self.dropout(embedded)
 
@@ -146,8 +170,8 @@ class Attention(nn.Module):
         return output, attn_weights
 
 class IngrAtt(Attention):
-    def __init__(self,filepath):
-        super().__init__()
+    def __init__(self, hidden_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH):
+        super().__init__(hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
 
     def forward(self,embedded,hidden,encoder_outputs):
         """Def from user pref paper
@@ -167,8 +191,8 @@ class IngrAtt(Attention):
         return output, attn_weights
 
 class PairingAtt(Attention):
-    def __init__(self,filepath):
-        super().__init__()
+    def __init__(self,filepath, hidden_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH):
+        super().__init__(hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
         self.pairings = pairing.PairingData(filepath)
 
     def forward(self,embedded,hidden,ingr_id,encoder_embedding):
