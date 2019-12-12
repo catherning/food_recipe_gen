@@ -117,8 +117,10 @@ class Seq2seq(nn.Module):
 
         decoded_outputs, decoded_words, _ = self.forward(
             input_tensor, target_tensor)
-        aligned_outputs = flattenSequence(decoded_outputs, target_length)
-        aligned_target = flattenSequence(target_tensor, target_length)
+        # aligned_outputs = flattenSequence(decoded_outputs, target_length)
+        # aligned_target = flattenSequence(target_tensor, target_length)
+        aligned_outputs = decoded_outputs.view(self.batch_size*self.max_length,-1)
+        aligned_target = target_tensor.view(self.batch_size*self.max_length)
         loss = self.criterion(aligned_outputs, aligned_target)
         loss.backward()
 
