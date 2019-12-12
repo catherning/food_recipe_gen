@@ -51,9 +51,9 @@ class Seq2seq(nn.Module):
             input_size, hidden_size, batch_size, max_ingr=max_ingr, device=device)
         self.decoder = DecoderRNN(hidden_size, output_size, batch_size)
 
-        self.encoder_optimizer = optim.SGD(
+        self.encoder_optimizer = optim.Adam(
             self.encoder.parameters(), lr=learning_rate)
-        self.decoder_optimizer = optim.SGD(
+        self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=learning_rate)
 
         # Training param
@@ -106,7 +106,7 @@ class Seq2seq(nn.Module):
                 for batch_id, word_id in enumerate(topi):
                     decoded_words[batch_id].append(
                         self.data.vocab_tokens.idx2word[word_id.item()])
-
+        
                 decoder_input = topi.squeeze().detach().view(1,-1)  # detach from history as input
 
         return decoder_outputs, decoded_words, None
@@ -204,7 +204,6 @@ class Seq2seq(nn.Module):
             plot_loss_total += loss
 
         print_loss_avg = print_loss_total / print_every
-        # print_loss_total = 0
         print('Loss %.4f' % (print_loss_avg))
 
 
