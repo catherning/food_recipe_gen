@@ -156,7 +156,7 @@ class RecipesDataset(Dataset):
         #XXX: if dim error sometimes, could be because of that ? 
         # the filter keeps instructions of length max_length-1, but we add 2 special tokens
         tensor_[b_id]=self.EOS_token # could remove it ?
-        return tensor_,length # could return b_id-1 = length ? 
+        return tensor_,length+1 # could return b_id-1 = length ? 
 
 
     def tensorsFromPair(self,pair):

@@ -62,12 +62,12 @@ class Seq2seq(nn.Module):
         self.criterion = nn.NLLLoss()
 
     def forward(self, input_tensor, target_tensor):
-
+        self.batch_size = len(input_tensor)
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
         decoder_input = torch.tensor(
-            [[self.data.SOS_token]], device=self.device)
+            [[self.data.SOS_token]*self.batch_size], device=self.device)
         decoder_hidden = encoder_hidden
 
         if self.training:
@@ -76,32 +76,38 @@ class Seq2seq(nn.Module):
         else:
             use_teacher_forcing = False
 
-        decoded_words = []
-        decoder_outputs = torch.zeros(
-            len(self.data.vocab_tokens), self.max_length, device=self.device)
+        decoded_words = [[] for i in range(self.batch_size)]
+        decoder_outputs = torch.zeros(self.batch_size, self.max_length, len(
+            self.data.vocab_tokens), device=self.device)
 
         if use_teacher_forcing:
             for di in range(self.max_length):
                 decoder_output, decoder_hidden = self.decoder(
                     decoder_input, decoder_hidden)
                 decoder_outputs[:, di] = decoder_output
-                decoder_input = target_tensor[di]  # Teacher forcing
+                decoder_input = target_tensor[:, di].view(1,-1)   # Teacher forcing
+
+                topv, topi = decoder_output.topk(1)
+                for batch_id, word_id in enumerate(topi):
+                    decoded_words[batch_id].append(
+                        self.data.vocab_tokens.idx2word[word_id.item()])
 
         else:
             for di in range(self.max_length):
                 decoder_output, decoder_hidden = self.decoder(
                     decoder_input, decoder_hidden)
                 topv, topi = decoder_output.topk(1)
-                decoder_outputs[:, di] = decoder_output
+                decoder_outputs[:, di, :] = decoder_output
 
-                if topi.item() == self.data.EOS_token:
-                    decoded_words.append('<EOS>')
+                idx_end = (topi == self.data.EOS_token).nonzero()[:, 0]
+                if len(idx_end) == self.batch_size:
                     break
-                else:
-                    decoded_words.append(
-                        self.data.vocab_tokens.idx2word[topi.item()])
 
-                decoder_input = topi.squeeze().detach()  # detach from history as input
+                for batch_id, word_id in enumerate(topi):
+                    decoded_words[batch_id].append(
+                        self.data.vocab_tokens.idx2word[word_id.item()])
+
+                decoder_input = topi.squeeze().detach().view(1,-1)  # detach from history as input
 
         return decoder_outputs, decoded_words, None
 
@@ -341,7 +347,7 @@ class Seq2seqIngrAtt(Seq2seq):
         else:
             for di in range(self.max_length):
                 decoder_output, decoder_hidden, decoder_attention = self.decoder(
-                    decoder_input, decoder_hidden, encoder_outputs,self.encoder.embedding)#,self.encoder.embedding)
+                    decoder_input, decoder_hidden, encoder_outputs,self.encoder.embedding)
                 decoder_attentions[di] = decoder_attention.data
                 topv, topi = decoder_output.topk(1)
 
