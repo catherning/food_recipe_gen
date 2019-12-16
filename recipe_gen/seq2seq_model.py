@@ -131,37 +131,38 @@ class Seq2seq(nn.Module):
 
         return loss.item(),decoded_words
 
-    def train_process(self, n_iters, print_every=1000, plot_every=100):
+    def train_process(self, n_epoch, n_iters=1000, print_every=1000, plot_every=100):
         self.train()
         start = time.time()
         plot_losses = []
         print_loss_total = 0  # Reset every print_every
         plot_loss_total = 0  # Reset every plot_every
 
-        for iter, batch in enumerate(self.train_dataloader, start=1):
-            if iter == n_iters:
-                break
+        for ep in range(n_epoch):
+            for iter, batch in enumerate(self.train_dataloader, start=1):
+                if iter == n_iters:
+                    break
 
-            # split in train_iter? give directly batch to train_iter ?
-            input_tensor = batch["ingr"].to(self.device)
-            target_tensor = batch["target_instr"].to(self.device)
-            target_length = batch["target_length"]  # .to(self.device)
+                # split in train_iter? give directly batch to train_iter ?
+                input_tensor = batch["ingr"].to(self.device)
+                target_tensor = batch["target_instr"].to(self.device)
+                target_length = batch["target_length"]  # .to(self.device)
 
-            loss,decoded_words = self.train_iter(input_tensor, target_tensor, target_length)
-            print_loss_total += loss
-            plot_loss_total += loss
+                loss,decoded_words = self.train_iter(input_tensor, target_tensor, target_length)
+                print_loss_total += loss
+                plot_loss_total += loss
 
-            if iter % print_every == 0:
-                print_loss_avg = print_loss_total / print_every
-                print_loss_total = 0
-                print(f"{timeSince(start, iter / n_iters)} ({iter} {int(iter / n_iters * 100)}%) loss={print_loss_avg})")
-                print(decoded_words[0])
-                torch.save(self.state_dict(), os.path.join(self.savepath,f"model_{datetime.now().strftime('%m-%d-%H-%M')}_{iter}"))
+                if iter % print_every == 0:
+                    print_loss_avg = print_loss_total / print_every
+                    print_loss_total = 0
+                    print(f"{timeSince(start, iter / n_iters)} ({iter} {int(iter / n_iters * 100)}%) loss={print_loss_avg})")
+                    print(decoded_words[0])
+                    torch.save(self.state_dict(), os.path.join(self.savepath,f"model_{datetime.now().strftime('%m-%d-%H-%M')}_{iter}"))
 
-            if iter % plot_every == 0:
-                plot_loss_avg = plot_loss_total / plot_every
-                plot_losses.append(plot_loss_avg)
-                plot_loss_total = 0
+                if iter % plot_every == 0:
+                    plot_loss_avg = plot_loss_total / plot_every
+                    plot_losses.append(plot_loss_avg)
+                    plot_loss_total = 0
 
         showPlot(plot_losses)
 
@@ -182,7 +183,7 @@ class Seq2seq(nn.Module):
     def evaluateRandomly(self, n=10):
         for i in range(n):
             pair = random.choice(self.data.pairs)
-            print('>', " ".join(pair[0]))
+            print('>', " ".join([ingr.name for ingr in pair[0]]))
             print('=', [" ".join(instr) for instr in pair[1]])
             loss, output_words, _ = self.evaluate(pair[0], pair[1])
             output_sentence = ' '.join(output_words[0])

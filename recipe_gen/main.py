@@ -12,6 +12,7 @@ def main():
     max_length = 200
     hidden_size = 128
     BATCH_SIZE = 4
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data = RecipesDataset(FOLDER_PATH, DATA_FILES, max_length=max_length)
     pairing_path = "D:\\Documents\\THU\\Other recipe models\\KitcheNette-master\\KitcheNette-master\\results\\prediction_unknowns_smaller_kitchenette_trained.mdl.csv"
@@ -25,13 +26,13 @@ def main():
 
     if load:
         model.load_state_dict(torch.load(os.path.join(
-            os.getcwd(), "recipe_gen", "results", "model_12-11-15-59_500")))
+            os.getcwd(), "recipe_gen", "results", "model_12-17-00-26_100")))
         model.to(device)
         print("Model loaded.")
     else:
         model.to(device)
         print("Begin training.")
-        model.train_process(500, print_every=50)
+        model.train_process(10, print_every=50)
 
     model.evaluateRandomly(n=2)
 

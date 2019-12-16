@@ -13,6 +13,8 @@ import os
 from tqdm import *
 import numpy as np
 import re
+import sys
+sys.path.insert(0, os.getcwd())
 
 from recipe_1m_analysis.utils import Vocabulary
 import recipe_1m_analysis.ingr_normalization as ingr_norm
