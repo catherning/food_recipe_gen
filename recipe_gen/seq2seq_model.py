@@ -16,12 +16,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
+sys.path.insert(0, os.getcwd())
 
-from recipe_1m_analysis.utils import MAX_INGR, MAX_LENGTH
 from recipe_gen.network import *
 from recipe_gen.seq2seq_utils import *
 
-sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
 
 
 class Seq2seq(nn.Module):
@@ -46,7 +45,10 @@ class Seq2seq(nn.Module):
         self.batch_size = batch_size
         self.device = device
         self.savepath = savepath
-
+        try:
+            os.makedirs(savepath)
+        except FileExistsError:
+            pass
         self.encoder = EncoderRNN(
             input_size, hidden_size, batch_size, max_ingr=max_ingr, device=device)
         self.decoder = DecoderRNN(hidden_size, output_size, batch_size)

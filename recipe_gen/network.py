@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
-from recipe_1m_analysis.utils import MAX_INGR, MAX_LENGTH
+from recipe_gen.seq2seq_utils import MAX_INGR, MAX_LENGTH
 import recipe_gen.pairing_utils as pairing
 
 

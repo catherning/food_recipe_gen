@@ -1,16 +1,11 @@
 import os
 import pickle
 import sys
-sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
+sys.path.insert(0, os.getcwd())
 
-from recipe_1m_analysis.utils import (DATA_FILES, FOLDER_PATH, RecipesDataset,
-                                      Vocabulary)
+from recipe_1m_analysis.utils import Vocabulary
 from recipe_gen.seq2seq_model import Seq2seq, Seq2seqAtt, Seq2seqIngrAtt
 from recipe_gen.seq2seq_utils import *
-
-
-
-
 
 
 def main():
@@ -32,14 +27,17 @@ def main():
         model.load_state_dict(torch.load(os.path.join(
             os.getcwd(), "recipe_gen", "results", "model_12-11-15-59_500")))
         model.to(device)
+        print("Model loaded.")
     else:
         model.to(device)
+        print("Begin training.")
         model.train_process(500, print_every=50)
 
     model.evaluateRandomly(n=2)
 
-    loss, output_words, attentions = model.evaluate(
+    _, output_words, attentions = model.evaluate(
         "tomato salad beef lemon".split())
+    print(output_words)
     try:
         plt.matshow(attentions[:, 0, :].numpy())
     except (TypeError, AttributeError):

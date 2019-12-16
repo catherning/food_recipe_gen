@@ -14,8 +14,8 @@ from tqdm import *
 import numpy as np
 import re
 
-from utils import Vocabulary
-import ingr_normalization as ingr_norm
+from recipe_1m_analysis.utils import Vocabulary
+import recipe_1m_analysis.ingr_normalization as ingr_norm
 
 # TODO: clean all this mess
 
@@ -234,7 +234,6 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
     print("Total token vocabulary size: {}".format(len(vocab_toks)))
 
     # Cleaning memory
-    del counter_ingrs
     del counter_toks
     del vocab_toks
 

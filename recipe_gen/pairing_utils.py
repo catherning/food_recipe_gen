@@ -5,8 +5,9 @@ import heapq
 import pandas as pd
 import sys
 sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
-from recipe_1m_analysis.utils import Vocabulary, FOLDER_PATH, DATA_FILES
+from recipe_1m_analysis.utils import Vocabulary
 import recipe_1m_analysis.ingr_normalization as ingr_norm
+from recipe_gen.seq2seq_utils import FOLDER_PATH, DATA_FILES
 
 filepath = "D:\\Documents\\THU\\Other recipe models\\KitcheNette-master\\KitcheNette-master\\results\\prediction_unknowns_smaller_kitchenette_trained.mdl.csv"
 
