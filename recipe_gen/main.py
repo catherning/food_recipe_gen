@@ -38,7 +38,7 @@ def main():
 
     _, output_words, attentions = model.evaluate(
         "tomato salad beef lemon".split())
-    print(output_words)
+    print(' '.join(output_words[0]))
     try:
         plt.matshow(attentions[:, 0, :].numpy())
     except (TypeError, AttributeError):
