@@ -92,10 +92,12 @@ class RecipesDataset(Dataset):
         return [pair for pair in pairs if self.filterSinglePair(pair)]
 
 
-    def list2idx(self,vocab, sentence): 
+    def instr2idx(self, sentence): 
         # if doesn't find, use unk_token kind of useless because filtered before ?
-        return torch.Tensor([vocab.word2idx.get(word,self.UNK_token) for word in sentence])
+        return torch.Tensor([self.vocab_tokens.word2idx.get(word,self.UNK_token) for word in sentence])
 
+    def ingr2idx(self,ingr_list):
+        return torch.Tensor([self.vocab_ingrs.word2idx.get(word.name,self.UNK_token) for word in ingr_list])
 
     def tensorFromSentence(self,vocab, sentence,instructions=False):
         max_size = instructions * self.max_length + (1-instructions) * self.max_ingr
@@ -106,13 +108,13 @@ class RecipesDataset(Dataset):
             # b_id=1
             b_id = 0
             for sent in sentence:
-                tokenized = self.list2idx(vocab, sent)
+                tokenized = self.instr2idx(sent)
                 sent_len = len(tokenized)
                 tensor_[b_id:b_id+sent_len]= tokenized
                 b_id += sent_len
                 length+=sent_len
         else:
-            tokenized = self.list2idx(vocab, sentence)[:max_size-1]
+            tokenized = self.ingr2idx(sentence)[:max_size-1]
             tensor_[:len(tokenized)]= tokenized
             b_id = len(tokenized)
 
@@ -128,6 +130,8 @@ class RecipesDataset(Dataset):
         return {"ingr":input_tensor,
                 "target_instr": target_tensor,
                 "target_length":target_length}
+                # "ingr_tok":pair[0],
+                # "target_tok":pair[1]}
 
 
 
