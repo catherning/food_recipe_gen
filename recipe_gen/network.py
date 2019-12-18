@@ -126,14 +126,15 @@ class IngrAttnDecoderRNN(DecoderRNN):
 
 
 class PairAttnDecoderRNN(AttnDecoderRNN):
-    def __init__(self, filepath,hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH):
+    def __init__(self, filepath,hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH,unk_token=3):
         super().__init__(
             hidden_size, output_size, batch_size)
         self.attention = IngrAtt(
             hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
-        self.pairAttention = PairingAtt(filepath,hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
+        self.pairAttention = PairingAtt(filepath,hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length,unk_token=unk_token)
+        
 
-    def forward(self, input, hidden, encoder_outputs,encoder_embedding):
+    def forward(self, input, hidden, encoder_outputs,encoder_embedding,input_tensor):
         """
         input: (1,batch)
         hidden: (1,batch,hidden)
@@ -144,8 +145,16 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
 
-        ingr_id = torch.argmax(output,1)
-        output,attn_weights = self.pairAttention(embedded,hidden,ingr_id,encoder_embedding)
+        ingr_arg = torch.argmax(attn_weights,1)
+        # ingr_arg = torch.LongTensor([[i,id] for i,id in enumerate(ingr_arg)]).to(ingr_arg.device)
+        # ingr_id = input_tensor[ingr_arg[0]]
+        ingr_id = torch.LongTensor(self.batch_size)
+        for i,id in enumerate(ingr_arg):
+            ingr_id[i]=input_tensor[i,id]
+
+        out,attn_weights = self.pairAttention(embedded,hidden,ingr_id,encoder_embedding)
+        if out is not None:
+            output = out
         
         output, hidden = self.gru(output, hidden)
 
@@ -234,9 +243,10 @@ class IngrAtt(Attention):
         return output, attn_weights
 
 class PairingAtt(Attention):
-    def __init__(self,filepath, hidden_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH):
+    def __init__(self,filepath, hidden_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH,unk_token=3):
         super().__init__(hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
         self.pairings = pairing.PairingData(filepath)
+        self.unk_token = unk_token
 
     def forward(self,embedded,hidden,ingr_id,encoder_embedding):
         """
@@ -245,11 +255,14 @@ class PairingAtt(Attention):
         V: ing_j retrieved
         """
         compatible_ingr = [self.pairings.bestPairingsFromIngr(ingr) for ingr in ingr_id]
+        
         batch_size = embedded.shape[1]
-        comp_ingr_id = torch.zeros(batch_size,self.pairings.top_k)
+        comp_ingr_id = torch.ones(batch_size,self.pairings.top_k)*self.unk_token
         for i in range(batch_size):
-            comp_ingr_id[i,:] = [pair[0][0] if pair[0][0]!=ingr_id[i] else pair[0][1] for pair in compatible_ingr]
-        comp_emb = encoder_embedding(comp_ingr_id)#view ?
+            if len(compatible_ingr[i])>0:
+                comp_ingr_id[i,:] = [pair[0][0] if pair[0][0]!=ingr_id[i] else pair[0][1] for pair in compatible_ingr[i]]
+
+        comp_emb = encoder_embedding(comp_ingr_id.to(embedded.device).long())
 
         attn_weights = F.softmax(F.tanh(
             self.attn(torch.cat((comp_emb, hidden[0]), 1))), dim=1)
@@ -257,8 +270,8 @@ class PairingAtt(Attention):
         attn_scores = attn_weights * scores
 
         attn_applied = torch.bmm(attn_scores.unsqueeze(0),
-                                 comp_emb.unsqueeze(0))
+                                comp_emb.unsqueeze(0))
 
         output = torch.cat((embedded[0], attn_applied[0]), 1)
-
+                
         return output,attn_scores

@@ -26,8 +26,8 @@ def main():
                       savepath=os.path.join(os.getcwd(), "recipe_gen", "results"), teacher_forcing_ratio=1, max_length=max_length)
     model = Seq2seqIngrAtt(len(data.vocab_ingrs), hidden_size, len(data.vocab_tokens), BATCH_SIZE, data, 
                         device=device, savepath=os.path.join(os.getcwd(), "recipe_gen", "results"), teacher_forcing_ratio=1, max_length=max_length)
-    # model = Seq2seqIngrPairingAtt(len(data.vocab_ingrs), hidden_size, len(data.vocab_tokens), BATCH_SIZE, data, pairing_path, 
-    #                     device=device, savepath=os.path.join(os.getcwd(), "recipe_gen", "results"), teacher_forcing_ratio=1, max_length=max_length)
+    model = Seq2seqIngrPairingAtt(len(data.vocab_ingrs), hidden_size, len(data.vocab_tokens), BATCH_SIZE, data, pairing_path, 
+                        device=device, savepath=os.path.join(os.getcwd(), "recipe_gen", "results"), teacher_forcing_ratio=1, max_length=max_length)
 
     if load:
         model.load_state_dict(torch.load(os.path.join(
