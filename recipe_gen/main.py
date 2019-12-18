@@ -18,8 +18,8 @@ def main():
     pairing_path = "D:\\Documents\\THU\\Other recipe models\\KitcheNette-master\\KitcheNette-master\\results\\prediction_unknowns_smaller_kitchenette_trained.mdl.csv"
 
     load = False
-    model = Seq2seq(len(data.vocab_ingrs), hidden_size, len(data.vocab_tokens), BATCH_SIZE, data, device=device,
-                    savepath=os.path.join(os.getcwd(), "recipe_gen", "results"), teacher_forcing_ratio=1, max_length=max_length)
+    # model = Seq2seq(len(data.vocab_ingrs), hidden_size, len(data.vocab_tokens), BATCH_SIZE, data, device=device,
+    #                 savepath=os.path.join(os.getcwd(), "recipe_gen", "results"), teacher_forcing_ratio=1, max_length=max_length)
 
     model = Seq2seqAtt(len(data.vocab_ingrs),hidden_size,len(data.vocab_tokens),BATCH_SIZE,data,device=device,
                     savepath=os.path.join(os.getcwd(),"recipe_gen","results"), teacher_forcing_ratio=1,max_length=max_length)#,learning_rate=0.0001)

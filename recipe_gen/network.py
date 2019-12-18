@@ -85,25 +85,25 @@ class AttnDecoderRNN(DecoderRNN):
         hidden: (1,batch,hidden)
         encoder_outputs: (max_ingr,hidden)
         """
-        # self.batch_size = input.shape[1]
-        # embedded = self.embedding(input).view(1, self.batch_size, -1)
-        # # embedded (1,batch,hidden) ?
-
-        # output, attn_weights = self.attention(
-        #     embedded, hidden, encoder_outputs)
-
-        # output, hidden = self.gru(output, hidden)
-
-        # output = self.softmax(self.out(output[0]))
-        # return output, hidden, attn_weights
-
         self.batch_size = input.shape[1]
-        output = self.embedding(input).view(1, self.batch_size, -1)
-        output = F.relu(output)
+        embedded = self.embedding(input).view(1, self.batch_size, -1)
+        # embedded (1,batch,hidden) ?
+
+        output, attn_weights = self.attention(
+            embedded, hidden, encoder_outputs)
 
         output, hidden = self.gru(output, hidden)
+
         output = self.softmax(self.out(output[0]))
-        return output, hidden,None
+        return output, hidden, attn_weights
+
+        # self.batch_size = input.shape[1]
+        # output = self.embedding(input).view(1, self.batch_size, -1)
+        # output = F.relu(output)
+
+        # output, hidden = self.gru(output, hidden)
+        # output = self.softmax(self.out(output[0]))
+        # return output, hidden,None
 
 
 class PairAttnDecoderRNN(AttnDecoderRNN):
