@@ -232,6 +232,28 @@ class Seq2seqAtt(Seq2seq):
         super().__init__(input_size, hidden_size, output_size, batch_size, data, max_ingr=max_ingr, max_length=max_length,
                          learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device, savepath=savepath)
 
+        self.decoder = AttnDecoderRNN(
+            hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=max_ingr, max_length=max_length)
+        self.decoder_optimizer = optim.SGD(
+            self.decoder.parameters(), lr=learning_rate)
+
+    # def forward(self, input_tensor, target_tensor):
+    #     """
+    #     input_tensor: (batch_size,max_ingr)
+    #     target_tensor: (batch_size,max_len)
+
+    #     return:
+    #     decoder_outputs: (batch,max_len,size voc)
+    #     decoder_words: final (<max_len,batch)
+    #     decoder_attentions: (max_len,batch,max_ingr)
+    #     """
+
+
+class Seq2seqAttOld(Seq2seq):
+    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu", savepath="./results/"):
+        super().__init__(input_size, hidden_size, output_size, batch_size, data, max_ingr=max_ingr, max_length=max_length,
+                         learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device, savepath=savepath)
+
         # self.decoder = AttnDecoderRNN(
         #     hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=max_ingr, max_length=max_length)
         # self.decoder_optimizer = optim.SGD(
