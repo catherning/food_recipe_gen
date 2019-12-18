@@ -34,17 +34,19 @@ class EncoderRNN(nn.Module):
     def forward_all(self, input_tensor):
         """
         input: (batch,max_ingr) ?
+        encoder_outputs: (max_ingr,batch,hidden)
+        encoder_hidden: (1,batch,hidden)
         """
         self.batch_size = len(input_tensor)
         encoder_hidden = self.initHidden().to(self.device)
         encoder_outputs = torch.zeros(
-            self.max_ingr, self.hidden_size, device=self.device)
+            self.max_ingr, self.batch_size,self.hidden_size, device=self.device)
 
         for ei in range(self.max_ingr):
             # TODO: couldn't give directly all input_tensor, not step by step ???
             encoder_output, encoder_hidden = self.forward(
                 input_tensor[:, ei], encoder_hidden)
-            encoder_outputs[ei] = encoder_output[0, 0]
+            encoder_outputs[ei] = encoder_output[0]
 
         return encoder_outputs, encoder_hidden
 
@@ -97,13 +99,30 @@ class AttnDecoderRNN(DecoderRNN):
         output = self.softmax(self.out(output[0]))
         return output, hidden, attn_weights
 
-        # self.batch_size = input.shape[1]
-        # output = self.embedding(input).view(1, self.batch_size, -1)
-        # output = F.relu(output)
+class IngrAttnDecoderRNN(DecoderRNN):
+    def __init__(self, hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH):
+        super().__init__(hidden_size, output_size, batch_size)
+        self.gru = nn.GRU(2*hidden_size, hidden_size)
+        self.attention = IngrAtt(
+            hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
 
-        # output, hidden = self.gru(output, hidden)
-        # output = self.softmax(self.out(output[0]))
-        # return output, hidden,None
+    def forward(self, input, hidden, encoder_outputs):
+        """
+        input: (1,batch)
+        hidden: (1,batch,hidden)
+        encoder_outputs: (max_ingr,hidden)
+        """
+        self.batch_size = input.shape[1]
+        embedded = self.embedding(input).view(1, self.batch_size, -1)
+        # embedded (1,batch,hidden) ?
+
+        output, attn_weights = self.attention(
+            embedded, hidden, encoder_outputs)
+
+        output, hidden = self.gru(output, hidden)
+
+        output = self.softmax(self.out(output[0]))
+        return output, hidden, attn_weights
 
 
 class PairAttnDecoderRNN(AttnDecoderRNN):
@@ -115,19 +134,17 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         self.pairAttention = PairingAtt(filepath,hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
 
     def forward(self, input, hidden, encoder_outputs,encoder_embedding):
-        embedded = self.embedding(input).view(1, self.batch_size, -1)
-
-        output, attn_weights = self.attention(
-            embedded, hidden, encoder_outputs)
-
         """
         input: (1,batch)
         hidden: (1,batch,hidden)
         encoder_outputs: (max_ingr,hidden)
         """
+        embedded = self.embedding(input).view(1, self.batch_size, -1)
+
+        output, attn_weights = self.attention(
+            embedded, hidden, encoder_outputs)
 
         ingr_id = torch.argmax(output,1)
-
         output,attn_weights = self.pairAttention(embedded,hidden,ingr_id,encoder_embedding)
         
         output, hidden = self.gru(output, hidden)
@@ -154,12 +171,10 @@ class Attention(nn.Module):
         query: embedded
         value: hidden
 
-        TODO: write dim of the inputs, and outputs
-
         or ?
         K: embedded (1,batch,hidden)
         Q: hidden (1,batch,hidden)
-        V: encoder_outputs (max_ingr,hidden)
+        V: encoder_outputs (max_ingr,hidden) now (max_ingr,batch_size,hidden)
 
         returns:
         output: (1,batch,hidden)
@@ -168,12 +183,14 @@ class Attention(nn.Module):
         """
         embedded = self.dropout(embedded)
 
+        # attn_weights : (batch,max_ingr)
         attn_weights = F.softmax(
             self.attn(torch.cat((embedded[0], hidden[0]), 1)), dim=1)
-        attn_applied = torch.bmm(attn_weights.unsqueeze(0),
-                                 encoder_outputs.unsqueeze(0))
+        attn_applied = torch.bmm(attn_weights.view(-1,1,self.max_ingr),
+                                 encoder_outputs.view(-1,self.max_ingr,self.hidden_size))
+        # attn_applied: (batch,1,hidden)
 
-        output = torch.cat((embedded[0], attn_applied[0]), 1)
+        output = torch.cat((embedded[0], attn_applied[:,0]), 1)
         output = self.attn_combine(output).unsqueeze(0)
         output = F.relu(output)
 
@@ -182,20 +199,36 @@ class Attention(nn.Module):
 class IngrAtt(Attention):
     def __init__(self, hidden_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH):
         super().__init__(hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
+        # self.attn = nn.Linear(self.hidden_size * 2, self.hidden_size)
 
     def forward(self,embedded,hidden,encoder_outputs):
         """Def from user pref paper
-        K: encoder_outputs
-        Q: hidden
+        K: encoder_outputs (max_ingr,batch,hidden)
+        Q: hidden (1,batch,hidden)
         V: encoder_outputs
         """
-        # no dropout, but that's a detail
-        # add tanh func
+
+        # attn_weights = torch.zeros(embedded.shape[1],self.max_ingr)
+        # for i in range(self.max_ingr):
+        #     attn_weights[:,i]=F.softmax(torch.tanh(
+        #     self.attn(torch.cat((encoder_outputs[i], hidden[0]), 1))
+        #     ), dim=1)
+
         attn_weights = F.softmax(F.tanh(
-            self.attn(torch.cat((encoder_outputs[0], hidden[0]), 1))), dim=1)
-        attn_applied = torch.bmm(attn_weights.unsqueeze(0),
-                                 encoder_outputs.unsqueeze(0))
-        output = torch.cat((embedded[0], attn_applied[0]), 1)
+            self.attn(torch.cat((encoder_outputs[-1], hidden[0]), 1))
+            ), dim=1)
+        attn_applied = torch.bmm(attn_weights.view(-1,1,self.max_ingr),
+            encoder_outputs.view(-1,self.max_ingr,self.hidden_size))
+        output = torch.cat((embedded[0], attn_applied[:,0]), 1).unsqueeze(0)
+        
+        # attn_weights = F.softmax(F.tanh(
+        #     self.attn(torch.cat((encoder_outputs, hidden.repeat(10,1,1)), 2))
+        #     ), dim=1)
+        # attn_weights (max_ingr,batch,max_ingr)
+        # attn_applied = torch.bmm(attn_weights.view(-1,self.max_ingr,self.max_ingr),
+        #                          encoder_outputs.view(-1,self.max_ingr,self.hidden_size))
+
+        # output = torch.cat((embedded.repeat(10,1,1), attn_applied.view(self.max_ingr,-1,self.hidden_size)), 2)
         # similar to classic attention, but no attn_combine layer in the paper before putting in the GRU ?
         # in the paper, use BiGRU, so normal to have 2*hidden_size, but need to redefine GRU then
         return output, attn_weights

@@ -48,8 +48,9 @@ class Seq2seq(nn.Module):
             os.makedirs(savepath)
         except FileExistsError:
             pass
+
         self.encoder = EncoderRNN(
-            input_size, hidden_size, batch_size, max_ingr=max_ingr, device=device)
+            input_size, hidden_size, batch_size, max_ingr=max_ingr, device=device) 
         self.decoder = DecoderRNN(hidden_size, output_size, batch_size)
 
         self.encoder_optimizer = optim.Adam(
@@ -61,6 +62,11 @@ class Seq2seq(nn.Module):
         self.teacher_forcing_ratio = teacher_forcing_ratio
         self.learning_rate = learning_rate
         self.criterion = nn.NLLLoss()
+    
+    def addAttention(self,di,decoder_attentions,cur_attention):
+        if cur_attention is not None:
+            decoder_attentions[di] = cur_attention.data
+        return decoder_attentions
 
     def forward(self, input_tensor, target_tensor):
         """
@@ -75,8 +81,8 @@ class Seq2seq(nn.Module):
         self.batch_size = len(input_tensor)
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
-        # encoder_outputs (hidden_size, batch) or (max_ingr,hidden) ??
-        # encoder_hidden (1,hidden_size, batch)
+        # encoder_outputs (max_ingr, batch,hidden)
+        # encoder_hidden (1, batch, hidden_size) 
 
         decoder_input = torch.tensor(
             [[self.data.SOS_token]*self.batch_size], device=self.device)
@@ -92,14 +98,16 @@ class Seq2seq(nn.Module):
         decoded_words = [[] for i in range(self.batch_size)]
         decoder_outputs = torch.zeros(self.batch_size, self.max_length, len(
             self.data.vocab_tokens), device=self.device)
+        decoder_attentions = torch.zeros(
+            self.max_length, self.batch_size, self.max_ingr)
 
         if use_teacher_forcing:
             for di in range(self.max_length):
-                decoder_output, decoder_hidden, _ = self.decoder(
+                decoder_output, decoder_hidden, decoder_attention = self.decoder(
                     decoder_input, decoder_hidden, encoder_outputs)
                 decoder_outputs[:, di] = decoder_output
-                decoder_input = target_tensor[:, di].view(
-                    1, -1)   # Teacher forcing
+                decoder_input = target_tensor[:, di].view(1, -1)
+                decoder_attentions=self.addAttention(di,decoder_attentions,decoder_attention)
 
                 topv, topi = decoder_output.topk(1)
                 for batch_id, word_id in enumerate(topi):
@@ -108,10 +116,11 @@ class Seq2seq(nn.Module):
 
         else:
             for di in range(self.max_length):
-                decoder_output, decoder_hidden, _ = self.decoder(
+                decoder_output, decoder_hidden, decoder_attention = self.decoder(
                     decoder_input, decoder_hidden, encoder_outputs)
                 topv, topi = decoder_output.topk(1)
                 decoder_outputs[:, di, :] = decoder_output
+                decoder_attentions=self.addAttention(di,decoder_attentions,decoder_attention)
 
                 idx_end = (topi == self.data.EOS_token).nonzero()[:, 0]
                 if len(idx_end) == self.batch_size:
@@ -124,7 +133,7 @@ class Seq2seq(nn.Module):
                 decoder_input = topi.squeeze().detach().view(
                     1, -1)  # detach from history as input
 
-        return decoder_outputs, decoded_words, None
+        return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
 
     def train_iter(self, input_tensor, target_tensor, target_length):
         self.encoder_optimizer.zero_grad()
@@ -235,74 +244,7 @@ class Seq2seqAtt(Seq2seq):
             hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=max_ingr, max_length=max_length)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=learning_rate)
-
-    # def forward(self, input_tensor, target_tensor):
-    #     """
-    #     input_tensor: (batch_size,max_ingr)
-    #     target_tensor: (batch_size,max_len)
-
-    #     return:
-    #     decoder_outputs: (batch,max_len,size voc)
-    #     decoder_words: final (<max_len,batch)
-    #     decoder_attentions: (max_len,batch,max_ingr)
-    #     """
-    #     self.batch_size = len(input_tensor)
-    #     encoder_outputs, encoder_hidden = self.encoder.forward_all(
-    #         input_tensor)
-    #     # encoder_outputs (hidden_size, batch) or (max_ingr,hidden) ??
-    #     # encoder_hidden (1,hidden_size, batch)
-
-    #     decoder_input = torch.tensor(
-    #         [[self.data.SOS_token]*self.batch_size], device=self.device)
-    #     decoder_hidden = encoder_hidden
-    #     # decoder_input final (<max_len,batch)
-
-    #     if self.training:
-    #         use_teacher_forcing = True if random.random(
-    #         ) < self.teacher_forcing_ratio else False
-    #     else:
-    #         use_teacher_forcing = False
-
-    #     decoded_words = [[] for i in range(self.batch_size)]
-    #     decoder_attentions = torch.zeros(
-    #         self.max_length, self.batch_size, self.max_ingr)
-    #     decoder_outputs = torch.zeros(self.batch_size, self.max_length, len(
-    #         self.data.vocab_tokens), device=self.device)
-
-    #     if use_teacher_forcing:
-    #         for di in range(self.max_length):
-    #             decoder_output, decoder_hidden, decoder_attention = self.decoder(
-    #                 decoder_input, decoder_hidden, encoder_outputs)
-    #             # decoder_attentions[di] = decoder_attention.data
-    #             decoder_outputs[:, di] = decoder_output
-    #             decoder_input = target_tensor[:, di].view(1, -1)
-
-    #             topv, topi = decoder_output.topk(1)
-    #             for batch_id, word_id in enumerate(topi):
-    #                 decoded_words[batch_id].append(
-    #                     self.data.vocab_tokens.idx2word[word_id.item()])
-
-    #     else:
-    #         for di in range(self.max_length):
-    #             decoder_output, decoder_hidden, decoder_attention = self.decoder(
-    #                 decoder_input, decoder_hidden, encoder_outputs)
-    #             # decoder_attentions[di] = decoder_attention.data
-    #             topv, topi = decoder_output.topk(1)
-
-    #             decoder_outputs[:, di, :] = decoder_output
-
-    #             idx_end = (topi == self.data.EOS_token).nonzero()[:, 0]
-    #             if len(idx_end) == self.batch_size:
-    #                 break
-
-    #             for batch_id, word_id in enumerate(topi):
-    #                 decoded_words[batch_id].append(
-    #                     self.data.vocab_tokens.idx2word[word_id.item()])
-
-    #             decoder_input = topi.squeeze().detach().view(
-    #                 1, -1)  # detach from history as input
-
-    #     return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
+            
 
     def evaluateAndShowAttention(self, input_sentence):
         loss, output_words, attentions = self.evaluate(input_sentence)
@@ -310,15 +252,24 @@ class Seq2seqAtt(Seq2seq):
         print('output =', ' '.join(output_words))
         showAttention(input_sentence, output_words, attentions)
 
-
 class Seq2seqIngrAtt(Seq2seq):
+    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu", savepath="./results/"):
+        super().__init__(input_size, hidden_size, output_size, batch_size, data, max_ingr=max_ingr, max_length=max_length,
+                         learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device, savepath=savepath)
+
+        self.decoder = IngrAttnDecoderRNN(
+            hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=max_ingr, max_length=max_length)
+        self.decoder_optimizer = optim.Adam(
+            self.decoder.parameters(), lr=learning_rate)
+
+class Seq2seqIngrPairingAtt(Seq2seq):
     def __init__(self, input_size, hidden_size, output_size, batch_size, data, pairing_path, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu", savepath="./results/"):
         super().__init__(input_size, hidden_size, output_size, batch_size, data, max_ingr=max_ingr, max_length=max_length,
                          learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device, savepath=savepath)
 
         self.decoder = PairAttnDecoderRNN(pairing_path,
                                           hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=max_ingr, max_length=max_length)
-        self.decoder_optimizer = optim.SGD(
+        self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=learning_rate)
 
     def forward(self, input_tensor, target_tensor):

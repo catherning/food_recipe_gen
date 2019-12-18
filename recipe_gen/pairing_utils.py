@@ -4,13 +4,13 @@ import pickle
 import heapq
 import pandas as pd
 import sys
-sys.path.insert(0, "D:\\Documents\\THU\\food_recipe_gen")
+sys.path.insert(0, os.getcwd())
 from recipe_1m_analysis.utils import Vocabulary
 import recipe_1m_analysis.ingr_normalization as ingr_norm
 from recipe_gen.seq2seq_utils import FOLDER_PATH, DATA_FILES
 
 filepath = "D:\\Documents\\THU\\Other recipe models\\KitcheNette-master\\KitcheNette-master\\results\\prediction_unknowns_smaller_kitchenette_trained.mdl.csv"
-
+filepath = "G:\\Other files\\KitcheNette-master\\results\\prediction_unknowns_smaller_kitchenette_trained.mdl.csv"
 
 class PairingData:
     def __init__(self, filepath, min_score=0, top_k=20):
@@ -21,15 +21,24 @@ class PairingData:
         with open(os.path.join(FOLDER_PATH, DATA_FILES[3]), 'rb') as f:
             self.vocab_ingrs = pickle.load(f)
 
+        self.createPairings(filepath)
+        
+
+
+    def createPairings(self,filepath):
         data = pd.read_csv(filepath)
+        self.pairedIngr ={}
         self.pairing_scores = {}
         count_error=0
-        # TODO: norm ingr ingr_norm.normalize_ingredient(row["ingr1"]) before 2idx 
         for index, row in data.iterrows():
-            if row["prediction"] > min_score:
+            if row["prediction"] > self.min_score:
                 try:
+                    ingr1 = ingr_norm.normalize_ingredient(row["ingr1"]).name
+                    ingr2 = ingr_norm.normalize_ingredient(row["ingr2"]).name
                     self.pairing_scores[frozenset(
-                        (self.vocab_ingrs.word2idx[ingr_norm.normalize_ingredient(row["ingr1"]).name], self.vocab_ingrs.word2idx[ingr_norm.normalize_ingredient(row["ingr2"]).name]))] = row["prediction"]
+                        (self.vocab_ingrs.word2idx[ingr1], self.vocab_ingrs.word2idx[ingr2]))] = row["prediction"]
+                    self.pairedIngr[ingr1]=self.vocab_ingrs.word2idx[ingr1]
+                    self.pairedIngr[ingr2]=self.vocab_ingrs.word2idx[ingr2]
                 except KeyError:
                     count_error+=1
                 # except AttributeError:
@@ -53,5 +62,5 @@ class PairingData:
 
 if __name__ == "__main__":
     pairing = PairingData(filepath)
-    
-    print(pairing.bestPairingsFromIngr(2))
+    print(pairing.pairedIngr)
+    print(pairing.bestPairingsFromIngr(74))
