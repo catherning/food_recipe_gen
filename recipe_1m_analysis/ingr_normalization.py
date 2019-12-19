@@ -99,7 +99,11 @@ def normalize_ingredient(raw_name):
     raw_name = raw_name.lower()
     for splitter in cut_list:
         if splitter in raw_name:
-          raw_name = raw_name.split(splitter)[0]
+            raw_name = raw_name.split(splitter)
+            if raw_name[0]=='':
+                raw_name=raw_name[-1]
+            else:
+                raw_name=raw_name[0]
     raw_name = illegal_characters.sub("", raw_name)
     raw_name = unidecode(raw_name).replace(" ", "_").replace(',', '').strip()
     for replacement in replacements:
@@ -182,4 +186,4 @@ def normalize_ingredient(raw_name):
         return None
 
 if __name__=="__main__":
-    print(normalize_ingredient("whole_cloves"))
+    print(normalize_ingredient("cut_green_beans"))
