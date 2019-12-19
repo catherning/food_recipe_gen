@@ -1,8 +1,9 @@
 
 python main.py --save-prediction-unknowns True ^
-                --model-name "smaller_kitchenette_trained.mdl" ^
-                --unknown-path "./data/kitchenette_unknown_pairings.csv" ^
+                --model-name "kitchenette_pretrained.mdl" ^
+                --unknown-path "./data/main_pairing_prediction.csv" ^
                 --embed-path "./data/kitchenette_embeddings.pkl" ^
                 --data-path "./data/kitchenette_dataset.pkl" ^
-                --batch-size 64 ^
-                --dist-fn "concat"
+                --dist-fn "widedeep"
+
+rem --batch-size 64 ^
