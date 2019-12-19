@@ -31,8 +31,8 @@ class Vocabulary(object):
 
                 return idx
 
-    # XXX: to delete if can't unpickle because of that
     def delete_word(self,word):
+        # XXX: to delete if can't unpickle because of that
         idx = self.word2idx[word]
         del self.word2idx[word]
         del self.idx2word[idx]
