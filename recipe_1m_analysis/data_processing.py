@@ -70,13 +70,13 @@ def cluster_ingredients(counter_ingrs):
     mydict_ingrs = dict()
 
     for k, v in counter_ingrs.items():
-
-        w1 = k.split('_')[-1]
-        w2 = k.split('_')[0]
+        k_split = k.split('_')
+        w1 = k_split[-1]
+        w2 = k_split[0]
         lw = [w1, w2]
-        if len(k.split('_')) > 1:
-            w3 = k.split('_')[0] + '_' + k.split('_')[1]
-            w4 = k.split('_')[-2] + '_' + k.split('_')[-1]
+        if len(k_split) > 1:
+            w3 = k_split[0] + '_' + k_split[1]
+            w4 = k_split[-2] + '_' + k_split[-1]
 
             lw = [w1, w2, w4, w3]
 

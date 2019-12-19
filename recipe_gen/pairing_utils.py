@@ -1,16 +1,19 @@
-import os
-import csv
-import pickle
+àimport csv
 import heapq
-import pandas as pd
+import os
+import pickle
 import sys
-sys.path.insert(0, os.getcwd())
-from recipe_1m_analysis.utils import Vocabulary
-import recipe_1m_analysis.ingr_normalization as ingr_norm
-from recipe_gen.seq2seq_utils import FOLDER_PATH, DATA_FILES
 
-filepath = "D:\\Documents\\THU\\Other recipe models\\KitcheNette-master\\KitcheNette-master\\results\\prediction_unknowns_smaller_kitchenette_trained.mdl.csv"
-filepath = "G:\\Other files\\KitcheNette-master\\results\\prediction_unknowns_smaller_kitchenette_trained.mdl.csv"
+import pandas as pd
+sys.path.insert(0, os.getcwd())
+
+import recipe_1m_analysis.ingr_normalization as ingr_norm
+from recipe_1m_analysis.utils import Vocabulary
+from recipe_gen.seq2seq_utils import DATA_FILES, FOLDER_PATH
+
+
+filepath = "D:\\Documents\\THU\\KitcheNette-master\\results\\prediction_unknowns_smaller_kitchenette_trained.mdl.csv"
+
 
 class PairingData:
     def __init__(self, filepath, min_score=0, top_k=20):
@@ -40,10 +43,8 @@ class PairingData:
                     self.pairedIngr[ingr1]=self.vocab_ingrs.word2idx[ingr1]
                     self.pairedIngr[ingr2]=self.vocab_ingrs.word2idx[ingr2]
                 except KeyError:
-                    count_error+=1
-                # except AttributeError:
-                #     print(row["ingr1"],ingr_norm.normalize_ingredient(row["ingr1"]))
-                #     print(row["ingr2"],ingr_norm.normalize_ingredient(row["ingr2"]))
+                    count_error += 1
+
 
         print(f"{len(self)} pairs in total")
         print(f"{count_error} pair(s) not added because of an absent ingredient")
@@ -59,6 +60,7 @@ class PairingData:
 
     def __len__(self):
         return len(self.pairing_scores)
+
 
 if __name__ == "__main__":
     pairing = PairingData(filepath)

@@ -3,7 +3,7 @@ import os
 import pickle
 import sys
 import time
-sys.path.append('D:\\Documents\\Tsinghua\\These\\food_recipe_gen\\recipe_1m_analysis')
+sys.path.append(os.getcwd())
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -11,11 +11,12 @@ import numpy as np
 import utils
 import torch
 from torch.utils.data import DataLoader, Dataset
-
+from recipe_1m_analysis.utils import Vocabulary
 
 MAX_LENGTH = 300
 MAX_INGR = 10
 FOLDER_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)),os.pardir,"recipe_1m_analysis", "data") 
+# TODO: change because it's test file here, add train
 DATA_FILES = ["allingrs_count.pkl",
               "allwords_count.pkl",
               "recipe1m_test.pkl",
