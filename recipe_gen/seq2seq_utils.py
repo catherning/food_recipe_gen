@@ -42,10 +42,10 @@ class RecipesDataset(Dataset):
             self.data=pickle.load(f)
 
         # TODO: redo the data_processing at one point, and use the vocab special tokens
-        self.PAD_token = self.vocab_ingrs.word2idx["<pad>"]
-        self.SOS_token = self.vocab_ingrs.word2idx["<sos>"]
-        self.EOS_token = self.vocab_ingrs.word2idx["<eos>"]
-        self.UNK_token = self.vocab_ingrs.word2idx["<unk>"]
+        self.PAD_token = 0#self.vocab_ingrs.word2idx["<pad>"]
+        self.SOS_token = 1#self.vocab_ingrs.word2idx["<sos>"]
+        self.EOS_token = 2#self.vocab_ingrs.word2idx["<eos>"]
+        self.UNK_token = 3#self.vocab_ingrs.word2idx["<unk>"]
 
         self.process_data()
 
@@ -75,9 +75,14 @@ class RecipesDataset(Dataset):
 
     def filterSinglePair(self,p):
         length=0
-        for ingr in p[0]:
-            if ingr.name not in self.vocab_ingrs.word2idx:
-                return False
+        if type(p[0][0]) is str: 
+            for ingr in p[0]:
+                if ingr not in self.vocab_ingrs.word2idx:
+                    return False
+        else:
+            for ingr in p[0]:
+                if ingr.name not in self.vocab_ingrs.word2idx:
+                    return False
             
         for sent in p[1]:
             for word in sent:
@@ -98,7 +103,10 @@ class RecipesDataset(Dataset):
         return torch.Tensor([self.vocab_tokens.word2idx.get(word,self.UNK_token) for word in sentence])
 
     def ingr2idx(self,ingr_list):
-        return torch.Tensor([self.vocab_ingrs.word2idx.get(word.name,self.UNK_token) for word in ingr_list])
+        if type(ingr_list[0]) is str:
+            return torch.Tensor([self.vocab_ingrs.word2idx.get(word,self.UNK_token) for word in ingr_list])
+        else:
+            return torch.Tensor([self.vocab_ingrs.word2idx.get(word.name,self.UNK_token) for word in ingr_list])
 
     def tensorFromSentence(self,vocab, sentence,instructions=False):
         max_size = instructions * self.max_length + (1-instructions) * self.max_ingr

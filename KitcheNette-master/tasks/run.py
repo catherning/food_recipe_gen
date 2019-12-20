@@ -250,7 +250,7 @@ def save_prediction(model, loader, dataset, args):
 
         # Print progress
         if d_idx % args.print_step == 0 or d_idx == len(loader) - 1:
-            _progress = '{}/{} saving unknwon predictions..'.format(
+            _progress = '{}/{} saving unknown predictions..'.format(
                 d_idx + 1, len(loader))
             LOGGER.info(_progress)
 
@@ -293,12 +293,15 @@ def save_prediction_unknowns(model, loader, dataset, args):
     for row_idx, row in df.iterrows():
         ingr1 = row['ingr1']
         ingr2 = row['ingr2']
-        ingr1_r = embeddings[ingr1]
-        ingr2_r = embeddings[ingr2]
+        try:
+            ingr1_r = embeddings[ingr1]
+            ingr2_r = embeddings[ingr2]
 
-        #ignore this categorical features
-        ingr1_c = embeddings[ingr1]
-        ingr2_c = embeddings[ingr2]
+            #ignore this categorical features
+            ingr1_c = embeddings[ingr1]
+            ingr2_c = embeddings[ingr2]
+        except KeyError:
+            continue
 
         example = [ingr1, ingr1_r, ingr1_c, len(ingr1_r),
                    ingr2, ingr2_r, ingr2_c, len(ingr2_r), 0]
@@ -317,7 +320,7 @@ def save_prediction_unknowns(model, loader, dataset, args):
 
         # Print progress
         if row_idx % 5000 == 0 or row_idx == len(df) - 1:
-            _progress = '{}/{} saving unknwon predictions..'.format(
+            _progress = '{}/{} saving unknown predictions..'.format(
                 row_idx + 1, len(df))
             LOGGER.info(_progress)
 
