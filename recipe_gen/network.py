@@ -223,14 +223,14 @@ class IngrAtt(Attention):
         #     self.attn(torch.cat((encoder_outputs[i], hidden[0]), 1))
         #     ), dim=1)
 
-        attn_weights = F.softmax(F.tanh(
+        attn_weights = F.softmax(torch.tanh(
             self.attn(torch.cat((encoder_outputs[-1], hidden[0]), 1))
             ), dim=1)
         attn_applied = torch.bmm(attn_weights.view(-1,1,self.max_ingr),
             encoder_outputs.view(-1,self.max_ingr,self.hidden_size))
         output = torch.cat((embedded[0], attn_applied[:,0]), 1).unsqueeze(0)
         
-        # attn_weights = F.softmax(F.tanh(
+        # attn_weights = F.softmax(torch.tanh(
         #     self.attn(torch.cat((encoder_outputs, hidden.repeat(10,1,1)), 2))
         #     ), dim=1)
         # attn_weights (max_ingr,batch,max_ingr)
@@ -264,7 +264,7 @@ class PairingAtt(Attention):
 
         comp_emb = encoder_embedding(comp_ingr_id.to(embedded.device).long())
 
-        attn_weights = F.softmax(F.tanh(
+        attn_weights = F.softmax(torch.tanh(
             self.attn(torch.cat((comp_emb, hidden[0]), 1))), dim=1)
         scores = torch.Tensor([pair[1] for pair in compatible_ingr])
         attn_scores = attn_weights * scores

@@ -1,4 +1,4 @@
-àimport csv
+import csv
 import heapq
 import os
 import pickle

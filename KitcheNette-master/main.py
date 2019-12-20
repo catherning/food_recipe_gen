@@ -65,6 +65,8 @@ argparser.add_argument('--debug', type='bool', default=False,
                        help='Run as debug mode')
 argparser.add_argument('--top-only', type='bool', default=False,
                        help='Return top/bottom 10% results only')
+argparser.add_argument('--cuda-device', type=int, default=0,
+                       help='GPU device number')
 
 # Save outputs
 argparser.add_argument('--save-embed', type='bool', default=False,
@@ -105,6 +107,8 @@ def run_experiment(model, dataset, run_fn, args):
     print("\n\nrun_experiment")
     print("Current Representaion Index:", dataset.get_rep)
     print("Current Input Embedding Dimension:", dataset.input_dim)
+
+    torch.cuda.set_device(args.cuda_device)
 
     # Get dataloaders
     train_loader, valid_loader, test_loader = dataset.get_dataloader(
