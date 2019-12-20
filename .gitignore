@@ -121,4 +121,6 @@ dmypy.json
 
 results/
 Untitled.ipynb
-KitcheNette-master/run_args.txt
+KitcheNette-master/data/*
+!main_*
+!*/results/pred*
