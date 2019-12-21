@@ -17,10 +17,12 @@ units = re.compile(
     r'^(cubes?|cups?|c(a?ns?)?|[tT]|bulbs?|sprigs?|glass(es)?|dice|blocks?|an?|l|fl(uid)?\.?|ears?|lea(f|ves)|jars?|cartons?|strips?|heads?|wedges?|envelopes?|pints?|stalks?|sticks?|pinch(es)?|qts?|quarts?|handful|weight|bottles?|grinds?|tb\.?|lbs?\.?|oz\.?|mls?|g|containers?|tablespoons?|teaspoons?|dash(es)?|pounds?|pinch|box(es)?|cans?|(milli)?lit[er]{2}s?|pkg\.?|pack(et)s?|packages?|whole|bars?|bags?|tbsps?\.?|tbs\.?|ts|tsps?\.?|ounces?|dash|pieces?|slices?|bunch(es)?|sticks?|fl\.?|gallons?|squares?|knobs?|grams?|kgs?|tub(es)?|kilograms?|tins?|%|drizzles?|splash(es)?|chunks?|inch(es)?)$')
 number = re.compile(r'((\d+)?\.\d+|(\d+(/\d+)?-)?\d+(/\d+)?)')
 # TODO: add "whole" to blacklist ?????
+# added cloth, to blacklist
 blacklist = {'of', 'and', '&amp;', 'or', 'some', 'many', 'few', 'couple', 'as', 'needed', 'plus', 'more', 'to', 'serve',
              'taste', 'x', 'in', 'cook', 'with', 'at', 'room', 'temperature', 'only', 'cover', 'length',
              'into', 'if', 'then', 'out', 'preferably', 'well', 'good', 'better', 'best', 'about', 'all-purpose', 'all',
-             'purpose', 'recipe', 'ingredient', ')', '(', 'thick-', 'very', 'eating', 'lengthwise', 'each'}
+             'purpose', 'recipe', 'ingredient', ')', '(', 'thick-', 'very', 'eating', 'lengthwise', 'each',
+             'cloth','glue','glycerin','erythritol'}
 parens = re.compile(r'[(\x97].*[)\x97]')
 illegal_characters = re.compile(r'[‶″Â]')
 cut_list = ['for', 'cut', 'such as']
