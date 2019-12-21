@@ -180,11 +180,10 @@ class Seq2seq(nn.Module):
                 if iter % print_every == 0:
                     print_loss_avg = print_loss_total / print_every
                     print_loss_total = 0
-                    print(
-                        f"Epoch {ep} {timeSince(start, iter / n_iters)} ({iter} {int(iter / n_iters * 100)}%) loss={print_loss_avg})")
+                    print('Epoch {} {} ({} {}%) loss={}'.format(ep,timeSince(start, iter / n_iters),iter,int(iter / n_iters * 100),print_loss_avg))
                     print(" ".join(decoded_words[0]))
                     torch.save(self.state_dict(), os.path.join(
-                        self.savepath, f"model_{datetime.now().strftime('%m-%d-%H-%M')}_{iter}"))
+                        self.savepath, "model_{}_{}".format(datetime.now().strftime('%m-%d-%H-%M'),iter)))
 
                 if iter % plot_every == 0:
                     plot_loss_avg = plot_loss_total / plot_every

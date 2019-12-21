@@ -5,10 +5,12 @@ import sys
 import time
 sys.path.append(os.getcwd())
 
+import matplotlib
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
-import utils
+
 import torch
 from torch.utils.data import DataLoader, Dataset
 from recipe_1m_analysis.utils import Vocabulary
