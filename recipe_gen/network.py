@@ -230,10 +230,10 @@ class IngrAtt(Attention):
             encoder_outputs.view(-1,self.max_ingr,self.hidden_size))
         output = torch.cat((embedded[0], attn_applied[:,0]), 1).unsqueeze(0)
         
+        # attn_weights (max_ingr,batch,max_ingr)
         # attn_weights = F.softmax(torch.tanh(
         #     self.attn(torch.cat((encoder_outputs, hidden.repeat(10,1,1)), 2))
         #     ), dim=1)
-        # attn_weights (max_ingr,batch,max_ingr)
         # attn_applied = torch.bmm(attn_weights.view(-1,self.max_ingr,self.max_ingr),
         #                          encoder_outputs.view(-1,self.max_ingr,self.hidden_size))
 
@@ -247,6 +247,7 @@ class PairingAtt(Attention):
         super().__init__(hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
         self.pairings = pairing.PairingData(filepath)
         self.unk_token = unk_token
+        self.attn = nn.Linear(self.hidden_size * 2, 1)
 
     def forward(self,embedded,hidden,ingr_id,encoder_embedding):
         """
@@ -264,9 +265,23 @@ class PairingAtt(Attention):
 
         comp_emb = encoder_embedding(comp_ingr_id.to(embedded.device).long())
 
-        attn_weights = F.softmax(torch.tanh(
-            self.attn(torch.cat((comp_emb, hidden[0]), 1))), dim=1)
-        scores = torch.Tensor([pair[1] for pair in compatible_ingr])
+        attn_weights = torch.zeros(embedded.shape[1],self.pairings.top_k)
+        for i in range(self.pairings.top_k):
+            attn_weights[:,i]=F.softmax(torch.tanh(
+            self.attn(torch.cat((comp_emb[:,i], hidden[0]), 1))
+            ), dim=1).view(embedded.shape[1])
+
+        # attn_weights = F.softmax(torch.tanh(
+        #     self.attn(torch.cat((comp_emb, hidden.repeat(self.pairings.top_k,1,1).view(-1,self.pairings.top_k,self.hidden_size)), 2))), dim=1)
+        
+        scores = torch.zeros(embedded.shape[1],self.pairings.top_k)
+        for i,batch in enumerate(compatible_ingr):
+            for j,pair in enumerate(batch):
+                scores[i,j]=pair[1]
+        # scores = torch.Tensor([[pair[1]] for batch in compatible_ingr for pair in batch])
+        if scores.sum()==0:
+            return None,None
+        
         attn_scores = attn_weights * scores
 
         attn_applied = torch.bmm(attn_scores.unsqueeze(0),
