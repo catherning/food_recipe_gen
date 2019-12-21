@@ -315,6 +315,11 @@ class Seq2seqIngrPairingAtt(Seq2seq):
                 decoder_outputs[:, di, :] = decoder_output
                 decoder_input = target_tensor[:, di]
 
+                topv, topi = decoder_output.topk(1)
+                for batch_id, word_id in enumerate(topi):
+                    decoded_words[batch_id].append(
+                        self.data.vocab_tokens.idx2word[word_id.item()])
+
         else:
             for di in range(self.max_length):
                 decoder_output, decoder_hidden, decoder_attention = self.decoder(
