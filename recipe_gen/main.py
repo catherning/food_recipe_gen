@@ -14,7 +14,7 @@ def main():
     hidden_size = 128
     BATCH_SIZE = 4
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(0)
     data = RecipesDataset(FOLDER_PATH, DATA_FILES, max_length=max_length)
     pairing_path = os.path.join(os.getcwd(),"KitcheNette-master","results","pairings.pkl")
     load = False

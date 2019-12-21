@@ -52,8 +52,8 @@ class PairingData:
                     count_error += 1
 
 
-        print(f"{len(self)} pairs in total")
-        print(f"{count_error} pair(s) not added because of an absent ingredient in the vocab or false ingredient")
+        print("{} pairs in total".format(len(self)))
+        print("{} pair(s) not added because of an absent ingredient in the vocab or false ingredient".format(count_error))
 
     def bestPairingsFromIngr(self, ingr_id):
         """
