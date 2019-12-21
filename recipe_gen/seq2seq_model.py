@@ -303,7 +303,7 @@ class Seq2seqIngrPairingAtt(Seq2seq):
 
         decoded_words = [[] for i in range(self.batch_size)]
         decoder_attentions = torch.zeros(
-            self.max_length, self.batch_size, self.max_ingr)
+            self.max_length, self.batch_size, self.decoder.pairAttention.pairings.top_k)
         decoder_outputs = torch.zeros(self.batch_size, self.max_length, len(
             self.data.vocab_tokens), device=self.device)
 

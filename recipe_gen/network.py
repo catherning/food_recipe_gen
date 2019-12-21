@@ -1,9 +1,10 @@
+import pickle
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
 from recipe_gen.seq2seq_utils import MAX_INGR, MAX_LENGTH
-import recipe_gen.pairing_utils as pairing
+from recipe_gen.pairing_utils import PairingData
 
 
 class EncoderRNN(nn.Module):
@@ -132,7 +133,7 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         self.attention = IngrAtt(
             hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
         self.pairAttention = PairingAtt(filepath,hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length,unk_token=unk_token)
-        
+        self.gru = nn.GRU(2*hidden_size, hidden_size)
 
     def forward(self, input, hidden, encoder_outputs,encoder_embedding,input_tensor):
         """
@@ -226,6 +227,9 @@ class IngrAtt(Attention):
         attn_weights = F.softmax(torch.tanh(
             self.attn(torch.cat((encoder_outputs[-1], hidden[0]), 1))
             ), dim=1)
+
+        # attn_weights view: (batch,1,max_ingr)
+        # encoder_outputs view: (batch,max_ingr,hidden_size)
         attn_applied = torch.bmm(attn_weights.view(-1,1,self.max_ingr),
             encoder_outputs.view(-1,self.max_ingr,self.hidden_size))
         output = torch.cat((embedded[0], attn_applied[:,0]), 1).unsqueeze(0)
@@ -245,7 +249,9 @@ class IngrAtt(Attention):
 class PairingAtt(Attention):
     def __init__(self,filepath, hidden_size, dropout_p=0.1, max_ingr=MAX_INGR, max_length=MAX_LENGTH,unk_token=3):
         super().__init__(hidden_size, dropout_p=dropout_p, max_ingr=max_ingr, max_length=max_length)
-        self.pairings = pairing.PairingData(filepath)
+        with open(filepath,'rb') as f:
+            self.pairings = pickle.load(f)
+        # self.pairings = PairingData(filepath)
         self.unk_token = unk_token
         self.attn = nn.Linear(self.hidden_size * 2, 1)
 
@@ -255,38 +261,48 @@ class PairingAtt(Attention):
         Q: h_enc,t = i_enc,j max from previous attention
         V: ing_j retrieved
         """
+        # XXX: Can be less than top_k compatible ingr...
         compatible_ingr = [self.pairings.bestPairingsFromIngr(ingr) for ingr in ingr_id]
         
         batch_size = embedded.shape[1]
         comp_ingr_id = torch.ones(batch_size,self.pairings.top_k)*self.unk_token
         for i in range(batch_size):
             if len(compatible_ingr[i])>0:
-                comp_ingr_id[i,:] = [pair[0][0] if pair[0][0]!=ingr_id[i] else pair[0][1] for pair in compatible_ingr[i]]
+                comp_ingr = torch.Tensor([list(pair[0])[0] if list(pair[0])[0]!=ingr_id[i] else list(pair[0])[1] for pair in compatible_ingr[i]])
+                comp_ingr_id[i,:comp_ingr.shape[0]] = comp_ingr
 
         comp_emb = encoder_embedding(comp_ingr_id.to(embedded.device).long())
 
+        # XXX: they are all 1, weirdly 
         attn_weights = torch.zeros(embedded.shape[1],self.pairings.top_k)
         for i in range(self.pairings.top_k):
-            attn_weights[:,i]=F.softmax(torch.tanh(
-            self.attn(torch.cat((comp_emb[:,i], hidden[0]), 1))
-            ), dim=1).view(embedded.shape[1])
+            attn_weights[:,i]=self.attn(torch.cat((comp_emb[:,i], hidden[0]), 1)).view(embedded.shape[1])
+        attn_weights = F.softmax(torch.tanh(attn_weights),dim=1)
 
         # attn_weights = F.softmax(torch.tanh(
         #     self.attn(torch.cat((comp_emb, hidden.repeat(self.pairings.top_k,1,1).view(-1,self.pairings.top_k,self.hidden_size)), 2))), dim=1)
         
+        # TODO: take at the same time as the selection of ingr_id in comp_ingr_id ?
         scores = torch.zeros(embedded.shape[1],self.pairings.top_k)
         for i,batch in enumerate(compatible_ingr):
             for j,pair in enumerate(batch):
                 scores[i,j]=pair[1]
         # scores = torch.Tensor([[pair[1]] for batch in compatible_ingr for pair in batch])
-        if scores.sum()==0:
-            return None,None
         
-        attn_scores = attn_weights * scores
+        # XXX: renormalize after multiplication ?
+        # TODO: try with emphazing unknown pairings
+        attn_scores = (attn_weights * scores).to(comp_emb.device)
 
-        attn_applied = torch.bmm(attn_scores.unsqueeze(0),
-                                comp_emb.unsqueeze(0))
+        # TODO: try with still doing the attention, but without the scores if there's no compatible ingr ?
+        # or too broad to add ingr afterwards ?
+        if scores.sum()==0:
+            return None,attn_scores
 
-        output = torch.cat((embedded[0], attn_applied[0]), 1)
+        # attn_scores view: (batch,1,top_k)
+        # comb_emb (batch,top_k,hidden_size)
+        attn_applied = torch.bmm(attn_scores.view(-1,1,self.pairings.top_k),
+                                comp_emb)
+
+        output = torch.cat((embedded[0], attn_applied[:,0]), 1).unsqueeze(0)
                 
         return output,attn_scores
