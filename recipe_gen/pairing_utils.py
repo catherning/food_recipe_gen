@@ -6,9 +6,11 @@ import sys
 
 import pandas as pd
 sys.path.insert(0, os.getcwd())
+sys.path.append(os.path.join(os.getcwd(),"recipe_1m_analysis"))
 
 import recipe_1m_analysis.ingr_normalization as ingr_norm
 from recipe_1m_analysis.utils import Vocabulary
+import recipe_1m_analysis.utils as utils
 from recipe_gen.seq2seq_utils import DATA_FILES, FOLDER_PATH
 
 known_path = os.path.join(os.getcwd(),"KitcheNette-master","data","kitchenette_pairing_scores.csv")
@@ -25,11 +27,25 @@ class PairingData:
         with open(os.path.join(FOLDER_PATH, DATA_FILES[3]), 'rb') as f:
             self.vocab_ingrs = pickle.load(f)
 
-        for file in filepaths:
-            self.createPairings(file)
+        self.createPairings(filepaths[0])
+        if len(filepaths)==2:
+            self.createPairings(filepaths[1],unknown=False)
+        
+        self.trimDict()
 
         self.toPickle(pickle_file)
 
+    def addPairing(self,ingr1,ingr2,score):
+        try:
+            self.pairing_scores[self.pairedIngr[ingr1]][self.pairedIngr[ingr2]] = score
+        except KeyError:
+            self.pairing_scores[self.pairedIngr[ingr1]] = {self.pairedIngr[ingr2]:score}
+
+    def trimDict(self):
+        for v in self.pairing_scores.values():
+            to_delete = heapq.nlargest(len(v)-self.top_k, v, key=v.get)
+            for idx in to_delete:
+                del v[idx]
 
     def createPairings(self,filepath,unknown=True):
         if unknown:
@@ -44,12 +60,16 @@ class PairingData:
                 try:
                     ingr1 = ingr_norm.normalize_ingredient(row["ingr1"]).name
                     ingr2 = ingr_norm.normalize_ingredient(row["ingr2"]).name
-                    self.pairing_scores[frozenset(
-                        (self.vocab_ingrs.word2idx[ingr1], self.vocab_ingrs.word2idx[ingr2]))] = row[score_name]
-                    self.pairedIngr[ingr1]=self.vocab_ingrs.word2idx[ingr1]
-                    self.pairedIngr[ingr2]=self.vocab_ingrs.word2idx[ingr2]
+                    if ingr1 not in self.pairedIngr:
+                        self.pairedIngr[ingr1]=self.vocab_ingrs.word2idx[ingr1]
+                    if ingr2 not in self.pairedIngr:
+                        self.pairedIngr[ingr2]=self.vocab_ingrs.word2idx[ingr2]
                 except (KeyError,AttributeError):
                     count_error += 1
+                    continue
+                
+                self.addPairing(ingr1,ingr2,row[score_name])
+                self.addPairing(ingr2,ingr1,row[score_name])
 
 
         print("{} pairs in total".format(len(self)))
@@ -61,9 +81,13 @@ class PairingData:
         returns [(frozenset({16, 2}), 0.01891073), (frozenset({129, 2}), 0.0022993684)]
         """
         # TODO: select beforehand the top_k pairings to put in pairing_scores
-        ingr_pairs = {k: v for k, v in self.pairing_scores.items()
-                      if ingr_id.item() in k}
-        return [(pair, self.pairing_scores[pair]) for pair in heapq.nlargest(self.top_k, ingr_pairs, key=self.pairing_scores.get)]
+        # ingr_pairs = {k: v for k, v in self.pairing_scores.items()
+        #               if ingr_id.item() in k} 
+        # return [(pair, self.pairing_scores[pair]) for pair in heapq.nlargest(self.top_k, ingr_pairs, key=self.pairing_scores.get)]
+        try:
+            return  [(ingr,score) for ingr,score in self.pairing_scores[ingr_id.item()].items()]
+        except KeyError:
+            return []
 
     def __len__(self):
         return len(self.pairing_scores)

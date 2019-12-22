@@ -261,19 +261,18 @@ class PairingAtt(Attention):
         Q: h_enc,t = i_enc,j max from previous attention
         V: ing_j retrieved
         """
-        # XXX: Can be less than top_k compatible ingr...
+
         compatible_ingr = [self.pairings.bestPairingsFromIngr(ingr) for ingr in ingr_id]
         
         batch_size = embedded.shape[1]
-        comp_ingr_id = torch.ones(batch_size,self.pairings.top_k)*self.unk_token
+        comp_ingr_id = torch.ones(batch_size,self.pairings.top_k,dtype=torch.int)*self.unk_token
         for i in range(batch_size):
             if len(compatible_ingr[i])>0:
-                comp_ingr = torch.Tensor([list(pair[0])[0] if list(pair[0])[0]!=ingr_id[i] else list(pair[0])[1] for pair in compatible_ingr[i]])
+                comp_ingr = torch.LongTensor([pair[0] for pair in compatible_ingr[i]])
                 comp_ingr_id[i,:comp_ingr.shape[0]] = comp_ingr
 
         comp_emb = encoder_embedding(comp_ingr_id.to(embedded.device).long())
 
-        # XXX: they are all 1, weirdly 
         attn_weights = torch.zeros(embedded.shape[1],self.pairings.top_k)
         for i in range(self.pairings.top_k):
             attn_weights[:,i]=self.attn(torch.cat((comp_emb[:,i], hidden[0]), 1)).view(embedded.shape[1])
