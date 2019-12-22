@@ -217,33 +217,17 @@ class IngrAtt(Attention):
         Q: hidden (1,batch,hidden)
         V: encoder_outputs
         """
-
-        # attn_weights = torch.zeros(embedded.shape[1],self.max_ingr)
-        # for i in range(self.max_ingr):
-        #     attn_weights[:,i]=F.softmax(torch.tanh(
-        #     self.attn(torch.cat((encoder_outputs[i], hidden[0]), 1))
-        #     ), dim=1)
-
+        batch_size = embedded.shape[1]
         attn_weights = F.softmax(torch.tanh(
             self.attn(torch.cat((encoder_outputs[-1], hidden[0]), 1))
             ), dim=1)
 
         # attn_weights view: (batch,1,max_ingr)
         # encoder_outputs view: (batch,max_ingr,hidden_size)
-        attn_applied = torch.bmm(attn_weights.view(-1,1,self.max_ingr),
-            encoder_outputs.view(-1,self.max_ingr,self.hidden_size))
+        attn_applied = torch.bmm(attn_weights.view(batch_size,1,self.max_ingr),
+            encoder_outputs.view(batch_size,self.max_ingr,self.hidden_size))
         output = torch.cat((embedded[0], attn_applied[:,0]), 1).unsqueeze(0)
         
-        # attn_weights (max_ingr,batch,max_ingr)
-        # attn_weights = F.softmax(torch.tanh(
-        #     self.attn(torch.cat((encoder_outputs, hidden.repeat(10,1,1)), 2))
-        #     ), dim=1)
-        # attn_applied = torch.bmm(attn_weights.view(-1,self.max_ingr,self.max_ingr),
-        #                          encoder_outputs.view(-1,self.max_ingr,self.hidden_size))
-
-        # output = torch.cat((embedded.repeat(10,1,1), attn_applied.view(self.max_ingr,-1,self.hidden_size)), 2)
-        # similar to classic attention, but no attn_combine layer in the paper before putting in the GRU ?
-        # in the paper, use BiGRU, so normal to have 2*hidden_size, but need to redefine GRU then
         return output, attn_weights
 
 class PairingAtt(Attention):
@@ -278,9 +262,6 @@ class PairingAtt(Attention):
             attn_weights[:,i]=self.attn(torch.cat((comp_emb[:,i], hidden[0]), 1)).view(embedded.shape[1])
         attn_weights = F.softmax(torch.tanh(attn_weights),dim=1)
 
-        # attn_weights = F.softmax(torch.tanh(
-        #     self.attn(torch.cat((comp_emb, hidden.repeat(self.pairings.top_k,1,1).view(-1,self.pairings.top_k,self.hidden_size)), 2))), dim=1)
-        
         # TODO: take at the same time as the selection of ingr_id in comp_ingr_id ?
         scores = torch.zeros(embedded.shape[1],self.pairings.top_k)
         for i,batch in enumerate(compatible_ingr):
