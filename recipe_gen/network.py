@@ -146,8 +146,6 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
             embedded, hidden, encoder_outputs)
 
         ingr_arg = torch.argmax(attn_weights, 1)
-        # ingr_arg = torch.LongTensor([[i,id] for i,id in enumerate(ingr_arg)]).to(ingr_arg.device)
-        # ingr_id = input_tensor[ingr_arg[0]]
         ingr_id = torch.LongTensor(batch_size)
         for i, id in enumerate(ingr_arg):
             ingr_id[i] = input_tensor[i, id]

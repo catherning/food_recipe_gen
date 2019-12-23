@@ -12,6 +12,12 @@ from recipe_gen.pairing_utils import PairingData
 LOGGER = logging.getLogger()
 PAIRING_PATH = os.path.join(os.getcwd(),"KitcheNette-master","results","pairings.pkl")
 SAVING_PATH = os.path.join(os.getcwd(), "recipe_gen", "results")
+DATA_FILES = ["allingrs_count.pkl",
+              "allwords_count.pkl",
+              "recipe1m_test.pkl",
+              "recipe1m_vocab_ingrs.pkl",
+              "recipe1m_vocab_toks.pkl",
+              "recipe1m_train.pkl"]
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -27,11 +33,19 @@ argparser = argparse.ArgumentParser()
 argparser.register('type', 'bool', str2bool)
 
 # Directories
-argparser.add_argument('--data-path', type=str, default=FOLDER_PATH,
+argparser.add_argument('--data-folder', type=str, default=FOLDER_PATH,
                        help='Dataset path')
 argparser.add_argument('--pairing-path', type=str, default=PAIRING_PATH,
                        help='Dataset path')
 argparser.add_argument('--saving-path', type=str, default=SAVING_PATH,
+                       help='Dataset path')
+argparser.add_argument('--vocab-ingr-file', type=str, default=DATA_FILES[3],
+                       help='Dataset path')
+argparser.add_argument('--vocab-tok-file', type=str, default=DATA_FILES[4],
+                       help='Dataset path')
+argparser.add_argument('--train-file', type=str, default=DATA_FILES[5],
+                       help='Dataset path')
+argparser.add_argument('--test-file', type=str, default=DATA_FILES[2],
                        help='Dataset path')
 
 # Run settings
@@ -77,6 +91,7 @@ argparser.add_argument('--embed-d', type=int, default=1,
 # Train config
 argparser.add_argument('--batch-size', type=int, default=8)
 argparser.add_argument('--epoch', type=int, default=200)
+argparser.add_argument('--n-iters', type=int, default=1000)
 argparser.add_argument('--learning-rate', type=float, default=0.01)
 argparser.add_argument('--teacher-forcing-ratio', type=float, default=1)
 argparser.add_argument('--dropout', type=float, default=0.1)
@@ -100,9 +115,9 @@ def init_seed(seed=None):
 
 def main():
     init_seed(args.seed)
-    data = RecipesDataset(args, DATA_FILES)
+    # data = RecipesDataset(args, DATA_FILES)
     model_class=getattr(importlib.import_module("recipe_gen.seq2seq_model"), args.model_name)
-    model = model_class(args,len(data.vocab_ingrs), len(data.vocab_tokens), data)
+    model = model_class(args)#,len(data.vocab_ingrs), len(data.vocab_tokens), data)
 
     if args.resume:
         # TODO: save best models, split folders by model type. Log model infos

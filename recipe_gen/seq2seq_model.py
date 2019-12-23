@@ -28,17 +28,19 @@ class Seq2seq(nn.Module):
         # all params in arg storage object ?
         self.max_length = args.max_length
         self.max_ingr = args.max_ingr
-        self.data = data
+        self.train_dataset = RecipesDataset(args)
+        self.test_dataset = RecipesDataset(args,train=False)
+        self.args = args
 
         train_size = int(0.8 * len(self.data))
         test_size = len(self.data) - train_size
-        train_dataset, test_dataset = torch.utils.data.random_split(
-            self.data, [train_size, test_size])
+        # train_dataset, test_dataset = torch.utils.data.random_split(
+        #     self.data, [train_size, test_size])
 
-        self.train_dataloader = torch.utils.data.DataLoader(train_dataset,
+        self.train_dataloader = torch.utils.data.DataLoader(self.train_dataset,
                                                             batch_size=args.batch_size, shuffle=True,
                                                             num_workers=4)
-        self.test_dataloader = torch.utils.data.DataLoader(test_dataset,
+        self.test_dataloader = torch.utils.data.DataLoader(self.test_dataset,
                                                            batch_size=args.batch_size, shuffle=True,
                                                            num_workers=4)
 
@@ -156,7 +158,7 @@ class Seq2seq(nn.Module):
 
         return loss.item(), decoded_words
 
-    def train_process(self, n_epoch, n_iters=1000, print_every=1000, plot_every=100):
+    def train_process(self):
         self.train()
         start = time.time()
         plot_losses = []
@@ -164,9 +166,9 @@ class Seq2seq(nn.Module):
         plot_loss_total = 0  # Reset every plot_every
         best_loss=math.inf
 
-        for ep in range(n_epoch):
+        for ep in range(self.args.n_epoch):
             for iter, batch in enumerate(self.train_dataloader, start=1):
-                if iter == n_iters:
+                if iter == self.args.n_iters:
                     break
 
                 # split in train_iter? give directly batch to train_iter ?
@@ -179,21 +181,21 @@ class Seq2seq(nn.Module):
                 print_loss_total += loss
                 plot_loss_total += loss
 
-                if iter % print_every == 0:
-                    print_loss_avg = print_loss_total / print_every
+                if iter % self.args.print_step == 0:
+                    print_loss_avg = print_loss_total / self.args.print_step
                     print_loss_total = 0
-                    print('Epoch {} {} ({} {}%) loss={}'.format(ep,timeSince(start, iter / n_iters),iter,int(iter / n_iters * 100),print_loss_avg))
+                    print('Epoch {} {} ({} {}%) loss={}'.format(ep,timeSince(start, iter / self.args.n_iters),iter,int(iter / self.args.n_iters * 100),print_loss_avg))
                     print(" ".join(decoded_words[0]))
 
                     if print_loss_avg<best_loss:
                         torch.save(self.state_dict(), os.path.join(
                             self.savepath, "model_{}_{}".format(datetime.now().strftime('%m-%d-%H-%M'),iter)))
 
-                if iter % plot_every == 0:
-                    plot_loss_avg = plot_loss_total / plot_every
-                    plot_losses.append(plot_loss_avg)
-                    plot_loss_total = 0
-                    showPlot(plot_losses)
+                # if iter % plot_every == 0:
+                #     plot_loss_avg = plot_loss_total / plot_every
+                #     plot_losses.append(plot_loss_avg)
+                #     plot_loss_total = 0
+                #     showPlot(plot_losses)
 
     def evaluate(self, sentence, target=None):
         self.eval()

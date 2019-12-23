@@ -23,25 +23,23 @@ DATA_FILES = ["allingrs_count.pkl",
               "allwords_count.pkl",
               "recipe1m_test.pkl",
               "recipe1m_vocab_ingrs.pkl",
-              "recipe1m_vocab_toks.pkl"]
+              "recipe1m_vocab_toks.pkl",
+              "recipe1m_train.pkl"]
 
 
 
 class RecipesDataset(Dataset):
     """Recipes dataset."""
 
-    def __init__(self,args,DATA_FILES):
+    def __init__(self,args,train=True):
         self.max_length = args.max_length
         self.max_ingr = args.max_ingr
 
-        with open(os.path.join(FOLDER_PATH,DATA_FILES[3]),'rb') as f:
+        with open(os.path.join(args.data_folder,args.vocab_ingr_file),'rb') as f:
             self.vocab_ingrs=pickle.load(f)
             
-        with open(os.path.join(FOLDER_PATH,DATA_FILES[4]),'rb') as f:
+        with open(os.path.join(args.data_folder,args.vocab_tok_file),'rb') as f:
             self.vocab_tokens=pickle.load(f)
-
-        with open(os.path.join(FOLDER_PATH,DATA_FILES[2]),'rb') as f:
-            self.data=pickle.load(f)
 
         # TODO: redo the data_processing at one point, and use the vocab special tokens
         self.PAD_token = self.vocab_ingrs.word2idx.get("<pad>",0)
@@ -49,6 +47,13 @@ class RecipesDataset(Dataset):
         self.EOS_token = self.vocab_ingrs.word2idx.get("<eos>",2)
         self.UNK_token = self.vocab_ingrs.word2idx.get("<unk>",3)
 
+        if train:
+            with open(os.path.join(args.data_folder,args.train_file),'rb') as f:
+                self.data=pickle.load(f)
+        else:
+            with open(os.path.join(args.data_folder,args.test_file),'rb') as f:
+                self.data=pickle.load(f)
+                
         self.process_data()
 
     def __len__(self):
