@@ -92,16 +92,11 @@ args = argparser.parse_args()
 
 def main():
     data = RecipesDataset(args, DATA_FILES)
-    
-    # model = Seq2seq(args,len(data.vocab_ingrs), len(data.vocab_tokens), data)
-    # model = Seq2seqAtt(args,len(data.vocab_ingrs), len(data.vocab_tokens), data)
-    # model = Seq2seqIngrAtt(args,len(data.vocab_ingrs), len(data.vocab_tokens), data)
-    # model = Seq2seqIngrPairingAtt(args, len(data.vocab_ingrs), len(data.vocab_tokens), data)
-
     model_class=getattr(importlib.import_module("recipe_gen.seq2seq_model"), args.model_name)
     model = model_class(args,len(data.vocab_ingrs), len(data.vocab_tokens), data)
 
     if args.resume:
+        # TODO: save best models, split folders by model type. Log model infos
         model.load_state_dict(torch.load(os.path.join(
             os.getcwd(), "recipe_gen", "results", "model_12-17-00-26_100")))
         model.to(args.device)
