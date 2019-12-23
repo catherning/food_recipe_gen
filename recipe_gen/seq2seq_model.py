@@ -22,11 +22,11 @@ sys.path.insert(0, os.getcwd())
 
 
 class Seq2seq(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu", savepath="./results/"):
+    def __init__(self, args,input_size, output_size, data):
         super().__init__()
         # all params in arg storage object ?
-        self.max_length = max_length
-        self.max_ingr = max_ingr
+        self.max_length = args.max_length
+        self.max_ingr = args.max_ingr
         self.data = data
 
         train_size = int(0.8 * len(self.data))
@@ -35,32 +35,31 @@ class Seq2seq(nn.Module):
             self.data, [train_size, test_size])
 
         self.train_dataloader = torch.utils.data.DataLoader(train_dataset,
-                                                            batch_size=batch_size, shuffle=True,
+                                                            batch_size=args.batch_size, shuffle=True,
                                                             num_workers=4)
         self.test_dataloader = torch.utils.data.DataLoader(test_dataset,
-                                                           batch_size=batch_size, shuffle=True,
+                                                           batch_size=args.batch_size, shuffle=True,
                                                            num_workers=4)
 
-        self.batch_size = batch_size
-        self.device = device
-        self.savepath = savepath
+        self.batch_size = args.batch_size
+        self.device = args.device
+        self.savepath = args.saving_path
         try:
-            os.makedirs(savepath)
+            os.makedirs(self.savepath)
         except FileExistsError:
             pass
 
-        self.encoder = EncoderRNN(
-            input_size, hidden_size, batch_size, max_ingr=max_ingr, device=device)
-        self.decoder = DecoderRNN(hidden_size, output_size, batch_size)
+        self.encoder = EncoderRNN(args, input_size)
+        self.decoder = DecoderRNN(args,output_size)
 
         self.encoder_optimizer = optim.Adam(
-            self.encoder.parameters(), lr=learning_rate)
+            self.encoder.parameters(), lr=args.learning_rate)
         self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=learning_rate)
+            self.decoder.parameters(), lr=args.learning_rate)
 
         # Training param
-        self.teacher_forcing_ratio = teacher_forcing_ratio
-        self.learning_rate = learning_rate
+        self.teacher_forcing_ratio = args.teacher_forcing_ratio
+        self.learning_rate = args.learning_rate
         self.criterion = nn.NLLLoss()
 
     def addAttention(self, di, decoder_attentions, cur_attention):
@@ -237,14 +236,12 @@ class Seq2seq(nn.Module):
 
 
 class Seq2seqAtt(Seq2seq):
-    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu", savepath="./results/"):
-        super().__init__(input_size, hidden_size, output_size, batch_size, data, max_ingr=max_ingr, max_length=max_length,
-                         learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device, savepath=savepath)
+    def __init__(self, args, input_size, output_size, data):
+        super().__init__(args,input_size,  output_size, data)
 
-        self.decoder = AttnDecoderRNN(
-            hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=max_ingr, max_length=max_length)
+        self.decoder = AttnDecoderRNN(args, output_size)
         self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=learning_rate)
+            self.decoder.parameters(), lr=args.learning_rate)
 
     def evaluateAndShowAttention(self, input_sentence):
         loss, output_words, attentions = self.evaluate(input_sentence)
@@ -254,25 +251,21 @@ class Seq2seqAtt(Seq2seq):
 
 
 class Seq2seqIngrAtt(Seq2seq):
-    def __init__(self, input_size, hidden_size, output_size, batch_size, data, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu", savepath="./results/"):
-        super().__init__(input_size, hidden_size, output_size, batch_size, data, max_ingr=max_ingr, max_length=max_length,
-                         learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device, savepath=savepath)
+    def __init__(self, args, input_size, output_size, data):
+        super().__init__(args,input_size, output_size, data)
 
-        self.decoder = IngrAttnDecoderRNN(
-            hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=max_ingr, max_length=max_length)
+        self.decoder = IngrAttnDecoderRNN(args, output_size)
         self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=learning_rate)
+            self.decoder.parameters(), lr=args.learning_rate)
 
 
 class Seq2seqIngrPairingAtt(Seq2seq):
-    def __init__(self, input_size, hidden_size, output_size, batch_size, data, pairing_path, max_ingr=MAX_INGR, max_length=MAX_LENGTH, learning_rate=0.01, teacher_forcing_ratio=0.5, device="cpu", savepath="./results/"):
-        super().__init__(input_size, hidden_size, output_size, batch_size, data, max_ingr=max_ingr, max_length=max_length,
-                         learning_rate=learning_rate, teacher_forcing_ratio=teacher_forcing_ratio, device=device, savepath=savepath)
+    def __init__(self, args,input_size, output_size, data):
+        super().__init__(args,input_size, output_size, data)
 
-        self.decoder = PairAttnDecoderRNN(pairing_path,
-                                          hidden_size, output_size, batch_size, dropout_p=0.1, max_ingr=max_ingr, max_length=max_length, unk_token=self.data.UNK_token)
+        self.decoder = PairAttnDecoderRNN(args, output_size, unk_token=self.data.UNK_token)
         self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=learning_rate)
+            self.decoder.parameters(), lr=args.learning_rate)
 
     def forward(self, input_tensor, target_tensor):
         """

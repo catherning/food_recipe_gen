@@ -30,9 +30,9 @@ DATA_FILES = ["allingrs_count.pkl",
 class RecipesDataset(Dataset):
     """Recipes dataset."""
 
-    def __init__(self,FOLDER_PATH,DATA_FILES,max_ingr=10,max_length=MAX_LENGTH):
-        self.max_length = max_length
-        self.max_ingr = max_ingr
+    def __init__(self,args,DATA_FILES):
+        self.max_length = args.max_length
+        self.max_ingr = args.max_ingr
 
         with open(os.path.join(FOLDER_PATH,DATA_FILES[3]),'rb') as f:
             self.vocab_ingrs=pickle.load(f)
