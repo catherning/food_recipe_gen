@@ -44,10 +44,10 @@ class RecipesDataset(Dataset):
             self.data=pickle.load(f)
 
         # TODO: redo the data_processing at one point, and use the vocab special tokens
-        self.PAD_token = self.vocab_ingrs.word2idx["<pad>"]
-        self.SOS_token = self.vocab_ingrs.word2idx["<sos>"]
-        self.EOS_token = self.vocab_ingrs.word2idx["<eos>"]
-        self.UNK_token = self.vocab_ingrs.word2idx["<unk>"]
+        self.PAD_token = self.vocab_ingrs.word2idx.get("<pad>",0)
+        self.SOS_token = self.vocab_ingrs.word2idx.get("<sos>",1)
+        self.EOS_token = self.vocab_ingrs.word2idx.get("<eos>",2)
+        self.UNK_token = self.vocab_ingrs.word2idx.get("<unk>",3)
 
         self.process_data()
 

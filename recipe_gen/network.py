@@ -138,8 +138,9 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         hidden: (1,batch,hidden)
         encoder_outputs: (max_ingr,hidden)
         """
+        batch_size = hidden.shape[1]
         # XXX: input sometimes of correct shape, sometimes, only dims (batch,hidden)! 
-        embedded = self.embedding(input).view(1,hidden.shape[1],self.hidden_size)  # (1, batch_size, hidden)
+        embedded = self.embedding(input).view(1,batch_size,self.hidden_size)  # (1, batch_size, hidden)
 
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
@@ -147,7 +148,7 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         ingr_arg = torch.argmax(attn_weights, 1)
         # ingr_arg = torch.LongTensor([[i,id] for i,id in enumerate(ingr_arg)]).to(ingr_arg.device)
         # ingr_id = input_tensor[ingr_arg[0]]
-        ingr_id = torch.LongTensor(self.batch_size)
+        ingr_id = torch.LongTensor(batch_size)
         for i, id in enumerate(ingr_arg):
             ingr_id[i] = input_tensor[i, id]
 
@@ -259,18 +260,18 @@ class PairingAtt(Attention):
 
         comp_emb = encoder_embedding(comp_ingr_id.to(embedded.device).long())
 
-        attn_weights = torch.zeros(embedded.shape[1], self.pairings.top_k)
+        attn_weights = torch.zeros(batch_size, self.pairings.top_k)
         for i in range(self.pairings.top_k):
             attn_weights[:, i] = self.attn(
-                torch.cat((comp_emb[:, i], hidden[0]), 1)).view(embedded.shape[1])
+                torch.cat((comp_emb[:, i], hidden[0]), 1)).view(batch_size)
         attn_weights = F.softmax(torch.tanh(attn_weights), dim=1)
 
         # TODO: take at the same time as the selection of ingr_id in comp_ingr_id ?
-        scores = torch.zeros(embedded.shape[1], self.pairings.top_k)
+        scores = torch.zeros(batch_size, self.pairings.top_k)
         for i, batch in enumerate(compatible_ingr):
             for j, pair in enumerate(batch):
                 scores[i, j] = pair[1]
-        # scores = torch.Tensor([[pair[1]] for batch in compatible_ingr for pair in batch])
+
 
         # XXX: renormalize after multiplication ?
         # TODO: try with emphazing unknown pairings

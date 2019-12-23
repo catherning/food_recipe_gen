@@ -9,6 +9,7 @@ import random
 import re
 import sys
 import time
+import math
 import unicodedata
 from functools import reduce
 from io import open
@@ -43,7 +44,7 @@ class Seq2seq(nn.Module):
 
         self.batch_size = args.batch_size
         self.device = args.device
-        self.savepath = args.saving_path
+        self.savepath = os.path.join(args.saving_path,self.__class__.__name__)
         try:
             os.makedirs(self.savepath)
         except FileExistsError:
@@ -147,6 +148,7 @@ class Seq2seq(nn.Module):
         aligned_outputs = decoded_outputs.view(self.batch_size*self.max_length,-1)
         aligned_target = target_tensor.view(self.batch_size*self.max_length)
         loss = self.criterion(aligned_outputs, aligned_target)
+        # XXX: should not do mean in the criterion func, but then mean on batch_size ?
         loss.backward()
 
         self.encoder_optimizer.step()
@@ -160,6 +162,7 @@ class Seq2seq(nn.Module):
         plot_losses = []
         print_loss_total = 0  # Reset every print_every
         plot_loss_total = 0  # Reset every plot_every
+        best_loss=math.inf
 
         for ep in range(n_epoch):
             for iter, batch in enumerate(self.train_dataloader, start=1):
@@ -181,8 +184,10 @@ class Seq2seq(nn.Module):
                     print_loss_total = 0
                     print('Epoch {} {} ({} {}%) loss={}'.format(ep,timeSince(start, iter / n_iters),iter,int(iter / n_iters * 100),print_loss_avg))
                     print(" ".join(decoded_words[0]))
-                    torch.save(self.state_dict(), os.path.join(
-                        self.savepath, "model_{}_{}".format(datetime.now().strftime('%m-%d-%H-%M'),iter)))
+
+                    if print_loss_avg<best_loss:
+                        torch.save(self.state_dict(), os.path.join(
+                            self.savepath, "model_{}_{}".format(datetime.now().strftime('%m-%d-%H-%M'),iter)))
 
                 if iter % plot_every == 0:
                     plot_loss_avg = plot_loss_total / plot_every

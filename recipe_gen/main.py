@@ -2,12 +2,14 @@ import os
 import pickle
 import sys
 import argparse
+import logging
 import importlib
 sys.path.insert(0, os.getcwd())
 from recipe_1m_analysis.utils import Vocabulary
 from recipe_gen.seq2seq_utils import *
 from recipe_gen.pairing_utils import PairingData
 
+LOGGER = logging.getLogger()
 PAIRING_PATH = os.path.join(os.getcwd(),"KitcheNette-master","results","pairings.pkl")
 SAVING_PATH = os.path.join(os.getcwd(), "recipe_gen", "results")
 
@@ -22,9 +24,9 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 argparser = argparse.ArgumentParser()
-# argparser.register('type', 'bool', str2bool)
+argparser.register('type', 'bool', str2bool)
 
-# directories
+# Directories
 argparser.add_argument('--data-path', type=str, default=FOLDER_PATH,
                        help='Dataset path')
 argparser.add_argument('--pairing-path', type=str, default=PAIRING_PATH,
@@ -41,32 +43,32 @@ argparser.add_argument('--print-step', type=int, default=50,
                        help='Display steps')
 argparser.add_argument('--validation-step', type=int, default=1,
                        help='Number of random search validation')
-argparser.add_argument('--train', type=str2bool, nargs='?',
+argparser.add_argument('--train', type='bool', nargs='?',
                         const=True, default=True,
                        help='Enable training')
-argparser.add_argument('--pretrain', type=str2bool, nargs='?',
+argparser.add_argument('--pretrain', type='bool', nargs='?',
                         const=True, default=False,
                        help='Enable training')
-argparser.add_argument('--valid', type=str2bool, nargs='?',
+argparser.add_argument('--valid', type='bool', nargs='?',
                         const=True, default=True,
                        help='Enable validation')
-argparser.add_argument('--test', type=str2bool, nargs='?',
+argparser.add_argument('--test', type='bool', nargs='?',
                         const=True, default=True,
                        help='Enable testing')
-argparser.add_argument('--resume', type=str2bool, nargs='?',
+argparser.add_argument('--resume', type='bool', nargs='?',
                         const=True, default=False,
                        help='Resume saved model')
 argparser.add_argument('--device', type=int, default=0,
                        help='GPU device number')
 
 # Save outputs
-argparser.add_argument('--save-embed', type=str2bool, nargs='?',
+argparser.add_argument('--save-embed', type='bool', nargs='?',
                         const=True, default=False,
                        help='Save embeddings with loaded model')
-argparser.add_argument('--save-prediction', type=str2bool, nargs='?',
+argparser.add_argument('--save-prediction', type='bool', nargs='?',
                         const=True, default=False,
                        help='Save predictions with loaded model')
-argparser.add_argument('--save-prediction-unknowns', type=str2bool, nargs='?',
+argparser.add_argument('--save-prediction-unknowns', type='bool', nargs='?',
                         const=True, default=False,
                        help='Save pair scores with loaded model')
 argparser.add_argument('--embed-d', type=int, default=1,
@@ -88,9 +90,16 @@ argparser.add_argument('--seed', type=int, default=3)
 
 args = argparser.parse_args()
 
+def init_seed(seed=None):
+    if seed is None:
+        seed = int(round(time.time() * 1000)) % 10000
 
+    LOGGER.info("Using seed={}, pid={}".format(seed, os.getpid()))
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
 def main():
+    init_seed(args.seed)
     data = RecipesDataset(args, DATA_FILES)
     model_class=getattr(importlib.import_module("recipe_gen.seq2seq_model"), args.model_name)
     model = model_class(args,len(data.vocab_ingrs), len(data.vocab_tokens), data)
