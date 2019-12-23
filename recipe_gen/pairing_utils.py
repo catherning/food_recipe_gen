@@ -5,8 +5,7 @@ import pickle
 import sys
 
 import pandas as pd
-sys.path.insert(0, os.getcwd())
-sys.path.append(os.path.join(os.getcwd(),"recipe_1m_analysis"))
+sys.path.append(os.getcwd())
 
 import recipe_1m_analysis.ingr_normalization as ingr_norm
 from recipe_1m_analysis.utils import Vocabulary
@@ -98,9 +97,10 @@ class PairingData:
     
 
 if __name__ == "__main__":
-    pairing = PairingData([filepath])
-    print(pairing.pairedIngr)
-    print(pairing.bestPairingsFromIngr(74))
+    # from pairings_utils import PairingData
+    pairing = PairingData([filepath,known_path])
+    # print(len(pairing.pairedIngr))
+    # print(pairing.bestPairingsFromIngr(74))
     
     with open(pickle_path,'rb') as f:
         data=pickle.load(f)

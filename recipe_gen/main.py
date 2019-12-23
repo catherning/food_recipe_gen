@@ -4,10 +4,9 @@ import sys
 import argparse
 import importlib
 sys.path.insert(0, os.getcwd())
-
 from recipe_1m_analysis.utils import Vocabulary
-# from recipe_gen.seq2seq_model import *
 from recipe_gen.seq2seq_utils import *
+from recipe_gen.pairing_utils import PairingData
 
 PAIRING_PATH = os.path.join(os.getcwd(),"KitcheNette-master","results","pairings.pkl")
 SAVING_PATH = os.path.join(os.getcwd(), "recipe_gen", "results")
