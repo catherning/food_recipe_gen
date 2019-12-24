@@ -128,7 +128,7 @@ def main():
     else:
         model.to(args.device)
         print("Begin training.")
-        model.train_process(args.epoch, print_every=args.print_step)
+        model.train_process()
 
     model.evaluateRandomly(n=2)
 

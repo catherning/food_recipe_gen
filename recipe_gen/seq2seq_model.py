@@ -23,19 +23,15 @@ sys.path.insert(0, os.getcwd())
 
 
 class Seq2seq(nn.Module):
-    def __init__(self, args,input_size, output_size, data):
+    def __init__(self, args):
         super().__init__()
-        # all params in arg storage object ?
         self.max_length = args.max_length
         self.max_ingr = args.max_ingr
         self.train_dataset = RecipesDataset(args)
         self.test_dataset = RecipesDataset(args,train=False)
         self.args = args
-
-        train_size = int(0.8 * len(self.data))
-        test_size = len(self.data) - train_size
-        # train_dataset, test_dataset = torch.utils.data.random_split(
-        #     self.data, [train_size, test_size])
+        self.input_size = input_size = len(self.train_dataset.vocab_ingrs)
+        self.output_size = output_size = len(self.train_dataset.vocab_tokens)
 
         self.train_dataloader = torch.utils.data.DataLoader(self.train_dataset,
                                                             batch_size=args.batch_size, shuffle=True,
@@ -166,7 +162,7 @@ class Seq2seq(nn.Module):
         plot_loss_total = 0  # Reset every plot_every
         best_loss=math.inf
 
-        for ep in range(self.args.n_epoch):
+        for ep in range(self.args.epoch):
             for iter, batch in enumerate(self.train_dataloader, start=1):
                 if iter == self.args.n_iters:
                     break
@@ -200,12 +196,12 @@ class Seq2seq(nn.Module):
     def evaluate(self, sentence, target=None):
         self.eval()
         with torch.no_grad():
-            input_tensor, _ = self.data.tensorFromSentence(
-                self.data.vocab_ingrs, sentence)
+            input_tensor, _ = self.train_dataset.tensorFromSentence(
+                self.train_dataset.vocab_ingrs, sentence)
             input_tensor = input_tensor.view(1, -1).to(self.device)
             if target is not None:
-                target_tensor, _ = self.data.tensorFromSentence(
-                    self.data.vocab_tokens, target, instructions=True)
+                target_tensor, _ = self.train_dataset.tensorFromSentence(
+                    self.train_dataset.vocab_tokens, target, instructions=True)
                 target_tensor = target_tensor.view(1, -1).to(self.device)
             else:
                 target_tensor = None
@@ -228,11 +224,10 @@ class Seq2seq(nn.Module):
         plot_loss_total = 0  # Reset every plot_every
 
         for iter, batch in enumerate(self.test_dataloader, start=1):
-
             # split in train_iter? give directly batch to train_iter ?
             input_tensor = batch["ingr"].to(self.device)
             target_tensor = batch["target_instr"].to(self.device)
-            target_length = batch["target_length"]  # .to(self.device)
+            target_length = batch["target_length"]
 
             loss = self.train_iter(input_tensor, target_tensor, target_length)
             print_loss_total += loss
@@ -243,10 +238,10 @@ class Seq2seq(nn.Module):
 
 
 class Seq2seqAtt(Seq2seq):
-    def __init__(self, args, input_size, output_size, data):
-        super().__init__(args,input_size,  output_size, data)
+    def __init__(self, args):
+        super().__init__(args)
 
-        self.decoder = AttnDecoderRNN(args, output_size)
+        self.decoder = AttnDecoderRNN(args, self.output_size)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
 
@@ -258,19 +253,19 @@ class Seq2seqAtt(Seq2seq):
 
 
 class Seq2seqIngrAtt(Seq2seq):
-    def __init__(self, args, input_size, output_size, data):
-        super().__init__(args,input_size, output_size, data)
+    def __init__(self, args):
+        super().__init__(args)
 
-        self.decoder = IngrAttnDecoderRNN(args, output_size)
+        self.decoder = IngrAttnDecoderRNN(args, self.output_size)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
 
 
 class Seq2seqIngrPairingAtt(Seq2seq):
-    def __init__(self, args,input_size, output_size, data):
-        super().__init__(args,input_size, output_size, data)
+    def __init__(self, args):
+        super().__init__(args)
 
-        self.decoder = PairAttnDecoderRNN(args, output_size, unk_token=self.data.UNK_token)
+        self.decoder = PairAttnDecoderRNN(args, self.output_size, unk_token=self.train_dataset.UNK_token)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
 
@@ -291,7 +286,7 @@ class Seq2seqIngrPairingAtt(Seq2seq):
         # encoder_hidden (1,hidden_size, batch)
 
         decoder_input = torch.tensor(
-            [[self.data.SOS_token]*self.batch_size], device=self.device)
+            [[self.train_dataset.SOS_token]*self.batch_size], device=self.device)
         decoder_hidden = encoder_hidden
 
         if self.training:
@@ -304,7 +299,7 @@ class Seq2seqIngrPairingAtt(Seq2seq):
         decoder_attentions = torch.zeros(
             self.max_length, self.batch_size, self.decoder.pairAttention.pairings.top_k)
         decoder_outputs = torch.zeros(self.batch_size, self.max_length, len(
-            self.data.vocab_tokens), device=self.device)
+            self.train_dataset.vocab_tokens), device=self.device)
 
         if use_teacher_forcing:
             for di in range(self.max_length):
@@ -317,7 +312,7 @@ class Seq2seqIngrPairingAtt(Seq2seq):
                 topv, topi = decoder_output.topk(1)
                 for batch_id, word_id in enumerate(topi):
                     decoded_words[batch_id].append(
-                        self.data.vocab_tokens.idx2word[word_id.item()])
+                        self.train_dataset.vocab_tokens.idx2word[word_id.item()])
 
         else:
             for di in range(self.max_length):
@@ -328,13 +323,13 @@ class Seq2seqIngrPairingAtt(Seq2seq):
 
                 decoder_outputs[:, di, :] = decoder_output
 
-                idx_end = (topi == self.data.EOS_token).nonzero()[:, 0]
+                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[:, 0]
                 if len(idx_end) == self.batch_size:
                     break
 
                 for batch_id, word_id in enumerate(topi):
                     decoded_words[batch_id].append(
-                        self.data.vocab_tokens.idx2word[word_id.item()])
+                        self.train_dataset.vocab_tokens.idx2word[word_id.item()])
 
                 decoder_input = topi.squeeze().detach().view(
                     1, -1)  # detach from history as input

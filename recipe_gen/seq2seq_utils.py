@@ -4,6 +4,7 @@ import pickle
 import sys
 import time
 sys.path.append(os.getcwd())
+sys.path.append(os.path.join(os.getcwd(),"recipe_1m_analysis"))
 
 import matplotlib
 matplotlib.use("agg")
@@ -14,6 +15,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 from recipe_1m_analysis.utils import Vocabulary
+
 
 MAX_LENGTH = 300
 MAX_INGR = 10
