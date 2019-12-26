@@ -122,6 +122,72 @@ def raw_instr(instrs, instrs_list, replace_dict_instrs):
             acc_len += len(instr)
     return acc_len
 
+def genTokVoc(counter_toks):
+    ## Recipe vocab
+    # Create a vocab wrapper and add some special tokens.
+    vocab_toks = Vocabulary()
+    vocab_toks.add_word('<pad>')
+    vocab_toks.add_word('<sos>')
+    vocab_toks.add_word('<eos>')
+    vocab_toks.add_word('<unk>')
+
+    # Add the words to the vocabulary.
+    for word, cnt in counter_toks.items():
+        # If the word frequency is less than 'threshold', then the word is discarded.
+        if cnt >= args.threshold_words:
+            vocab_toks.add_word(word)
+
+    with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_toks.pkl'), 'wb') as f:
+        pickle.dump(vocab_toks, f)
+    print("Total token vocabulary size: {}".format(len(vocab_toks)))
+
+def genIngrVoc(counter_ingrs):
+    # manually add missing entries for better clustering
+    base_words = ['peppers', 'tomato', 'spinach_leaves', 'turkey_breast', 'lettuce_leaf',
+                  'chicken_thighs', 'milk_powder', 'bread_crumbs', 'onion_flakes',
+                  'red_pepper', 'pepper_flakes', 'juice_concentrate', 'cracker_crumbs', 'hot_chili',
+                  'seasoning_mix', 'dill_weed', 'pepper_sauce', 'sprouts', 'cooking_spray', 'cheese_blend',
+                  'basil_leaves', 'pineapple_chunks', 'marshmallow', 'chile_powder',
+                  'cheese_blend', 'corn_kernels', 'tomato_sauce', 'chickens', 'cracker_crust',
+                  'lemonade_concentrate', 'red_chili', 'mushroom_caps', 'mushroom_cap', 'breaded_chicken',
+                  'frozen_pineapple', 'pineapple_chunks', 'seasoning_mix', 'seaweed', 'onion_flakes',
+                  'bouillon_granules', 'lettuce_leaf', 'stuffing_mix', 'parsley_flakes', 'chicken_breast',
+                  'basil_leaves', 'baguettes', 'green_tea', 'peanut_butter', 'green_onion', 'fresh_cilantro',
+                  'breaded_chicken', 'hot_pepper', 'dried_lavender', 'white_chocolate',
+                  'dill_weed', 'cake_mix', 'cheese_spread', 'turkey_breast', 'chicken_thighs', 'basil_leaves',
+                  'mandarin_orange', 'laurel', 'cabbage_head', 'pistachio', 'cheese_dip',
+                  'thyme_leave', 'boneless_pork', 'red_pepper', 'onion_dip', 'skinless_chicken', 'dark_chocolate',
+                  'canned_corn', 'muffin', 'cracker_crust', 'bread_crumbs', 'frozen_broccoli',
+                  'philadelphia', 'cracker_crust', 'chicken_breast']
+
+    for base_word in base_words:
+        if base_word not in counter_ingrs.keys():
+            counter_ingrs[base_word] = 1
+
+    counter_ingrs, cluster_ingrs = cluster_ingredients(counter_ingrs)
+    counter_ingrs, cluster_ingrs = remove_plurals(counter_ingrs, cluster_ingrs)
+
+    ## Ingredient vocab
+    # Create a vocab wrapper for ingredients
+    vocab_ingrs = Vocabulary()
+    vocab_ingrs.add_word('<pad>')
+    vocab_ingrs.add_word('<sos>')
+    vocab_ingrs.add_word('<eos>')
+    idx = vocab_ingrs.add_word('<unk>')
+
+    # Add the ingredients to the vocabulary.
+    for word,cnt in counter_ingrs.items():
+        if cnt >= args.threshold_ingrs:
+            for ingr in cluster_ingrs[word]:
+                idx = vocab_ingrs.add_word(ingr, idx)
+            idx += 1
+        
+
+    with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
+        pickle.dump(vocab_ingrs, f)
+    print("Total ingr vocabulary size: {}".format(len(vocab_ingrs)))
+
+    return vocab_ingrs
 
 def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs):
     #####
@@ -183,7 +249,6 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
             title = nltk.tokenize.word_tokenize(entry['title'].lower())
             if entry['partition'] == 'train':
                 counter_toks.update(title)
-            # if entry['partition'] == 'train':
                 counter_ingrs.update([ingr.name for ingr in ingrs_list])
 
         with open(ingrs_file, 'wb') as f:
@@ -192,74 +257,8 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
         with open(instrs_file, 'wb') as f:
             pickle.dump(counter_toks, f)
 
-    # manually add missing entries for better clustering
-    base_words = ['peppers', 'tomato', 'spinach_leaves', 'turkey_breast', 'lettuce_leaf',
-                  'chicken_thighs', 'milk_powder', 'bread_crumbs', 'onion_flakes',
-                  'red_pepper', 'pepper_flakes', 'juice_concentrate', 'cracker_crumbs', 'hot_chili',
-                  'seasoning_mix', 'dill_weed', 'pepper_sauce', 'sprouts', 'cooking_spray', 'cheese_blend',
-                  'basil_leaves', 'pineapple_chunks', 'marshmallow', 'chile_powder',
-                  'cheese_blend', 'corn_kernels', 'tomato_sauce', 'chickens', 'cracker_crust',
-                  'lemonade_concentrate', 'red_chili', 'mushroom_caps', 'mushroom_cap', 'breaded_chicken',
-                  'frozen_pineapple', 'pineapple_chunks', 'seasoning_mix', 'seaweed', 'onion_flakes',
-                  'bouillon_granules', 'lettuce_leaf', 'stuffing_mix', 'parsley_flakes', 'chicken_breast',
-                  'basil_leaves', 'baguettes', 'green_tea', 'peanut_butter', 'green_onion', 'fresh_cilantro',
-                  'breaded_chicken', 'hot_pepper', 'dried_lavender', 'white_chocolate',
-                  'dill_weed', 'cake_mix', 'cheese_spread', 'turkey_breast', 'chicken_thighs', 'basil_leaves',
-                  'mandarin_orange', 'laurel', 'cabbage_head', 'pistachio', 'cheese_dip',
-                  'thyme_leave', 'boneless_pork', 'red_pepper', 'onion_dip', 'skinless_chicken', 'dark_chocolate',
-                  'canned_corn', 'muffin', 'cracker_crust', 'bread_crumbs', 'frozen_broccoli',
-                  'philadelphia', 'cracker_crust', 'chicken_breast']
-
-    for base_word in base_words:
-        if base_word not in counter_ingrs.keys():
-            counter_ingrs[base_word] = 1
-
-    counter_ingrs, cluster_ingrs = cluster_ingredients(counter_ingrs)
-    counter_ingrs, cluster_ingrs = remove_plurals(counter_ingrs, cluster_ingrs)
-
-    ## Recipe vocab
-    # Create a vocab wrapper and add some special tokens.
-    vocab_toks = Vocabulary()
-    vocab_toks.add_word('<pad>')
-    vocab_toks.add_word('<sos>')
-    vocab_toks.add_word('<eos>')
-    vocab_toks.add_word('<unk>')
-
-    # Add the words to the vocabulary.
-    for word, cnt in counter_toks.items():
-        # If the word frequency is less than 'threshold', then the word is discarded.
-        if cnt >= args.threshold_words:
-            vocab_toks.add_word(word)
-
-    with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_toks.pkl'), 'wb') as f:
-        pickle.dump(vocab_toks, f)
-    print("Total token vocabulary size: {}".format(len(vocab_toks)))
-
-    # Cleaning memory
-    del counter_toks
-    del vocab_toks
-
-    ## Ingredient vocab
-    # Create a vocab wrapper for ingredients
-    vocab_ingrs = Vocabulary()
-    vocab_ingrs.add_word('<pad>')
-    vocab_ingrs.add_word('<sos>')
-    vocab_ingrs.add_word('<eos>')
-    idx = vocab_ingrs.add_word('<unk>')
-
-    # Add the ingredients to the vocabulary.
-    for word,cnt in counter_ingrs.items():
-        if cnt >= args.threshold_ingrs:
-            for ingr in cluster_ingrs[word]:
-                idx = vocab_ingrs.add_word(ingr, idx)
-            idx += 1
-        
-
-    with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
-        pickle.dump(vocab_ingrs, f)
-    print("Total ingr vocabulary size: {}".format(len(vocab_ingrs)))
-
-    return vocab_ingrs
+    genTokVoc(counter_toks)
+    vocab_ingrs = genIngrVoc(counter_ingrs)
 
 
 def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs, vocab_ingrs):

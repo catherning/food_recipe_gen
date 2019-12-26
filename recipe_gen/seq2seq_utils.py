@@ -2,6 +2,7 @@ import math
 import os
 import pickle
 import sys
+import argparse
 import time
 sys.path.append(os.getcwd())
 sys.path.append(os.path.join(os.getcwd(),"recipe_1m_analysis"))
@@ -17,7 +18,7 @@ from torch.utils.data import DataLoader, Dataset
 from recipe_1m_analysis.utils import Vocabulary
 
 
-MAX_LENGTH = 300
+MAX_LENGTH = 100
 MAX_INGR = 10
 FOLDER_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)),os.pardir,"recipe_1m_analysis", "data") 
 # TODO: change because it's test file here, add train
@@ -28,7 +29,24 @@ DATA_FILES = ["allingrs_count.pkl",
               "recipe1m_vocab_toks.pkl",
               "recipe1m_train.pkl"]
 
+argparser = argparse.ArgumentParser()
+# argparser.register('type', 'bool', str2bool)
 
+# Directories
+argparser.add_argument('--data-folder', type=str, default=FOLDER_PATH,
+                       help='Dataset path')
+argparser.add_argument('--vocab-ingr-file', type=str, default=DATA_FILES[3],
+                       help='Dataset path')
+argparser.add_argument('--vocab-tok-file', type=str, default=DATA_FILES[4],
+                       help='Dataset path')
+argparser.add_argument('--train-file', type=str, default=DATA_FILES[5],
+                       help='Dataset path')
+argparser.add_argument('--test-file', type=str, default=DATA_FILES[2],
+                       help='Dataset path')
+argparser.add_argument('--max-ingr', type=int, default=MAX_INGR)
+argparser.add_argument('--max-length', type=int, default=MAX_LENGTH)
+
+args = argparser.parse_args()
 
 class RecipesDataset(Dataset):
     """Recipes dataset."""
@@ -209,7 +227,7 @@ if __name__ == "__main__":
     with open(os.path.join(FOLDER_PATH, DATA_FILES[3]), 'rb') as f:
         vocab_ingrs = pickle.load(f)
 
-    recipe_dataset = RecipesDataset(FOLDER_PATH, DATA_FILES,max_ingr=MAX_INGR,max_length=MAX_LENGTH)
+    recipe_dataset = RecipesDataset(args)
     print(recipe_dataset[0])
     dataset_loader = torch.utils.data.DataLoader(recipe_dataset,
                                                  batch_size=4, shuffle=True,

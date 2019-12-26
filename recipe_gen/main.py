@@ -115,12 +115,10 @@ def init_seed(seed=None):
 
 def main():
     init_seed(args.seed)
-    # data = RecipesDataset(args, DATA_FILES)
     model_class=getattr(importlib.import_module("recipe_gen.seq2seq_model"), args.model_name)
-    model = model_class(args)#,len(data.vocab_ingrs), len(data.vocab_tokens), data)
+    model = model_class(args)
 
     if args.resume:
-        # TODO: save best models, split folders by model type. Log model infos
         model.load_state_dict(torch.load(os.path.join(
             os.getcwd(), "recipe_gen", "results", "model_12-17-00-26_100")))
         model.to(args.device)

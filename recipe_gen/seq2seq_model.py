@@ -1,25 +1,26 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from recipe_gen.seq2seq_utils import *
-from recipe_gen.network import *
+import math
 import os
 import pickle
 import random
 import re
 import sys
 import time
-import math
 import unicodedata
+from datetime import datetime
 from functools import reduce
 from io import open
-from datetime import datetime
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
+
 sys.path.insert(0, os.getcwd())
+from recipe_gen.network import *
+from recipe_gen.seq2seq_utils import *
 
 
 class Seq2seq(nn.Module):
@@ -42,7 +43,7 @@ class Seq2seq(nn.Module):
 
         self.batch_size = args.batch_size
         self.device = args.device
-        self.savepath = os.path.join(args.saving_path,self.__class__.__name__)
+        self.savepath = os.path.join(args.saving_path,self.__class__.__name__,datetime.now().strftime('%m-%d-%H-%M'))
         try:
             os.makedirs(self.savepath)
         except FileExistsError:
@@ -183,10 +184,11 @@ class Seq2seq(nn.Module):
                     print('Epoch {} {} ({} {}%) loss={}'.format(ep,timeSince(start, iter / self.args.n_iters),iter,int(iter / self.args.n_iters * 100),print_loss_avg))
                     print(" ".join(decoded_words[0]))
 
+                    torch.save(self.state_dict(), os.path.join(
+                            self.savepath, "model_{}_{}".format(datetime.now().strftime('%m-%d-%H-%M'),iter)))
                     if print_loss_avg<best_loss:
                         torch.save(self.state_dict(), os.path.join(
-                            self.savepath, "model_{}_{}".format(datetime.now().strftime('%m-%d-%H-%M'),iter)))
-
+                            self.savepath, "best_model"))
                 # if iter % plot_every == 0:
                 #     plot_loss_avg = plot_loss_total / plot_every
                 #     plot_losses.append(plot_loss_avg)
