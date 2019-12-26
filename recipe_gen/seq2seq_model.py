@@ -60,7 +60,7 @@ class Seq2seq(nn.Module):
         # Training param
         self.teacher_forcing_ratio = args.teacher_forcing_ratio
         self.learning_rate = args.learning_rate
-        self.criterion = nn.NLLLoss(reduction="none")
+        self.criterion = nn.NLLLoss(reduction="sum")
 
     def addAttention(self, di, decoder_attentions, cur_attention):
         if cur_attention is not None:
@@ -147,7 +147,6 @@ class Seq2seq(nn.Module):
         aligned_outputs = decoded_outputs.view(self.batch_size*self.max_length,-1)
         aligned_target = target_tensor.view(self.batch_size*self.max_length)
         loss = self.criterion(aligned_outputs, aligned_target)/target_length.shape[0]
-        # XXX: should not do mean in the criterion func, but then mean on batch_size ?
         loss.backward()
 
         self.encoder_optimizer.step()
