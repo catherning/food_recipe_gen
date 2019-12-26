@@ -12,12 +12,12 @@ from recipe_gen.pairing_utils import PairingData
 LOGGER = logging.getLogger()
 PAIRING_PATH = os.path.join(os.getcwd(),"KitcheNette-master","results","pairings.pkl")
 SAVING_PATH = os.path.join(os.getcwd(), "recipe_gen", "results")
-DATA_FILES = ["allingrs_count.pkl",
-              "allwords_count.pkl",
-              "recipe1m_test.pkl",
-              "recipe1m_vocab_ingrs.pkl",
-              "recipe1m_vocab_toks.pkl",
-              "recipe1m_train.pkl"]
+# DATA_FILES = ["allingrs_count.pkl",
+#               "allwords_count.pkl",
+#               "recipe1m_test.pkl",
+#               "recipe1m_vocab_ingrs.pkl",
+#               "recipe1m_vocab_toks.pkl",
+#               "recipe1m_train.pkl"]
 
 def str2bool(v):
     if isinstance(v, bool):

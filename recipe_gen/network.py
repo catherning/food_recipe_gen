@@ -139,8 +139,7 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         encoder_outputs: (max_ingr,hidden)
         """
         batch_size = hidden.shape[1]
-        # XXX: input sometimes of correct shape, sometimes, only dims (batch,hidden)! 
-        embedded = self.embedding(input).view(1,batch_size,self.hidden_size)  # (1, batch_size, hidden)
+        embedded = self.embedding(input)  # (1, batch_size, hidden)
 
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
@@ -233,7 +232,7 @@ class PairingAtt(Attention):
         super().__init__(args)
         with open(args.pairing_path, 'rb') as f:
             self.pairings = pickle.load(f)
-        # self.pairings = PairingData(filepath)
+
         self.unk_token = unk_token
         self.attn = nn.Linear(self.hidden_size * 2, 1)
 
@@ -248,13 +247,18 @@ class PairingAtt(Attention):
             ingr) for ingr in ingr_id]
 
         batch_size = embedded.shape[1]
+        scores = torch.zeros(batch_size, self.pairings.top_k)
         comp_ingr_id = torch.ones(
             batch_size, self.pairings.top_k, dtype=torch.int)*self.unk_token
-        for i in range(batch_size):
-            if len(compatible_ingr[i]) > 0:
-                comp_ingr = torch.LongTensor(
-                    [pair[0] for pair in compatible_ingr[i]])
-                comp_ingr_id[i, :comp_ingr.shape[0]] = comp_ingr
+        for i, batch in enumerate(compatible_ingr):
+            # if len(batch) > 0: # necessary ?
+            comp_ingr = []
+            for j,pair in enumerate(batch):
+                scores[i, j] = pair[1]
+                comp_ingr.append(pair[0])
+
+            comp_ingr = torch.LongTensor(comp_ingr)
+            comp_ingr_id[i, :comp_ingr.shape[0]] = comp_ingr
 
         comp_emb = encoder_embedding(comp_ingr_id.to(embedded.device).long())
 
@@ -263,13 +267,6 @@ class PairingAtt(Attention):
             attn_weights[:, i] = self.attn(
                 torch.cat((comp_emb[:, i], hidden[0]), 1)).view(batch_size)
         attn_weights = F.softmax(torch.tanh(attn_weights), dim=1)
-
-        # TODO: take at the same time as the selection of ingr_id in comp_ingr_id ?
-        scores = torch.zeros(batch_size, self.pairings.top_k)
-        for i, batch in enumerate(compatible_ingr):
-            for j, pair in enumerate(batch):
-                scores[i, j] = pair[1]
-
 
         # XXX: renormalize after multiplication ?
         # TODO: try with emphazing unknown pairings

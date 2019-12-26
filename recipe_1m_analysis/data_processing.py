@@ -283,7 +283,6 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
 
         for j, det_ingr in enumerate(det_ingrs):
             if len(det_ingr) > 0 and valid[j]:
-                # det_ingr_undrs = get_ingredient(det_ingr, replace_dict_ingrs)
                 det_ingr_undrs = ingr_norm.normalize_ingredient(det_ingr["text"])
 
                 if det_ingr_undrs is not None:
@@ -368,7 +367,7 @@ if __name__ == '__main__':
                         default='path/to/recipe1m',
                         help='recipe1m path')
 
-    parser.add_argument('--save_path', type=str, default=os.path.join(os.getcwd(), os.pardir, 'data'),
+    parser.add_argument('--save_path', type=str, default=os.path.join(os.getcwd(), "recipe_1m_analysis", 'data'),
                         help='path for saving vocabulary wrapper')
 
     parser.add_argument('--suff', type=str, default='')
@@ -388,7 +387,7 @@ if __name__ == '__main__':
     parser.add_argument('--maxnumingrs', type=int, default=20,
                         help='max number of ingredients')
 
-    parser.add_argument('--minnumingrs', type=int, default=2,
+    parser.add_argument('--minnumingrs', type=int, default=4,
                         help='min number of ingredients')
 
     parser.add_argument('--minnumwords', type=int, default=20,

@@ -79,10 +79,6 @@ class PairingData:
         ex: ingr_id = 2
         returns [(frozenset({16, 2}), 0.01891073), (frozenset({129, 2}), 0.0022993684)]
         """
-        # TODO: select beforehand the top_k pairings to put in pairing_scores
-        # ingr_pairs = {k: v for k, v in self.pairing_scores.items()
-        #               if ingr_id.item() in k} 
-        # return [(pair, self.pairing_scores[pair]) for pair in heapq.nlargest(self.top_k, ingr_pairs, key=self.pairing_scores.get)]
         try:
             return  [(ingr,score) for ingr,score in self.pairing_scores[ingr_id.item()].items()]
         except KeyError:
@@ -97,9 +93,9 @@ class PairingData:
     
 
 if __name__ == "__main__":
-    # from pairings_utils import PairingData
+
     pairing = PairingData([filepath,known_path])
-    # print(len(pairing.pairedIngr))
+    print(len(pairing.pairedIngr))
     # print(pairing.bestPairingsFromIngr(74))
     
     with open(pickle_path,'rb') as f:

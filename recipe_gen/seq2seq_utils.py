@@ -21,7 +21,6 @@ from recipe_1m_analysis.utils import Vocabulary
 MAX_LENGTH = 100
 MAX_INGR = 10
 FOLDER_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)),os.pardir,"recipe_1m_analysis", "data") 
-# TODO: change because it's test file here, add train
 DATA_FILES = ["allingrs_count.pkl",
               "allwords_count.pkl",
               "recipe1m_test.pkl",
@@ -61,7 +60,6 @@ class RecipesDataset(Dataset):
         with open(os.path.join(args.data_folder,args.vocab_tok_file),'rb') as f:
             self.vocab_tokens=pickle.load(f)
 
-        # TODO: redo the data_processing at one point, and use the vocab special tokens
         self.PAD_token = self.vocab_ingrs.word2idx.get("<pad>",0)
         self.SOS_token = self.vocab_ingrs.word2idx.get("<sos>",1)
         self.EOS_token = self.vocab_ingrs.word2idx.get("<eos>",2)
@@ -138,7 +136,6 @@ class RecipesDataset(Dataset):
     def tensorFromSentence(self,vocab, sentence,instructions=False):
         max_size = instructions * self.max_length + (1-instructions) * self.max_ingr
         tensor_ = torch.ones(max_size,dtype=torch.long) * self.PAD_token
-        length=0
         if instructions:
             # tensor_[0]= self.SOS_token
             # b_id=1
@@ -148,16 +145,15 @@ class RecipesDataset(Dataset):
                 sent_len = len(tokenized)
                 tensor_[b_id:b_id+sent_len]= tokenized
                 b_id += sent_len
-                length+=sent_len
         else:
             tokenized = self.ingr2idx(sentence)[:max_size-1]
             tensor_[:len(tokenized)]= tokenized
             b_id = len(tokenized)
 
         #XXX: if dim error sometimes, could be because of that ? 
-        # the filter keeps instructions of length max_length-1, but we add 2 special tokens
-        tensor_[b_id]=self.EOS_token # could remove it ?
-        return tensor_,length+1 # could return b_id-1 = length ? 
+        # the filter keeps instructions of length max_length-1, we add 1 special tokens
+        tensor_[b_id]=self.EOS_token
+        return tensor_,b_id+1 # b_id = length
 
 
     def tensorsFromPair(self,pair):

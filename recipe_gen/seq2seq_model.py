@@ -60,7 +60,7 @@ class Seq2seq(nn.Module):
         # Training param
         self.teacher_forcing_ratio = args.teacher_forcing_ratio
         self.learning_rate = args.learning_rate
-        self.criterion = nn.NLLLoss()
+        self.criterion = nn.NLLLoss(reduction="none")
 
     def addAttention(self, di, decoder_attentions, cur_attention):
         if cur_attention is not None:
@@ -146,7 +146,7 @@ class Seq2seq(nn.Module):
         # aligned_target = flattenSequence(target_tensor, target_length)
         aligned_outputs = decoded_outputs.view(self.batch_size*self.max_length,-1)
         aligned_target = target_tensor.view(self.batch_size*self.max_length)
-        loss = self.criterion(aligned_outputs, aligned_target)
+        loss = self.criterion(aligned_outputs, aligned_target)/target_length.shape[0]
         # XXX: should not do mean in the criterion func, but then mean on batch_size ?
         loss.backward()
 
@@ -163,7 +163,7 @@ class Seq2seq(nn.Module):
         plot_loss_total = 0  # Reset every plot_every
         best_loss=math.inf
 
-        for ep in range(self.args.epoch):
+        for ep in range(1,self.args.epoch+1):
             for iter, batch in enumerate(self.train_dataloader, start=1):
                 if iter == self.args.n_iters:
                     break
@@ -309,7 +309,7 @@ class Seq2seqIngrPairingAtt(Seq2seq):
                     decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
                 decoder_attentions[di] = decoder_attention.data
                 decoder_outputs[:, di, :] = decoder_output
-                decoder_input = target_tensor[:, di]
+                decoder_input = target_tensor[:, di].view(1,-1)
 
                 topv, topi = decoder_output.topk(1)
                 for batch_id, word_id in enumerate(topi):
@@ -333,6 +333,7 @@ class Seq2seqIngrPairingAtt(Seq2seq):
                     decoded_words[batch_id].append(
                         self.train_dataset.vocab_tokens.idx2word[word_id.item()])
 
+                # TODO: check shape
                 decoder_input = topi.squeeze().detach().view(
                     1, -1)  # detach from history as input
 
