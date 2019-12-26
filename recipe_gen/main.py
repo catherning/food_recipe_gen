@@ -3,6 +3,7 @@ import pickle
 import sys
 import argparse
 import logging
+from datetime import datetime
 import importlib
 sys.path.insert(0, os.getcwd())
 from recipe_1m_analysis.utils import Vocabulary
@@ -57,7 +58,7 @@ argparser.add_argument('--print-step', type=int, default=50,
                        help='Display steps')
 argparser.add_argument('--validation-step', type=int, default=1,
                        help='Number of random search validation')
-argparser.add_argument('--train', type='bool', nargs='?',
+argparser.add_argument('--train-mode', type='bool', nargs='?',
                         const=True, default=True,
                        help='Enable training')
 argparser.add_argument('--pretrain', type='bool', nargs='?',
@@ -105,6 +106,25 @@ argparser.add_argument('--seed', type=int, default=3)
 
 args = argparser.parse_args()
 
+def init_logging(args):
+    LOGGER.setLevel(logging.INFO)
+    fmt = logging.Formatter('%(asctime)s: [ %(message)s ]',
+                            '%m/%d/%Y %I:%M:%S %p')
+    console = logging.StreamHandler()
+    console.setFormatter(fmt)
+    LOGGER.addHandler(console)
+
+    # Create save folder
+    args.saving_path = saving_path = os.path.join(args.saving_path, args.model_name,datetime.now().strftime('%m-%d-%H-%M'))
+    if not os.path.isdir(saving_path):
+        os.mkdir(saving_path)
+        print('...created '+ saving_path)
+
+    logfile = logging.FileHandler(os.path.join(saving_path,'log.txt'), 'w')
+
+    logfile.setFormatter(fmt)
+    LOGGER.addHandler(logfile)
+
 def init_seed(seed=None):
     if seed is None:
         seed = int(round(time.time() * 1000)) % 10000
@@ -113,14 +133,26 @@ def init_seed(seed=None):
     np.random.seed(seed)
     torch.manual_seed(seed)
 
+    return seed
+
+def getDefaultArgs(argparser):
+    all_defaults = {}
+    for key in vars(args):
+        all_defaults[key] = argparser.get_default(key)
+    return all_defaults
+
 def main():
-    init_seed(args.seed)
+    init_logging(args)
+    args.seed=init_seed(args.seed)
+    args.logger=LOGGER
+    args.defaults=getDefaultArgs(argparser)
+
     model_class=getattr(importlib.import_module("recipe_gen.seq2seq_model"), args.model_name)
     model = model_class(args)
 
     if args.resume:
         model.load_state_dict(torch.load(os.path.join(
-            os.getcwd(), "recipe_gen", "results", "model_12-17-00-26_100")))
+            os.getcwd(), "recipe_gen", "results",args.model_name, "best_model")))#XXX:lack date of run
         model.to(args.device)
         print("Model loaded.")
     else:

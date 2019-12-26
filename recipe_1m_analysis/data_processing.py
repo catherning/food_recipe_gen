@@ -311,6 +311,7 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
 
         title = nltk.tokenize.word_tokenize(entry['title'].lower())
 
+        # TODO: add cuisine after classification is done
         newentry = {'id': entry['id'], 'instructions': instrs_list, 'tokenized': toks,
                     'ingredients': ingrs_list, 'title': title}
         dataset[entry['partition']].append(newentry)

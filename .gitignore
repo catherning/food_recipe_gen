@@ -124,3 +124,5 @@ Untitled.ipynb
 KitcheNette-master/data/*
 !main_*
 !*/results/pred*
+recipe_1m_analysis/data/allingrs_count.pkl
+recipe_1m_analysis/data/allwords_count.pkl

@@ -26,11 +26,11 @@ from recipe_gen.seq2seq_utils import *
 class Seq2seq(nn.Module):
     def __init__(self, args):
         super().__init__()
+        self.args = args
         self.max_length = args.max_length
         self.max_ingr = args.max_ingr
         self.train_dataset = RecipesDataset(args)
         self.test_dataset = RecipesDataset(args,train=False)
-        self.args = args
         self.input_size = input_size = len(self.train_dataset.vocab_ingrs)
         self.output_size = output_size = len(self.train_dataset.vocab_tokens)
 
@@ -43,11 +43,9 @@ class Seq2seq(nn.Module):
 
         self.batch_size = args.batch_size
         self.device = args.device
-        self.savepath = os.path.join(args.saving_path,self.__class__.__name__,datetime.now().strftime('%m-%d-%H-%M'))
-        try:
-            os.makedirs(self.savepath)
-        except FileExistsError:
-            pass
+        self.savepath = args.saving_path
+        self.logger = args.logger
+        self.train_mode = args.train_mode
 
         self.encoder = EncoderRNN(args, input_size)
         self.decoder = DecoderRNN(args,output_size)
@@ -61,6 +59,16 @@ class Seq2seq(nn.Module):
         self.teacher_forcing_ratio = args.teacher_forcing_ratio
         self.learning_rate = args.learning_rate
         self.criterion = nn.NLLLoss(reduction="sum")
+
+        self.paramLogging()
+
+    def paramLogging(self):
+        for k,v in self.args.defaults.items():
+            try:
+                if getattr(self,k)!=v and v is not None:
+                    self.logger.info("{} = {}".format(k,v))
+            except AttributeError:
+                con
 
     def addAttention(self, di, decoder_attentions, cur_attention):
         if cur_attention is not None:
@@ -99,7 +107,8 @@ class Seq2seq(nn.Module):
             self.data.vocab_tokens), device=self.device)
         decoder_attentions = torch.zeros(
             self.max_length, self.batch_size, self.max_ingr)
-
+        
+        # TODO: scheduled sampling
         if use_teacher_forcing:
             for di in range(self.max_length):
                 decoder_output, decoder_hidden, decoder_attention = self.decoder(
@@ -180,7 +189,7 @@ class Seq2seq(nn.Module):
                 if iter % self.args.print_step == 0:
                     print_loss_avg = print_loss_total / self.args.print_step
                     print_loss_total = 0
-                    print('Epoch {} {} ({} {}%) loss={}'.format(ep,timeSince(start, iter / self.args.n_iters),iter,int(iter / self.args.n_iters * 100),print_loss_avg))
+                    self.logger.info('Epoch {} {} ({} {}%) loss={}'.format(ep,timeSince(start, iter / self.args.n_iters),iter,int(iter / self.args.n_iters * 100),print_loss_avg))
                     print(" ".join(decoded_words[0]))
 
                     torch.save(self.state_dict(), os.path.join(
@@ -211,18 +220,18 @@ class Seq2seq(nn.Module):
     def evaluateRandomly(self, n=10):
         for i in range(n):
             pair = random.choice(self.data.pairs)
-            print('>', " ".join([ingr.name for ingr in pair[0]]))
-            print('=', [" ".join(instr) for instr in pair[1]])
             loss, output_words, _ = self.evaluate(pair[0], pair[1])
             output_sentence = ' '.join(output_words[0])
-            print('<', output_sentence)
-            print('')
 
-    def evalProcess(self, print_every=1000, plot_every=100):
+            # print('=', [" ".join(instr) for instr in pair[1]])
+            self.logger.info("Input: "+" ".join([ingr.name for ingr in pair[0]]))
+            self.logger.info("Target: "+[" ".join(instr) for instr in pair[1]])
+            self.logger.info("Generated: "+output_sentence)
+
+    def evalProcess(self):
         start = time.time()
         plot_losses = []
         print_loss_total = 0  # Reset every print_every
-        plot_loss_total = 0  # Reset every plot_every
 
         for iter, batch in enumerate(self.test_dataloader, start=1):
             # split in train_iter? give directly batch to train_iter ?
@@ -234,8 +243,8 @@ class Seq2seq(nn.Module):
             print_loss_total += loss
             plot_loss_total += loss
 
-        print_loss_avg = print_loss_total / print_every
-        print('Loss %.4f' % (print_loss_avg))
+        print_loss_avg = print_loss_total / self.args.print_step
+        self.logger.info("Eval loss = {.4f}".format(print_loss_avg))
 
 
 class Seq2seqAtt(Seq2seq):
@@ -248,8 +257,8 @@ class Seq2seqAtt(Seq2seq):
 
     def evaluateAndShowAttention(self, input_sentence):
         loss, output_words, attentions = self.evaluate(input_sentence)
-        print('input =', input_sentence)
-        print('output =', ' '.join(output_words))
+        self.logger.info('input = '+ input_sentence)
+        self.logger.info('output = '+ ' '.join(output_words))
         showAttention(input_sentence, output_words, attentions)
 
 

@@ -29,9 +29,7 @@ DATA_FILES = ["allingrs_count.pkl",
               "recipe1m_train.pkl"]
 
 argparser = argparse.ArgumentParser()
-# argparser.register('type', 'bool', str2bool)
 
-# Directories
 argparser.add_argument('--data-folder', type=str, default=FOLDER_PATH,
                        help='Dataset path')
 argparser.add_argument('--vocab-ingr-file', type=str, default=DATA_FILES[3],
@@ -44,8 +42,6 @@ argparser.add_argument('--test-file', type=str, default=DATA_FILES[2],
                        help='Dataset path')
 argparser.add_argument('--max-ingr', type=int, default=MAX_INGR)
 argparser.add_argument('--max-length', type=int, default=MAX_LENGTH)
-
-args = argparser.parse_args()
 
 class RecipesDataset(Dataset):
     """Recipes dataset."""
@@ -159,6 +155,7 @@ class RecipesDataset(Dataset):
     def tensorsFromPair(self,pair):
         input_tensor,_ = self.tensorFromSentence(self.vocab_ingrs, pair[0])
         target_tensor,target_length = self.tensorFromSentence(self.vocab_tokens, pair[1],instructions=True)
+        # title,_ = self.tensorFromSentence(self.vocab_tokens)#,pair[])
         return {"ingr":input_tensor,
                 "target_instr": target_tensor,
                 "target_length":target_length}
@@ -220,6 +217,7 @@ def timeSince(since, percent):
 
 
 if __name__ == "__main__":
+    args = argparser.parse_args()
     with open(os.path.join(FOLDER_PATH, DATA_FILES[3]), 'rb') as f:
         vocab_ingrs = pickle.load(f)
 
