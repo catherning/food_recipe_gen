@@ -104,7 +104,7 @@ class Seq2seq(nn.Module):
     
         return decoder_input,decoded_words,decoder_outputs,decoder_attentions
 
-    def forward(self, input_tensor, target_tensor):
+    def forward(self, batch):
         """
         input_tensor: (batch_size,max_ingr)
         target_tensor: (batch_size,max_len)
@@ -114,6 +114,9 @@ class Seq2seq(nn.Module):
         decoder_words: final (<max_len,batch)
         decoder_attentions: (max_len,batch,max_ingr)
         """
+        input_tensor = batch["ingr"].to(self.device)
+        target_tensor = batch["target_instr"].to(self.device)
+        
         decoder_input,decoded_words,decoder_outputs,decoder_attentions = self.initForward(input_tensor)
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
@@ -160,12 +163,13 @@ class Seq2seq(nn.Module):
 
         return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
 
-    def train_iter(self, input_tensor, target_tensor, target_length):
+    def train_iter(self, batch):
         self.encoder_optimizer.zero_grad()
         self.decoder_optimizer.zero_grad()
+        target_length = batch["target_length"] 
+        target_tensor = batch["target_instr"].to(self.device)
 
-        decoded_outputs, decoded_words, _ = self.forward(
-            input_tensor, target_tensor)
+        decoded_outputs, decoded_words, _ = self.forward(batch)
         # aligned_outputs = flattenSequence(decoded_outputs, target_length)
         # aligned_target = flattenSequence(target_tensor, target_length)
         aligned_outputs = decoded_outputs.view(self.batch_size*self.max_length,-1)
@@ -191,13 +195,7 @@ class Seq2seq(nn.Module):
                 if iter == self.args.n_iters:
                     break
 
-                # split in train_iter? give directly batch to train_iter ?
-                input_tensor = batch["ingr"].to(self.device)
-                target_tensor = batch["target_instr"].to(self.device)
-                target_length = batch["target_length"] 
-
-                loss, decoded_words = self.train_iter(
-                    input_tensor, target_tensor, target_length)
+                loss, decoded_words = self.train_iter(batch)
                 print_loss_total += loss
                 plot_loss_total += loss
 
@@ -240,7 +238,7 @@ class Seq2seq(nn.Module):
     def evalProcess(self):
         start = time.time()
         plot_losses = []
-        print_loss_total = 0  # Reset every print_every
+        print_loss_total = 0
 
         for iter, batch in enumerate(self.test_dataloader, start=1):
             # split in train_iter? give directly batch to train_iter ?
@@ -286,7 +284,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
 
-    def forward(self, input_tensor, target_tensor):
+    def forward(self, batch):
         """
         input_tensor: (batch_size,max_ingr)
         target_tensor: (batch_size,max_len)
@@ -296,6 +294,9 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         decoder_words: final (<max_len,batch)
         decoder_attentions: (max_len,batch,max_ingr)
         """
+        input_tensor = batch["ingr"].to(self.device)
+        target_tensor = batch["target_instr"].to(self.device)
+
         decoder_input,decoded_words,decoder_outputs,decoder_attentions = self.initForward(input_tensor,pairing=True)
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
@@ -305,6 +306,79 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
 
 
         decoder_hidden = encoder_hidden
+
+        if self.training:
+            use_teacher_forcing = True if random.random(
+            ) < self.teacher_forcing_ratio else False
+        else:
+            use_teacher_forcing = False
+
+        if use_teacher_forcing:
+            for di in range(self.max_length):
+                decoder_output, decoder_hidden, decoder_attention = self.decoder(
+                    decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
+
+                decoder_attentions = self.addAttention(di, decoder_attentions, decoder_attention)
+                decoder_outputs[:, di, :] = decoder_output
+                decoder_input = target_tensor[:, di].view(1,-1)
+
+                self.samplek(decoder_output,decoded_words)
+
+        else:
+            for di in range(self.max_length):
+                decoder_output, decoder_hidden, decoder_attention = self.decoder(
+                    decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
+                decoder_attentions = self.addAttention(di, decoder_attentions, decoder_attention)
+
+                decoder_outputs[:, di, :] = decoder_output
+
+                topi = self.samplek(decoder_output,decoded_words)
+                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[:, 0]
+                if len(idx_end) == self.batch_size:
+                    break
+
+                decoder_input = topi.squeeze().detach().view(
+                    1, -1)  # detach from history as input
+
+        return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
+
+
+class Seq2seqTitlePairing(Seq2seqAtt):
+    def __init__(self, args):
+        super().__init__(args)
+        self.title_encoder = EncoderRNN(args,self.input_size)
+        self.encoder_optimizer = optim.Adam(
+            self.title_encoder.parameters(), lr=args.learning_rate)
+
+        self.decoder = PairAttnDecoderRNN(args, self.output_size, unk_token=self.train_dataset.UNK_token)
+        self.decoder_optimizer = optim.Adam(
+            self.decoder.parameters(), lr=args.learning_rate)
+
+    def forward(self, batch):
+        """
+        input_tensor: (batch_size,max_ingr)
+        target_tensor: (batch_size,max_len)
+
+        return:
+        decoder_outputs: (batch,max_len,size voc)
+        decoder_words: final (<max_len,batch)
+        decoder_attentions: (max_len,batch,max_ingr)
+        """
+        input_tensor = batch["ingr"].to(self.device)
+        target_tensor = batch["target_instr"].to(self.device)
+        title_tensor = batch["title"].to(self.device)
+
+        decoder_input,decoded_words,decoder_outputs,decoder_attentions = self.initForward(input_tensor,pairing=True)
+
+        encoder_outputs, encoder_hidden = self.encoder.forward_all(
+            input_tensor)
+        # encoder_outputs (max_ingr,hidden_size, batch)
+        # encoder_hidden (1,hidden_size, batch)
+
+        title_encoder_outputs, title_encoder_hidden = self.title_encoder.forward_all(
+            title_tensor)
+
+        decoder_hidden = torch.cat((encoder_hidden,title_encoder_hidden),dim=1)
 
         if self.training:
             use_teacher_forcing = True if random.random(

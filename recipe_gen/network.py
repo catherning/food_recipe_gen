@@ -51,9 +51,6 @@ class EncoderRNN(nn.Module):
 
         return encoder_outputs, encoder_hidden
 
-# class EncoderTitle(EncoderRNN):
-
-
 class DecoderRNN(nn.Module):
     def __init__(self, args, output_size):
         super(DecoderRNN, self).__init__()
