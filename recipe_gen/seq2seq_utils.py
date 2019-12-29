@@ -82,10 +82,11 @@ class RecipesDataset(Dataset):
     def preprocess_data(self):
         pairs=[]
         for recipe in self.data:
-            pairs.append([recipe["ingredients"],recipe["tokenized"],recipe["title"]])
+            pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"]]
+            if self.filterSinglePair(pair):
+                pairs.append(pair)
 
-        pairs = self.filterPairs(pairs)  
-
+        # pairs = self.filterPairs(pairs)  
         return pairs
 
     def process_data(self):

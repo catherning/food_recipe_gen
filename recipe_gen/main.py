@@ -57,7 +57,6 @@ argparser.add_argument('--model-name', type=str, choices=['Seq2seq','Seq2seqAtt'
 argparser.add_argument('--title-input', type='bool', nargs='?',
                         const=True, default=True,
                        help='Title input')
-
 argparser.add_argument('--print-step', type=int, default=50,
                        help='Display steps')
 argparser.add_argument('--validation-step', type=int, default=1,
@@ -95,8 +94,8 @@ argparser.add_argument('--embed-d', type=int, default=1,
 
 # Train config
 argparser.add_argument('--batch-size', type=int, default=8)
-argparser.add_argument('--epoch', type=int, default=200)
-argparser.add_argument('--n-iters', type=int, default=1000)
+argparser.add_argument('--epoch', type=int, default=100)
+argparser.add_argument('--n-iters', type=int, default=500)
 argparser.add_argument('--learning-rate', type=float, default=0.01)
 argparser.add_argument('--teacher-forcing-ratio', type=float, default=1)
 argparser.add_argument('--dropout', type=float, default=0.1)

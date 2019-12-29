@@ -85,6 +85,25 @@ class Seq2seq(nn.Module):
                 self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
         return chosen_id
 
+    def initForward(self,input_tensor,pairing=False):
+        self.batch_size = len(input_tensor)
+        decoder_input = torch.tensor(
+            [[self.train_dataset.SOS_token]*self.batch_size], device=self.device)
+        # decoder_input final (<max_len,batch)
+
+        decoded_words = [[] for i in range(self.batch_size)]
+        decoder_outputs = torch.zeros(self.batch_size, self.max_length, len(
+            self.train_dataset.vocab_tokens), device=self.device)
+
+        if pairing:
+            decoder_attentions = torch.zeros(
+                self.max_length, self.batch_size, self.decoder.pairAttention.pairings.top_k)
+        else:
+            decoder_attentions = torch.zeros(
+                self.max_length, self.batch_size, self.max_ingr)
+    
+        return decoder_input,decoded_words,decoder_outputs,decoder_attentions
+
     def forward(self, input_tensor, target_tensor):
         """
         input_tensor: (batch_size,max_ingr)
@@ -95,16 +114,14 @@ class Seq2seq(nn.Module):
         decoder_words: final (<max_len,batch)
         decoder_attentions: (max_len,batch,max_ingr)
         """
-        self.batch_size = len(input_tensor)
+        decoder_input,decoded_words,decoder_outputs,decoder_attentions = self.initForward(input_tensor)
+
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
         # encoder_outputs (max_ingr, batch,hidden)
         # encoder_hidden (1, batch, hidden_size)
 
-        decoder_input = torch.tensor(
-            [[self.data.SOS_token]*self.batch_size], device=self.device)
         decoder_hidden = encoder_hidden
-        # decoder_input final (<max_len,batch)
 
         if self.training:
             use_teacher_forcing = True if random.random(
@@ -112,11 +129,6 @@ class Seq2seq(nn.Module):
         else:
             use_teacher_forcing = False
 
-        decoded_words = [[] for i in range(self.batch_size)]
-        decoder_outputs = torch.zeros(self.batch_size, self.max_length, len(
-            self.data.vocab_tokens), device=self.device)
-        decoder_attentions = torch.zeros(
-            self.max_length, self.batch_size, self.max_ingr)
         
         # TODO: scheduled sampling
         if use_teacher_forcing:
@@ -139,7 +151,7 @@ class Seq2seq(nn.Module):
                     di, decoder_attentions, decoder_attention)
 
                 topi = self.samplek(decoder_output,decoded_words)
-                idx_end = (topi == self.data.EOS_token).nonzero()[:, 0]
+                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[:, 0]
                 if len(idx_end) == self.batch_size:
                     break
 
@@ -284,14 +296,14 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         decoder_words: final (<max_len,batch)
         decoder_attentions: (max_len,batch,max_ingr)
         """
-        self.batch_size = len(input_tensor)
+        decoder_input,decoded_words,decoder_outputs,decoder_attentions = self.initForward(input_tensor,pairing=True)
+
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
         # encoder_outputs (hidden_size, batch) or (max_ingr,hidden) ??
         # encoder_hidden (1,hidden_size, batch)
 
-        decoder_input = torch.tensor(
-            [[self.train_dataset.SOS_token]*self.batch_size], device=self.device)
+
         decoder_hidden = encoder_hidden
 
         if self.training:
@@ -300,17 +312,12 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         else:
             use_teacher_forcing = False
 
-        decoded_words = [[] for i in range(self.batch_size)]
-        decoder_attentions = torch.zeros(
-            self.max_length, self.batch_size, self.decoder.pairAttention.pairings.top_k)
-        decoder_outputs = torch.zeros(self.batch_size, self.max_length, len(
-            self.train_dataset.vocab_tokens), device=self.device)
-
         if use_teacher_forcing:
             for di in range(self.max_length):
                 decoder_output, decoder_hidden, decoder_attention = self.decoder(
                     decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
-                decoder_attentions[di] = decoder_attention.data
+
+                decoder_attentions = self.addAttention(di, decoder_attentions, decoder_attention)
                 decoder_outputs[:, di, :] = decoder_output
                 decoder_input = target_tensor[:, di].view(1,-1)
 
@@ -320,7 +327,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
             for di in range(self.max_length):
                 decoder_output, decoder_hidden, decoder_attention = self.decoder(
                     decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
-                decoder_attentions[di] = decoder_attention.data
+                decoder_attentions = self.addAttention(di, decoder_attentions, decoder_attention)
 
                 decoder_outputs[:, di, :] = decoder_output
 
@@ -329,7 +336,6 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
                 if len(idx_end) == self.batch_size:
                     break
 
-                # TODO: check shape
                 decoder_input = topi.squeeze().detach().view(
                     1, -1)  # detach from history as input
 
