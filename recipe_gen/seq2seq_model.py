@@ -103,6 +103,7 @@ class Seq2seq(nn.Module):
                 self.max_length, self.batch_size, self.max_ingr)
     
         return decoder_input,decoded_words,decoder_outputs,decoder_attentions
+    
 
     def forward(self, batch):
         """
@@ -114,6 +115,17 @@ class Seq2seq(nn.Module):
         decoder_words: final (<max_len,batch)
         decoder_attentions: (max_len,batch,max_ingr)
         """
+        def forwardDecoderStep(decoder_input, decoder_hidden, 
+                    encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words):
+            decoder_output, decoder_hidden, decoder_attention = self.decoder(
+                decoder_input, decoder_hidden, encoder_outputs)
+            decoder_outputs[:, di] = decoder_output
+            decoder_attentions = self.addAttention(
+                di, decoder_attentions, decoder_attention)
+            topi = self.samplek(decoder_output,decoded_words)
+            return decoder_hidden, decoder_attentions, topi
+
+
         input_tensor = batch["ingr"].to(self.device)
         target_tensor = batch["target_instr"].to(self.device)
         
@@ -121,7 +133,7 @@ class Seq2seq(nn.Module):
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
-        # encoder_outputs (max_ingr, batch,hidden)
+        # encoder_outputs (max_ingr,hidden_size, batch)
         # encoder_hidden (1, batch, hidden_size)
 
         decoder_hidden = encoder_hidden
@@ -136,24 +148,16 @@ class Seq2seq(nn.Module):
         # TODO: scheduled sampling
         if use_teacher_forcing:
             for di in range(self.max_length):
-                decoder_output, decoder_hidden, decoder_attention = self.decoder(
-                    decoder_input, decoder_hidden, encoder_outputs)
-                decoder_outputs[:, di] = decoder_output
-                decoder_input = target_tensor[:, di].view(1, -1)
-                decoder_attentions = self.addAttention(
-                    di, decoder_attentions, decoder_attention)
+                decoder_hidden, decoder_attentions, topi = forwardDecoderStep(decoder_input, decoder_hidden, 
+                    encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
-                self.samplek(decoder_output,decoded_words)
+                decoder_input = target_tensor[:, di].view(1, -1)
 
         else:
             for di in range(self.max_length):
-                decoder_output, decoder_hidden, decoder_attention = self.decoder(
-                    decoder_input, decoder_hidden, encoder_outputs)
-                decoder_outputs[:, di, :] = decoder_output
-                decoder_attentions = self.addAttention(
-                    di, decoder_attentions, decoder_attention)
-
-                topi = self.samplek(decoder_output,decoded_words)
+                decoder_hidden, decoder_attentions, topi = forwardDecoderStep(decoder_input, decoder_hidden, 
+                    encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
+                    
                 idx_end = (topi == self.train_dataset.EOS_token).nonzero()[:, 0]
                 if len(idx_end) == self.batch_size:
                     break
@@ -294,6 +298,16 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         decoder_words: final (<max_len,batch)
         decoder_attentions: (max_len,batch,max_ingr)
         """
+        def forwardDecoderStep(decoder_input, decoder_hidden, 
+                    encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words):
+            decoder_output, decoder_hidden, decoder_attention = self.decoder(
+                decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
+
+            decoder_attentions = self.addAttention(di, decoder_attentions, decoder_attention)
+            decoder_outputs[:, di, :] = decoder_output
+            topi = self.samplek(decoder_output,decoded_words)
+            return decoder_hidden, decoder_attentions, topi
+
         input_tensor = batch["ingr"].to(self.device)
         target_tensor = batch["target_instr"].to(self.device)
 
@@ -302,7 +316,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
         # encoder_outputs (hidden_size, batch) or (max_ingr,hidden) ??
-        # encoder_hidden (1,hidden_size, batch)
+        # encoder_hidden (1, batch, hidden_size)
 
 
         decoder_hidden = encoder_hidden
@@ -315,24 +329,16 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
 
         if use_teacher_forcing:
             for di in range(self.max_length):
-                decoder_output, decoder_hidden, decoder_attention = self.decoder(
-                    decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
+                decoder_hidden, decoder_attentions,topi = forwardDecoderStep(decoder_input, decoder_hidden, 
+                    encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
-                decoder_attentions = self.addAttention(di, decoder_attentions, decoder_attention)
-                decoder_outputs[:, di, :] = decoder_output
                 decoder_input = target_tensor[:, di].view(1,-1)
-
-                self.samplek(decoder_output,decoded_words)
 
         else:
             for di in range(self.max_length):
-                decoder_output, decoder_hidden, decoder_attention = self.decoder(
-                    decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
-                decoder_attentions = self.addAttention(di, decoder_attentions, decoder_attention)
+                decoder_hidden, decoder_attentions,topi = forwardDecoderStep(decoder_input, decoder_hidden, 
+                    encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
-                decoder_outputs[:, di, :] = decoder_output
-
-                topi = self.samplek(decoder_output,decoded_words)
                 idx_end = (topi == self.train_dataset.EOS_token).nonzero()[:, 0]
                 if len(idx_end) == self.batch_size:
                     break
@@ -341,6 +347,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
                     1, -1)  # detach from history as input
 
         return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
+
 
 
 class Seq2seqTitlePairing(Seq2seqAtt):
@@ -378,7 +385,7 @@ class Seq2seqTitlePairing(Seq2seqAtt):
         title_encoder_outputs, title_encoder_hidden = self.title_encoder.forward_all(
             title_tensor)
 
-        decoder_hidden = torch.cat((encoder_hidden,title_encoder_hidden),dim=1)
+        decoder_hidden = torch.cat((encoder_hidden,title_encoder_hidden),dim=2)
 
         if self.training:
             use_teacher_forcing = True if random.random(
@@ -401,8 +408,8 @@ class Seq2seqTitlePairing(Seq2seqAtt):
             for di in range(self.max_length):
                 decoder_output, decoder_hidden, decoder_attention = self.decoder(
                     decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
-                decoder_attentions = self.addAttention(di, decoder_attentions, decoder_attention)
 
+                decoder_attentions = self.addAttention(di, decoder_attentions, decoder_attention)
                 decoder_outputs[:, di, :] = decoder_output
 
                 topi = self.samplek(decoder_output,decoded_words)

@@ -4,6 +4,7 @@ import sys
 import argparse
 import logging
 from datetime import datetime
+import pathlib
 import importlib
 sys.path.insert(0, os.getcwd())
 from recipe_1m_analysis.utils import Vocabulary
@@ -54,7 +55,7 @@ argparser.add_argument('--model-name', type=str, choices=['Seq2seq','Seq2seqAtt'
                        'Seq2seqIngrAtt','Seq2seqIngrPairingAtt','Seq2seqTitlePairing'],
                        default="Seq2seqIngrPairingAtt",
                        help='Model name for saving/loading')
-argparser.add_argument('--title-input', type='bool', nargs='?',
+argparser.add_argument('--title', type='bool', nargs='?',  #XXX: for now, need to put title arg AND model-name Seq2seqTitlePairing
                         const=True, default=True,
                        help='Title input')
 argparser.add_argument('--print-step', type=int, default=50,
@@ -121,7 +122,7 @@ def init_logging(args):
     # Create save folder
     args.saving_path = saving_path = os.path.join(args.saving_path, args.model_name,datetime.now().strftime('%m-%d-%H-%M'))
     if not os.path.isdir(saving_path):
-        os.mkdir(saving_path)
+        pathlib.Path(saving_path).mkdir(parents=True, exist_ok=True)
         print('...created '+ saving_path)
 
     logfile = logging.FileHandler(os.path.join(saving_path,'log.txt'), 'w')

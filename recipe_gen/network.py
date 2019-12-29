@@ -61,6 +61,7 @@ class DecoderRNN(nn.Module):
         self.gru = nn.GRU(hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
+        # XXX: not taking into account other inputs (title,cuisine) for now, can lead to dim errors
 
     def forward(self, input, hidden, encoder_output):
         self.batch_size = input.shape[1]
@@ -136,6 +137,8 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         input: (1,batch)
         hidden: (1,batch,hidden)
         encoder_outputs: (max_ingr,hidden)
+
+        output
         """
         batch_size = hidden.shape[1]
         embedded = self.embedding(input)  # (1, batch_size, hidden)
@@ -168,7 +171,10 @@ class Attention(nn.Module):
         self.hidden_size = args.hidden_size
 
         self.dropout = nn.Dropout(self.dropout_p)
-        self.attn = nn.Linear(self.hidden_size * 2, self.max_ingr)
+        if args.title:
+            self.attn = nn.Linear(self.hidden_size * 3, self.hidden_size)
+        else:
+            self.attn = nn.Linear(self.hidden_size * 2, self.max_ingr)
         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
 
     def forward(self, embedded, hidden, encoder_outputs):
@@ -206,7 +212,6 @@ class Attention(nn.Module):
 class IngrAtt(Attention):
     def __init__(self, args):
         super().__init__(args)
-        # self.attn = nn.Linear(self.hidden_size * 2, self.hidden_size)
 
     def forward(self, embedded, hidden, encoder_outputs):
         """Def from user pref paper
@@ -215,7 +220,9 @@ class IngrAtt(Attention):
         V: encoder_outputs
         """
         batch_size = embedded.shape[1]
-        attn_weights = F.softmax(torch.tanh(self.attn(torch.cat((encoder_outputs[-1], hidden[0]), 1))), dim=1)
+        attn_weights = F.softmax(torch.tanh(self.attn(
+                        torch.cat((encoder_outputs[-1], hidden[0]), 1)
+                        )),dim=1)
         
         # attn_weights view: (batch,1,max_ingr)
         # encoder_outputs view: (batch,max_ingr,hidden_size)
