@@ -82,7 +82,7 @@ class RecipesDataset(Dataset):
     def preprocess_data(self):
         pairs=[]
         for recipe in self.data:
-            pairs.append([recipe["ingredients"],recipe["tokenized"]])
+            pairs.append([recipe["ingredients"],recipe["tokenized"],recipe["title"]])
 
         pairs = self.filterPairs(pairs)  
 
@@ -155,10 +155,11 @@ class RecipesDataset(Dataset):
     def tensorsFromPair(self,pair):
         input_tensor,_ = self.tensorFromSentence(self.vocab_ingrs, pair[0])
         target_tensor,target_length = self.tensorFromSentence(self.vocab_tokens, pair[1],instructions=True)
-        # title,_ = self.tensorFromSentence(self.vocab_tokens)#,pair[])
+        title,_ = self.tensorFromSentence(self.vocab_tokens,pair[2])
         return {"ingr":input_tensor,
                 "target_instr": target_tensor,
-                "target_length":target_length}
+                "target_length":target_length,
+                "title":title}
                 # "ingr_tok":pair[0],
                 # "target_tok":pair[1]}
 
