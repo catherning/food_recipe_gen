@@ -28,16 +28,17 @@ DATA_FILES = ["allingrs_count.pkl",
               "recipe1m_vocab_toks.pkl",
               "recipe1m_train.pkl"]
 
+argparser = argparse.ArgumentParser()
 argparser.add_argument('--data-folder', type=str, default=FOLDER_PATH,
-                       help='Dataset path')
+                    help='Dataset path')
 argparser.add_argument('--vocab-ingr-file', type=str, default=DATA_FILES[3],
-                       help='Dataset path')
+                    help='Dataset path')
 argparser.add_argument('--vocab-tok-file', type=str, default=DATA_FILES[4],
-                       help='Dataset path')
+                    help='Dataset path')
 argparser.add_argument('--train-file', type=str, default=DATA_FILES[5],
-                       help='Dataset path')
+                    help='Dataset path')
 argparser.add_argument('--test-file', type=str, default=DATA_FILES[2],
-                       help='Dataset path')
+                    help='Dataset path')
 argparser.add_argument('--max-ingr', type=int, default=MAX_INGR)
 argparser.add_argument('--max-length', type=int, default=MAX_LENGTH)
 
@@ -217,8 +218,8 @@ def timeSince(since, percent):
 
 
 if __name__ == "__main__":
-    argparser = argparse.ArgumentParser()
     args = argparser.parse_args()
+
     with open(os.path.join(FOLDER_PATH, DATA_FILES[3]), 'rb') as f:
         vocab_ingrs = pickle.load(f)
 

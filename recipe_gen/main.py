@@ -51,7 +51,7 @@ argparser.add_argument('--test-file', type=str, default=DATA_FILES[2],
 
 # Run settings
 argparser.add_argument('--model-name', type=str, choices=['Seq2seq','Seq2seqAtt',
-                       'Seq2seqIngrAtt','Seq2seqIngrPairingAtt'],
+                       'Seq2seqIngrAtt','Seq2seqIngrPairingAtt','Seq2seqTitlePairing'],
                        default="Seq2seqIngrPairingAtt",
                        help='Model name for saving/loading')
 argparser.add_argument('--title-input', type='bool', nargs='?',

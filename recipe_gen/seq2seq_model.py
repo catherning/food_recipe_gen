@@ -227,7 +227,7 @@ class Seq2seq(nn.Module):
 
     def evaluateRandomly(self, n=10):
         for i in range(n):
-            pair = random.choice(self.data.pairs)
+            pair = random.choice(self.test_dataset.pairs)
             loss, output_words, _ = self.evaluate(pair[0], pair[1])
             output_sentence = ' '.join(output_words[0])
 
