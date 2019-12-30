@@ -130,7 +130,11 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         super().__init__(args, output_size)
         self.attention = IngrAtt(args)
         self.pairAttention = PairingAtt(args, unk_token=unk_token)
-        self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
+        if args.title:
+            self.gru = nn.GRU(2*args.hidden_size, 2*args.hidden_size)
+            self.out = nn.Linear(2*args.hidden_size, output_size)
+        else:
+            self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
 
     def forward(self, input, hidden, encoder_outputs, encoder_embedding, input_tensor):
         """
@@ -172,7 +176,7 @@ class Attention(nn.Module):
 
         self.dropout = nn.Dropout(self.dropout_p)
         if args.title:
-            self.attn = nn.Linear(self.hidden_size * 3, self.hidden_size)
+            self.attn = nn.Linear(self.hidden_size * 3, self.max_ingr)
         else:
             self.attn = nn.Linear(self.hidden_size * 2, self.max_ingr)
         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
@@ -240,13 +244,20 @@ class PairingAtt(Attention):
             self.pairings = pickle.load(f)
 
         self.unk_token = unk_token
-        self.attn = nn.Linear(self.hidden_size * 2, 1)
+        if args.title:
+            self.attn = nn.Linear(self.hidden_size * 3, 1)
+        else:
+            self.attn = nn.Linear(self.hidden_size * 2, 1)
 
     def forward(self, embedded, hidden, ingr_id, encoder_embedding):
         """
         K: ing_j that needs to be retrieved
         Q: h_enc,t = i_enc,j max from previous attention
         V: ing_j retrieved
+
+        returns
+        output: (1,batch,2*hidden)
+        attn_scores: (batch,top_k) 
         """
 
         compatible_ingr = [self.pairings.bestPairingsFromIngr(

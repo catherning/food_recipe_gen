@@ -66,7 +66,7 @@ class Seq2seq(nn.Module):
         for k,v in self.args.defaults.items():
             try:
                 if getattr(self.args,k)!=v and v is not None:
-                    self.logger.info("{} = {}".format(k,getattr(self,k)))
+                    self.logger.info("{} = {}".format(k,getattr(self.args,k)))
             except AttributeError:
                 continue
 
