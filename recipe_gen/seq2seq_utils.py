@@ -163,6 +163,9 @@ class RecipesDataset(Dataset):
                 # "ingr_tok":pair[0],
                 # "target_tok":pair[1]}
 
+def inverse_sigmoid_decay(decay_factor, i):
+    return decay_factor / (
+        decay_factor + math.exp(i / decay_factor))
 
 
 def flattenSequence(data, lengths):

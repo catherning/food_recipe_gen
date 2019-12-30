@@ -65,9 +65,6 @@ argparser.add_argument('--validation-step', type=int, default=1,
 argparser.add_argument('--train-mode', type='bool', nargs='?',
                         const=True, default=True,
                        help='Enable training')
-argparser.add_argument('--pretrain', type='bool', nargs='?',
-                        const=True, default=False,
-                       help='Enable training')
 argparser.add_argument('--valid', type='bool', nargs='?',
                         const=True, default=True,
                        help='Enable validation')
@@ -98,7 +95,8 @@ argparser.add_argument('--batch-size', type=int, default=8)
 argparser.add_argument('--epoch', type=int, default=100)
 argparser.add_argument('--n-iters', type=int, default=500)
 argparser.add_argument('--learning-rate', type=float, default=0.01)
-argparser.add_argument('--teacher-forcing-ratio', type=float, default=1)
+argparser.add_argument('--decay_factor', type=float, default=500.,
+                        help='Speed of increasing the probability of sampling from model. Default: 500.')
 argparser.add_argument('--dropout', type=float, default=0.1)
 argparser.add_argument('--topk', type=float, default=3)
 
@@ -165,15 +163,16 @@ def main():
         print("Begin training.")
         model.train_process()
 
-    model.evaluateRandomly(n=2)
+    if args.test:
+        model.evaluateRandomly(n=2)
 
-    _, output_words, attentions = model.evaluate(
-        "tomato salad beef lemon".split())
-    print(' '.join(output_words[0]))
-    try:
-        plt.matshow(attentions[:, 0, :].numpy())
-    except (TypeError, AttributeError):
-        print("No attention to show.")
+        _, output_words, attentions = model.evaluate(
+            "tomato salad beef lemon".split())
+        print(' '.join(output_words[0]))
+        try:
+            plt.matshow(attentions[:, 0, :].numpy())
+        except (TypeError, AttributeError):
+            print("No attention to show.")
 
 
 if __name__ == "__main__":
