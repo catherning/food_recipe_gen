@@ -38,9 +38,11 @@ argparser.register('type', 'bool', str2bool)
 argparser.add_argument('--data-folder', type=str, default=FOLDER_PATH,
                        help='Dataset path')
 argparser.add_argument('--pairing-path', type=str, default=PAIRING_PATH,
-                       help='Dataset path')
+                       help='Pairing path')
 argparser.add_argument('--saving-path', type=str, default=SAVING_PATH,
-                       help='Dataset path')
+                       help='Saving path')
+argparser.add_argument('--load-folder', type=str,
+                       help='Loading best model in folder load-path')
 argparser.add_argument('--vocab-ingr-file', type=str, default=DATA_FILES[3],
                        help='Dataset path')
 argparser.add_argument('--vocab-tok-file', type=str, default=DATA_FILES[4],
@@ -155,24 +157,30 @@ def main():
 
     if args.resume:
         model.load_state_dict(torch.load(os.path.join(
-            os.getcwd(), "recipe_gen", "results",args.model_name, "best_model")))#XXX:lack date of run
-        model.to(args.device)
+            os.getcwd(), "recipe_gen", "results",args.model_name,args.load_folder, "best_model")))
         print("Model loaded.")
-    else:
-        model.to(args.device)
+    
+    model.to(args.device)
+    if args.train_mode:
         print("Begin training.")
         model.train_process()
 
     if args.test:
+        # Evaluate on whole test dataset
+        model.evalProcess()
+        
+        # Evaluate on 2 random samples in test dataset and print results
         model.evaluateRandomly(n=2)
 
-        _, output_words, attentions = model.evaluate(
-            "tomato salad beef lemon".split())
+        # Evaluate on user input
+        _, output_words, attentions = model.evaluateFromText(
+            "tomato salad beef lemon".split(),title="mediteranean salad".split())
         print(' '.join(output_words[0]))
         try:
             plt.matshow(attentions[:, 0, :].numpy())
         except (TypeError, AttributeError):
             print("No attention to show.")
+
 
 
 if __name__ == "__main__":

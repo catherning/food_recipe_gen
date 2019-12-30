@@ -116,7 +116,7 @@ class Seq2seq(nn.Module):
         topi = self.samplek(decoder_output, decoded_words)
         return decoder_attentions, topi
 
-    def forward(self, batch, iter):
+    def forward(self, batch, iter=iter):
         """
         input_tensor: (batch_size,max_ingr)
         target_tensor: (batch_size,max_len)
@@ -162,7 +162,7 @@ class Seq2seq(nn.Module):
         target_length = batch["target_length"]
         target_tensor = batch["target_instr"].to(self.device)
 
-        decoded_outputs, decoded_words, _ = self.forward(batch, iter)
+        decoded_outputs, decoded_words, _ = self.forward(batch, iter=iter)
         # aligned_outputs = flattenSequence(decoded_outputs, target_length)
         # aligned_target = flattenSequence(target_tensor, target_length)
         aligned_outputs = decoded_outputs.view(
@@ -170,10 +170,12 @@ class Seq2seq(nn.Module):
         aligned_target = target_tensor.view(self.batch_size*self.max_length)
         loss = self.criterion(
             aligned_outputs, aligned_target)/target_length.shape[0]
-        loss.backward()
 
-        self.encoder_optimizer.step()
-        self.decoder_optimizer.step()
+        if self.training:
+            loss.backward()
+
+            self.encoder_optimizer.step()
+            self.decoder_optimizer.step()
 
         return loss.item(), decoded_words
 
@@ -207,46 +209,57 @@ class Seq2seq(nn.Module):
                         torch.save(self.state_dict(), os.path.join(
                             self.savepath, "best_model"))
 
-    def evaluate(self, sentence, target=None):
+            self.evalProcess()
+
+    def evaluateFromText(self, sentence, target=None,title=None):
         self.eval()
         with torch.no_grad():
             input_tensor, _ = self.train_dataset.tensorFromSentence(
                 self.train_dataset.vocab_ingrs, sentence)
             input_tensor = input_tensor.view(1, -1).to(self.device)
+
             if target is not None:
                 target_tensor, _ = self.train_dataset.tensorFromSentence(
                     self.train_dataset.vocab_tokens, target, instructions=True)
                 target_tensor = target_tensor.view(1, -1).to(self.device)
             else:
                 target_tensor = None
-            return self.forward(input_tensor, target_tensor)
+            
+            if title is not None:
+                title_tensor, _ = self.train_dataset.tensorFromSentence(
+                    self.train_dataset.vocab_tokens, title)
+                title_tensor = title_tensor.view(1, -1).to(self.device)
+            else:
+                title_tensor = None
+                
+            batch = {"ingr":input_tensor,"target_instr":target_tensor,"title":title_tensor}
+            return self.forward(batch)
 
     def evaluateRandomly(self, n=10):
         for i in range(n):
             pair = random.choice(self.test_dataset.pairs)
-            loss, output_words, _ = self.evaluate(pair[0], target=pair[1])
+            loss, output_words, _ = self.evaluateFromText(pair[0], target=pair[1],title=pair[2])
             output_sentence = ' '.join(output_words[0])
 
             self.logger.info(
                 "Input: "+" ".join([ingr.name for ingr in pair[0]]))
-            self.logger.info("Target: "+[" ".join(instr) for instr in pair[1]])
+            self.logger.info("Target: "+str([" ".join(instr) for instr in pair[1]]))
             self.logger.info("Generated: "+output_sentence)
 
     def evalProcess(self):
+        self.eval()
         start = time.time()
         plot_losses = []
         print_loss_total = 0
 
         for iter, batch in enumerate(self.test_dataloader, start=1):
-            # split in train_iter? give directly batch to train_iter ?
-            input_tensor = batch["ingr"].to(self.device)
-            target_tensor = batch["target_instr"].to(self.device)
-            target_length = batch["target_length"]
-
-            loss = self.train_iter(input_tensor, target_tensor, target_length)
+            loss,_ = self.train_iter(batch,iter)
             print_loss_total += loss
 
-        print_loss_avg = print_loss_total / self.args.print_step
+            if iter%self.args.print_step==0:
+                print("Current loss = {.4f}".format(print_loss_total/iter))
+
+        print_loss_avg = print_loss_total / iter
         self.logger.info("Eval loss = {.4f}".format(print_loss_avg))
 
 
@@ -259,7 +272,7 @@ class Seq2seqAtt(Seq2seq):
             self.decoder.parameters(), lr=args.learning_rate)
 
     def evaluateAndShowAttention(self, input_sentence):
-        loss, output_words, attentions = self.evaluate(input_sentence)
+        loss, output_words, attentions = self.evaluateFromText(input_sentence)
         self.logger.info('input = ' + input_sentence)
         self.logger.info('output = ' + ' '.join(output_words))
         showAttention(input_sentence, output_words, attentions)
@@ -294,7 +307,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         topi = self.samplek(decoder_output, decoded_words)
         return decoder_attentions, topi
 
-    def forward(self, batch, iter):
+    def forward(self, batch, iter=iter):
         """
         input_tensor: (batch_size,max_ingr)
         target_tensor: (batch_size,max_len)
@@ -346,7 +359,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         self.encoder_optimizer = optim.Adam(
             self.title_encoder.parameters(), lr=args.learning_rate)
 
-    def forward(self, batch, iter):
+    def forward(self, batch, iter=iter):
         """
         input_tensor: (batch_size,max_ingr)
         target_tensor: (batch_size,max_len)
@@ -357,11 +370,15 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         decoder_attentions: (max_len,batch,max_ingr)
         """
         input_tensor = batch["ingr"].to(self.device)
-        target_tensor = batch["target_instr"].to(self.device)
-        title_tensor = batch["title"].to(self.device)
-
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor, pairing=True)
+        
+        try:
+            target_tensor = batch["target_instr"].to(self.device)
+        except AttributeError:
+            Warning("Evaluation mode: only taking ingredient list as input")
+
+        title_tensor = batch["title"].to(self.device)
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
