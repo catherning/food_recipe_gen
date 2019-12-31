@@ -96,13 +96,13 @@ class RecipesDataset(Dataset):
 
     def filterSinglePair(self,p):
         length=0
-        if type(p[0][0]) is str: 
-            for ingr in p[0]:
-                if ingr not in self.vocab_ingrs.word2idx:
-                    return False
-        else:
+        try: 
             for ingr in p[0]:
                 if ingr.name not in self.vocab_ingrs.word2idx:
+                    return False
+        except AttributeError:
+            for ingr in p[0]:
+                if ingr not in self.vocab_ingrs.word2idx:
                     return False
             
         for sent in p[1]:
@@ -124,10 +124,10 @@ class RecipesDataset(Dataset):
         return torch.Tensor([self.vocab_tokens.word2idx.get(word,self.UNK_token) for word in sentence])
 
     def ingr2idx(self,ingr_list):
-        if type(ingr_list[0]) is str:
-            return torch.Tensor([self.vocab_ingrs.word2idx.get(word,self.UNK_token) for word in ingr_list])
-        else:
+        try:
             return torch.Tensor([self.vocab_ingrs.word2idx.get(word.name,self.UNK_token) for word in ingr_list])
+        except AttributeError:
+            return torch.Tensor([self.vocab_ingrs.word2idx.get(word,self.UNK_token) for word in ingr_list])
 
     def tensorFromSentence(self,vocab, sentence,instructions=False):
         max_size = instructions * self.max_length + (1-instructions) * self.max_ingr

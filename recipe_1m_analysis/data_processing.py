@@ -260,6 +260,8 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
     genTokVoc(counter_toks)
     vocab_ingrs = genIngrVoc(counter_ingrs)
 
+    return vocab_ingrs
+
 
 def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs, vocab_ingrs):
     ######
@@ -287,7 +289,7 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
 
                 if det_ingr_undrs is not None:
                     print(det_ingr_undrs)
-                    ingrs_list.append(det_ingr_undrs.name)
+                    ingrs_list.append(det_ingr_undrs)
                     label_idx = vocab_ingrs(det_ingr_undrs.name)
                     if label_idx is not vocab_ingrs('<pad>') and label_idx not in labels:
                         labels.append(label_idx)
@@ -356,8 +358,8 @@ def main(args):
         vocab_ingrs = clean_count(
             args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs)
     else:
-        with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
-            vocab_ingrs = json.load(f)
+        with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'rb') as f:
+            vocab_ingrs = pickle.load(f)
         print("Vocab ingrs loaded.")
 
     ######
@@ -401,7 +403,7 @@ if __name__ == '__main__':
                         help='minimum number of characters in recipe')
 
     parser.add_argument('--forcegen', dest='forcegen', action='store_true')
-    parser.add_argument('--forcegen-all', dest='forcegen', action='store_true')
+    parser.add_argument('--forcegen-all', dest='forcegen_all', action='store_true')
     parser.set_defaults(forcegen=False)
 
     args = parser.parse_args()
