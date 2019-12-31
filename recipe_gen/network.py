@@ -16,13 +16,13 @@ class EncoderRNN(nn.Module):
         self.batch_size = args.batch_size
 
         self.embedding = nn.Embedding(input_size, args.hidden_size)
-        self.gru = nn.GRU(args.hidden_size, args.hidden_size)
+        self.gru = nn.GRU(args.hidden_size, args.hidden_size, bidirectional=True) # TODO: change size as biGRU => num_dir = 2
 
     def forward(self, input_, hidden):
         """
         input_: (batch)
-        hidden: (1,batch,hidden)
-        output: (1,batch,hidden)
+        hidden: (1,batch,hidden * 2) *2 bc biGRU
+        output: (1,batch,hidden * 2) 
         """
         embedded = self.embedding(input_).view(1, self.batch_size, -1)
         output = embedded
@@ -30,18 +30,18 @@ class EncoderRNN(nn.Module):
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, self.batch_size, self.hidden_size)
+        return torch.zeros(2, self.batch_size, self.hidden_size) # (num_layers * num_directions, batch, hidden_size)
 
     def forward_all(self, input_tensor):
         """
         input: (batch,max_ingr) ?
-        encoder_outputs: (max_ingr,batch,hidden)
-        encoder_hidden: (1,batch,hidden)
+        encoder_outputs: (max_ingr,batch,hidden*1)
+        encoder_hidden: (1,batch,hidden*2)
         """
         self.batch_size = len(input_tensor)
         encoder_hidden = self.initHidden().to(self.device)
         encoder_outputs = torch.zeros(
-            self.max_ingr, self.batch_size, self.hidden_size, device=self.device)
+            self.max_ingr, self.batch_size, self.hidden_size*2, device=self.device)
 
         for ei in range(self.max_ingr):
             # TODO: couldn't give directly all input_tensor, not step by step ???
@@ -58,7 +58,7 @@ class DecoderRNN(nn.Module):
         self.batch_size = args.batch_size
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.gru = nn.GRU(hidden_size, hidden_size)
+        self.gru = nn.GRU(2* hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
         # XXX: not taking into account other inputs (title,cuisine) for now, can lead to dim errors
@@ -103,7 +103,7 @@ class IngrAttnDecoderRNN(DecoderRNN):
     def __init__(self, args, output_size):
         super().__init__(args, output_size)
         hidden_size = args.hidden_size
-        self.gru = nn.GRU(2*hidden_size, hidden_size)
+        self.gru = nn.GRU(4*hidden_size, hidden_size) # TODO: check if 4 is ok. 2 biGRU
         self.attention = IngrAtt(args)
 
     def forward(self, input, hidden, encoder_outputs):
@@ -131,10 +131,10 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         self.attention = IngrAtt(args)
         self.pairAttention = PairingAtt(args, unk_token=unk_token)
         if args.title:
-            self.gru = nn.GRU(2*args.hidden_size, 2*args.hidden_size)
-            self.out = nn.Linear(2*args.hidden_size, output_size)
+            self.gru = nn.GRU(4*args.hidden_size, 2*args.hidden_size) # TODO: check if 4 is ok. 2 biGRU
+            self.out = nn.Linear(4*args.hidden_size, output_size)
         else:
-            self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
+            self.gru = nn.GRU(4*args.hidden_size, args.hidden_size)
 
     def forward(self, input, hidden, encoder_outputs, encoder_embedding, input_tensor):
         """
@@ -176,7 +176,7 @@ class Attention(nn.Module):
 
         self.dropout = nn.Dropout(self.dropout_p)
         if args.title:
-            self.attn = nn.Linear(self.hidden_size * 3, self.max_ingr)
+            self.attn = nn.Linear(self.hidden_size * 3, self.max_ingr) # TODO: fix with biGRU
         else:
             self.attn = nn.Linear(self.hidden_size * 2, self.max_ingr)
         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)

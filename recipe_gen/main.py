@@ -96,7 +96,7 @@ argparser.add_argument('--embed-d', type=int, default=1,
 argparser.add_argument('--batch-size', type=int, default=8)
 argparser.add_argument('--epoch', type=int, default=100)
 argparser.add_argument('--n-iters', type=int, default=500)
-argparser.add_argument('--learning-rate', type=float, default=0.01)
+argparser.add_argument('--learning-rate', type=float, default=0.001)
 argparser.add_argument('--decay_factor', type=float, default=500.,
                         help='Speed of increasing the probability of sampling from model. Default: 500.')
 argparser.add_argument('--dropout', type=float, default=0.1)

@@ -131,12 +131,12 @@ class Seq2seq(nn.Module):
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor)
 
-        # encoder_outputs (max_ingr,hidden_size, batch)
-        # encoder_hidden (1, batch, hidden_size)
+        # encoder_outputs (max_ingr,2*hidden_size, batch) 
+        # encoder_hidden (1, batch, hidden_size *2)
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
-        decoder_hidden = encoder_hidden
+        decoder_hidden = encoder_hidden # (num_layers * num_directions=2, batch, hidden_size) 
 
         sampling_proba = 1-inverse_sigmoid_decay(
                 self.decay_factor, iter) if self.training else 1
@@ -163,11 +163,11 @@ class Seq2seq(nn.Module):
         target_tensor = batch["target_instr"].to(self.device)
 
         decoded_outputs, decoded_words, _ = self.forward(batch, iter=iter)
-        # aligned_outputs = flattenSequence(decoded_outputs, target_length)
-        # aligned_target = flattenSequence(target_tensor, target_length)
-        aligned_outputs = decoded_outputs.view(
-            self.batch_size*self.max_length, -1)
-        aligned_target = target_tensor.view(self.batch_size*self.max_length)
+        aligned_outputs = flattenSequence(decoded_outputs, target_length)
+        aligned_target = flattenSequence(target_tensor, target_length)
+        # aligned_outputs = decoded_outputs.view(
+        #     self.batch_size*self.max_length, -1)
+        # aligned_target = target_tensor.view(self.batch_size*self.max_length)
         loss = self.criterion(
             aligned_outputs, aligned_target)/target_length.shape[0]
 
