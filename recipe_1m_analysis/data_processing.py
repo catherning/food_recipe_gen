@@ -351,8 +351,12 @@ def main(args):
     #####
     # 1. Count words in dataset and clean
     #####
-    vocab_ingrs = clean_count(
-        args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs)
+    if args.forcegen_all:
+        vocab_ingrs = clean_count(
+            args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs)
+    else:
+        with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
+            vocab_ingrs = json.load(f)
 
     ######
     # 2. Tokenize and build dataset based on vocabularies.
@@ -395,6 +399,7 @@ if __name__ == '__main__':
                         help='minimum number of characters in recipe')
 
     parser.add_argument('--forcegen', dest='forcegen', action='store_true')
+    parser.add_argument('--forcegen-all', dest='forcegen', action='store_true')
     parser.set_defaults(forcegen=False)
 
     args = parser.parse_args()
