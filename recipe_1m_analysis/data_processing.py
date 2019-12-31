@@ -286,7 +286,8 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
                 det_ingr_undrs = ingr_norm.normalize_ingredient(det_ingr["text"])
 
                 if det_ingr_undrs is not None:
-                    ingrs_list.append(det_ingr_undrs)
+                    print(det_ingr_undrs)
+                    ingrs_list.append(det_ingr_undrs.name)
                     label_idx = vocab_ingrs(det_ingr_undrs.name)
                     if label_idx is not vocab_ingrs('<pad>') and label_idx not in labels:
                         labels.append(label_idx)
@@ -351,12 +352,13 @@ def main(args):
     #####
     # 1. Count words in dataset and clean
     #####
-    if args.forcegen_all:
+    if not args.forcegen_all:
         vocab_ingrs = clean_count(
             args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs)
     else:
         with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
             vocab_ingrs = json.load(f)
+        print("Vocab ingrs loaded.")
 
     ######
     # 2. Tokenize and build dataset based on vocabularies.
