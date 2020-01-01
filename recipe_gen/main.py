@@ -57,9 +57,6 @@ argparser.add_argument('--model-name', type=str, choices=['Seq2seq','Seq2seqAtt'
                        'Seq2seqIngrAtt','Seq2seqIngrPairingAtt','Seq2seqTitlePairing'],
                        default="Seq2seqIngrPairingAtt",
                        help='Model name for saving/loading')
-argparser.add_argument('--title', type='bool', nargs='?',  #XXX: for now, need to put title arg AND model-name Seq2seqTitlePairing
-                        const=True, default=False,
-                       help='Title input')
 argparser.add_argument('--print-step', type=int, default=50,
                        help='Display steps')
 argparser.add_argument('--validation-step', type=int, default=1,

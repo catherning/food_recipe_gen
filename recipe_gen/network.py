@@ -35,8 +35,8 @@ class EncoderRNN(nn.Module):
     def forward_all(self, input_tensor):
         """
         input: (batch,max_ingr) ?
-        encoder_outputs: (max_ingr,batch,hidden*1)
-        encoder_hidden: (1,batch,hidden*2)
+        encoder_outputs: (max_ingr,batch,hidden*2)
+        encoder_hidden: (2,batch,hidden)
         """
         self.batch_size = len(input_tensor)
         encoder_hidden = self.initHidden().to(self.device)
@@ -58,15 +58,25 @@ class DecoderRNN(nn.Module):
         self.batch_size = args.batch_size
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.gru = nn.GRU(2* hidden_size, hidden_size)
+        self.hiddenLayer = nn.Linear(2*hidden_size,hidden_size)
+        self.gru = nn.GRU(hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
         # XXX: not taking into account other inputs (title,cuisine) for now, can lead to dim errors
 
     def forward(self, input, hidden, encoder_output):
+        """
+        input (1,batch)
+        hidden (2, batch, hidden_size)
+        encoder_output (max_ingr,batch, 2*hidden_size) 
+        """
         self.batch_size = input.shape[1]
-        output = self.embedding(input).view(1, self.batch_size, -1)
+        output = self.embedding(input).view(1, self.batch_size, -1) #(1,batch,hidden)
         output = F.relu(output)
+
+        hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
+        hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
+        
         output, hidden = self.gru(output, hidden)
         output = self.softmax(self.out(output[0]))
         return output, hidden, None
@@ -84,11 +94,14 @@ class AttnDecoderRNN(DecoderRNN):
         """
         input: (1,batch)
         hidden: (1,batch,hidden)
-        encoder_outputs: (max_ingr,hidden)
+        encoder_outputs: (max_ingr,batch,2*hidden)
         """
         self.batch_size = input.shape[1]
         embedded = self.embedding(input).view(1, self.batch_size, -1)
-        # embedded (1,batch,hidden) ?
+        # embedded (1,batch,2*hidden)
+
+        hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
+        hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
 
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
@@ -103,7 +116,7 @@ class IngrAttnDecoderRNN(DecoderRNN):
     def __init__(self, args, output_size):
         super().__init__(args, output_size)
         hidden_size = args.hidden_size
-        self.gru = nn.GRU(4*hidden_size, hidden_size) # TODO: check if 4 is ok. 2 biGRU
+        self.gru = nn.GRU(3*hidden_size, hidden_size)
         self.attention = IngrAtt(args)
 
     def forward(self, input, hidden, encoder_outputs):
@@ -115,6 +128,9 @@ class IngrAttnDecoderRNN(DecoderRNN):
         self.batch_size = input.shape[1]
         embedded = self.embedding(input).view(1, self.batch_size, -1)
         # embedded (1,batch,hidden) ?
+
+        hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
+        hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
 
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
@@ -130,7 +146,7 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         super().__init__(args, output_size)
         self.attention = IngrAtt(args)
         self.pairAttention = PairingAtt(args, unk_token=unk_token)
-        if args.title:
+        if args.model_name=="Seq2seqTitlePairing":
             self.gru = nn.GRU(4*args.hidden_size, 2*args.hidden_size) # TODO: check if 4 is ok. 2 biGRU
             self.out = nn.Linear(4*args.hidden_size, output_size)
         else:
@@ -147,9 +163,13 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         batch_size = hidden.shape[1]
         embedded = self.embedding(input)  # (1, batch_size, hidden)
 
+        hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
+        hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
+
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
 
+        # Selecting the focused ingredient from input then attend on compatible ingredients
         ingr_arg = torch.argmax(attn_weights, 1)
         ingr_id = torch.LongTensor(batch_size)
         for i, id in enumerate(ingr_arg):
@@ -175,11 +195,11 @@ class Attention(nn.Module):
         self.hidden_size = args.hidden_size
 
         self.dropout = nn.Dropout(self.dropout_p)
-        if args.title:
+        if args.model_name=="Seq2seqTitlePairing":
             self.attn = nn.Linear(self.hidden_size * 3, self.max_ingr) # TODO: fix with biGRU
         else:
             self.attn = nn.Linear(self.hidden_size * 2, self.max_ingr)
-        self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.attn_combine = nn.Linear(self.hidden_size * 3, self.hidden_size)
 
     def forward(self, embedded, hidden, encoder_outputs):
         """From pytorch seq2seq tuto
@@ -203,8 +223,8 @@ class Attention(nn.Module):
         attn_weights = F.softmax(
             self.attn(torch.cat((embedded[0], hidden[0]), 1)), dim=1)
         attn_applied = torch.bmm(attn_weights.view(-1, 1, self.max_ingr),
-                                 encoder_outputs.view(-1, self.max_ingr, self.hidden_size))
-        # attn_applied: (batch,1,hidden)
+                                 encoder_outputs.view(-1, self.max_ingr, 2*self.hidden_size))
+        # attn_applied: (batch,1,2*hidden)
 
         output = torch.cat((embedded[0], attn_applied[:, 0]), 1)
         output = self.attn_combine(output).unsqueeze(0)
@@ -216,6 +236,10 @@ class Attention(nn.Module):
 class IngrAtt(Attention):
     def __init__(self, args):
         super().__init__(args)
+        if args.model_name=="Seq2seqTitlePairing":
+            self.attn = nn.Linear(self.hidden_size * 4, self.max_ingr) # TODO: fix with biGRU
+        else:
+            self.attn = nn.Linear(self.hidden_size * 3, self.max_ingr)
 
     def forward(self, embedded, hidden, encoder_outputs):
         """Def from user pref paper
@@ -231,7 +255,7 @@ class IngrAtt(Attention):
         # attn_weights view: (batch,1,max_ingr)
         # encoder_outputs view: (batch,max_ingr,hidden_size)
         attn_applied = torch.bmm(attn_weights.view(batch_size, 1, self.max_ingr),
-                                 encoder_outputs.view(batch_size, self.max_ingr, self.hidden_size))
+                                 encoder_outputs.view(batch_size, self.max_ingr, 2*self.hidden_size))
         output = torch.cat((embedded[0], attn_applied[:, 0]), 1).unsqueeze(0)
 
         return output, attn_weights
@@ -244,7 +268,7 @@ class PairingAtt(Attention):
             self.pairings = pickle.load(f)
 
         self.unk_token = unk_token
-        if args.title:
+        if args.model_name=="Seq2seqTitlePairing":
             self.attn = nn.Linear(self.hidden_size * 3, 1)
         else:
             self.attn = nn.Linear(self.hidden_size * 2, 1)
@@ -266,7 +290,7 @@ class PairingAtt(Attention):
         batch_size = embedded.shape[1]
         scores = torch.zeros(batch_size, self.pairings.top_k)
         comp_ingr_id = torch.ones(
-            batch_size, self.pairings.top_k, dtype=torch.int)*self.unk_token
+            batch_size, self.pairings.top_k, dtype=torch.long,device=embedded.device)*self.unk_token
         for i, batch in enumerate(compatible_ingr):
             # if len(batch) > 0: # necessary ?
             comp_ingr = []
@@ -277,12 +301,14 @@ class PairingAtt(Attention):
             comp_ingr = torch.LongTensor(comp_ingr)
             comp_ingr_id[i, :comp_ingr.shape[0]] = comp_ingr
 
-        comp_emb = encoder_embedding(comp_ingr_id.to(embedded.device).long())
+        comp_emb = encoder_embedding(comp_ingr_id)
 
         attn_weights = torch.zeros(batch_size, self.pairings.top_k)
         for i in range(self.pairings.top_k):
             attn_weights[:, i] = self.attn(
-                torch.cat((comp_emb[:, i], hidden[0]), 1)).view(batch_size)
+                torch.cat((comp_emb[:, i], hidden[0]), 1)
+                
+                ).view(batch_size)
         attn_weights = F.softmax(torch.tanh(attn_weights), dim=1)
 
         # XXX: renormalize after multiplication ?

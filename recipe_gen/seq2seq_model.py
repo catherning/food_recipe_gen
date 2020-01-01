@@ -88,7 +88,7 @@ class Seq2seq(nn.Module):
         return chosen_id
 
     def initForward(self, input_tensor, pairing=False):
-        self.batch_size = len(input_tensor)
+        self.batch_size = len(input_tensor) #XXX: should be able not to reassign if do view with correct hidden size instead
         decoder_input = torch.tensor(
             [[self.train_dataset.SOS_token]*self.batch_size], device=self.device)
         # decoder_input final (<max_len,batch)
@@ -109,7 +109,7 @@ class Seq2seq(nn.Module):
     def forwardDecoderStep(self, decoder_input, decoder_hidden,
                             encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words):
         decoder_output, decoder_hidden, decoder_attention = self.decoder(
-            decoder_input, decoder_hidden, encoder_outputs)
+            decoder_input, decoder_hidden, encoder_outputs) # can remove encoder_outputs ? not used in decoder
         decoder_outputs[:, di] = decoder_output
         decoder_attentions = self.addAttention(
             di, decoder_attentions, decoder_attention)
@@ -131,12 +131,12 @@ class Seq2seq(nn.Module):
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor)
 
-        # encoder_outputs (max_ingr,2*hidden_size, batch) 
-        # encoder_hidden (1, batch, hidden_size *2)
+        # encoder_outputs (max_ingr,batch, 2*hidden_size) 
+        # encoder_hidden (2, batch, hidden_size)
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
-        decoder_hidden = encoder_hidden # (num_layers * num_directions=2, batch, hidden_size) 
+        decoder_hidden = encoder_hidden # (2, batch, hidden_size) 
 
         sampling_proba = 1-inverse_sigmoid_decay(
                 self.decay_factor, iter) if self.training else 1
