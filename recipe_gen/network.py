@@ -62,7 +62,6 @@ class DecoderRNN(nn.Module):
         self.gru = nn.GRU(hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
-        # XXX: not taking into account other inputs (title,cuisine) for now, can lead to dim errors
 
     def forward(self, input, hidden, encoder_output):
         """
@@ -146,12 +145,15 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         super().__init__(args, output_size)
         self.attention = IngrAtt(args)
         self.pairAttention = PairingAtt(args, unk_token=unk_token)
-        if args.model_name=="Seq2seqTitlePairing":
-            self.gru = nn.GRU(4*args.hidden_size, 2*args.hidden_size) # TODO: check if 4 is ok. 2 biGRU
-            self.out = nn.Linear(4*args.hidden_size, output_size)
-        else:
-            self.gru = nn.GRU(4*args.hidden_size, args.hidden_size)
+        self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
+        self.lin = nn.Linear(3*args.hidden_size,2*args.hidden_size)
 
+        if args.model_name=="Seq2seqTitlePairing":
+            self.hiddenLayer = nn.Linear(4*args.hidden_size,args.hidden_size)
+        else:
+            self.hiddenLayer = nn.Linear(2*args.hidden_size,args.hidden_size)
+            # self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
+    
     def forward(self, input, hidden, encoder_outputs, encoder_embedding, input_tensor):
         """
         input: (1,batch)
@@ -177,7 +179,9 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
 
         out, attn_weights = self.pairAttention(
             embedded, hidden, ingr_id, encoder_embedding)
-        if out is not None:
+        if out is None:
+            output = self.lin(output)
+        else:
             output = out
 
         output, hidden = self.gru(output, hidden)
@@ -195,10 +199,7 @@ class Attention(nn.Module):
         self.hidden_size = args.hidden_size
 
         self.dropout = nn.Dropout(self.dropout_p)
-        if args.model_name=="Seq2seqTitlePairing":
-            self.attn = nn.Linear(self.hidden_size * 3, self.max_ingr) # TODO: fix with biGRU
-        else:
-            self.attn = nn.Linear(self.hidden_size * 2, self.max_ingr)
+        self.attn = nn.Linear(self.hidden_size * 2, self.max_ingr)
         self.attn_combine = nn.Linear(self.hidden_size * 3, self.hidden_size)
 
     def forward(self, embedded, hidden, encoder_outputs):
@@ -236,10 +237,7 @@ class Attention(nn.Module):
 class IngrAtt(Attention):
     def __init__(self, args):
         super().__init__(args)
-        if args.model_name=="Seq2seqTitlePairing":
-            self.attn = nn.Linear(self.hidden_size * 4, self.max_ingr) # TODO: fix with biGRU
-        else:
-            self.attn = nn.Linear(self.hidden_size * 3, self.max_ingr)
+        self.attn = nn.Linear(self.hidden_size * 3, self.max_ingr)
 
     def forward(self, embedded, hidden, encoder_outputs):
         """Def from user pref paper
@@ -266,12 +264,9 @@ class PairingAtt(Attention):
         super().__init__(args)
         with open(args.pairing_path, 'rb') as f:
             self.pairings = pickle.load(f)
-
+            
         self.unk_token = unk_token
-        if args.model_name=="Seq2seqTitlePairing":
-            self.attn = nn.Linear(self.hidden_size * 3, 1)
-        else:
-            self.attn = nn.Linear(self.hidden_size * 2, 1)
+        self.attn = nn.Linear(self.hidden_size * 2, 1)
 
     def forward(self, embedded, hidden, ingr_id, encoder_embedding):
         """
