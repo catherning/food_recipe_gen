@@ -288,7 +288,6 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
                 det_ingr_undrs = ingr_norm.normalize_ingredient(det_ingr["text"])
 
                 if det_ingr_undrs is not None:
-                    print(det_ingr_undrs)
                     ingrs_list.append(det_ingr_undrs)
                     label_idx = vocab_ingrs(det_ingr_undrs.name)
                     if label_idx is not vocab_ingrs('<pad>') and label_idx not in labels:
@@ -354,7 +353,7 @@ def main(args):
     #####
     # 1. Count words in dataset and clean
     #####
-    if not args.forcegen_all:
+    if args.forcegen_all:
         vocab_ingrs = clean_count(
             args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs)
     else:
