@@ -23,12 +23,13 @@ import torch.optim as optim
 
 # ## Data preprocessing
 
-FOLDER_PATH = "D:\\Google Drive\\Catherning Folder\\THU\\Thesis\\Recipe datasets\\" #"../recipe_datasets/" 
+FOLDER_PATH = "../recipe_datasets/" #"D:\\Google Drive\\Catherning Folder\\THU\\Thesis\\Recipe datasets\\" #"../recipe_datasets/" 
 DATASET = ["scirep-cuisines-detail","Yummly28"]
 FILES = ["random","cluster_centroid","full"]
 
-EMBED_DIM1 = 300
-EMBED_DIM2 = 64
+EMBED_DIM1 = 1024
+EMBED_DIM2 = 256
+EMBED_DIM3 = 64
 BATCH_SIZE = 100
 PRINT_FREQ = 20
 NB_EPOCHS = 30
@@ -168,12 +169,14 @@ class Net(nn.Module):
         self.num_classes = num_classes
 
         self.layer_1 = nn.Linear(vocab_size, embedding_dim1, bias=True)
-        self.layer_2 = nn.Linear(embedding_dim1, embedding_dim1, bias=True)
-        self.output_layer = nn.Linear(embedding_dim1, num_classes, bias=True)
+        self.layer_2 = nn.Linear(embedding_dim1, embedding_dim2, bias=True)
+        self.layer_3 = nn.Linear(embedding_dim2, embedding_dim3, bias=True)
+        self.output_layer = nn.Linear(embedding_dim3, num_classes, bias=True)
 
     def forward(self, x):
         out = F.relu(self.layer_1(x))
         out = F.relu(self.layer_2(out))
+        out = F.relu(self.layer_3(out))
         out = self.output_layer(out)
         return out
 
@@ -195,7 +198,7 @@ def fbeta_score(y_true, y_pred, beta, threshold, eps=1e-9):
         div(precision.mul(beta2) + recall + eps).
         mul(1 + beta2))
 
-def test_score(network, dataloader, vocab_ingrs, test=False,threshold=0.9):
+def test_score(network, dataloader, vocab_ingrs, device=0, test=False,threshold=0.9):
     network.eval()
     count_unk=0
     correct = 0
@@ -204,14 +207,14 @@ def test_score(network, dataloader, vocab_ingrs, test=False,threshold=0.9):
     all_labels = []
     with torch.no_grad():
         for data in dataloader:
-            inputs = data[0]
+            inputs = data[0].to(device)
 
             # Removing samples where you don't know more than 2 of the ingr doesn't help the model much
             if inputs[0][vocab_ingrs.word2idx["<unk>"]]>3:
                 count_unk+=1
                 continue
 
-            labels = data[1]
+            labels = data[1].to(device)
             outputs = network(inputs.float())
             
             if test:
@@ -241,7 +244,7 @@ def test_score(network, dataloader, vocab_ingrs, test=False,threshold=0.9):
     
     return accuracy, fbeta_pytorch
 
-def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, weights_classes=None,device="cuda"):
+def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, weights_classes=None,device=0):
     if balanced:
         criterion = nn.CrossEntropyLoss(weights_classes)
     else:
@@ -250,7 +253,8 @@ def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, w
 
     if load:
         net.load_state_dict(torch.load(os.path.join(FOLDER_PATH,DATASET[1],"model_logweights")))
-
+        
+    print("Begin training")
     # else:
     epoch_accuracy = []
     epoch_test_accuracy = []
@@ -288,10 +292,11 @@ def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, w
         
         print('Accuracy of the network on epoch {}: {:.3f}'.format(epoch+1,accuracy))
         
-        dev_accuracy, dev_fscore = test_score(net,dev_loader,vocab_ingrs, net.num_classes)
+        dev_accuracy, dev_fscore = test_score(net,dev_loader,vocab_ingrs, device)
         epoch_test_accuracy.append(dev_fscore)
         if dev_fscore > best_score:
             best_score = dev_fscore
+            print("Best model so far. Saving it.")
             torch.save(net.state_dict(), os.path.join(result_folder,"best_model"))
 
     print('Finished Training')
@@ -351,11 +356,14 @@ def main(argv, file, balanced, load):
     
     if argv:
         device = int(argv[0])
-        net = net.to(device)
+    else:
+        device = 0
+    
+    net = net.to(device)
 
     loss, epoch, epoch_accuracy, epoch_test_accuracy, optimizer = train(net, train_loader, test_loader, vocab_ingrs, RESULTS_FOLDER, load, weights_classes, device)
 
-    _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, test=True,threshold=threshold)
+    _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, device, test=True,threshold=threshold)
 
     plotAccuracy(RESULTS_FOLDER, epoch_accuracy,epoch_test_accuracy)
 
