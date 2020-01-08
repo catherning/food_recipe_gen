@@ -228,14 +228,14 @@ def test_score(network, dataloader, vocab_ingrs, test=False,threshold=0.9):
             correct += (predicted == labels).sum().item()
 
     accuracy= 100 * correct / total
-    print(f'Accuracy of the network on the test dataset: {accuracy:.3f}% for {total} samples')
+    print('Accuracy of the network on the test dataset: {.3f}% for {} samples'.format(accuracy,total))
 
     one_hot_pred = F.one_hot(torch.LongTensor(all_predict).to(torch.int64), network.num_classes)
     one_hot_lab = F.one_hot(torch.LongTensor(all_labels).to(torch.int64), network.num_classes)
     fbeta_pytorch = f2_score(one_hot_pred, one_hot_lab)
 
-    print(f'Score is {100* fbeta_pytorch:.3f}%')
-    print(f'Count unknown ingr: {count_unk}')
+    print('Score is {.3f}%'.format(100* fbeta_pytorch))
+    print('Count unknown ingr: {}'.format(count_unk))
     
     return accuracy, fbeta_pytorch
 
@@ -278,13 +278,13 @@ def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, w
             # print statistics
             running_loss += loss.item()
             if i % PRINT_FREQ == PRINT_FREQ-1:    # print every 2000 mini-batches
-                print(f'[Epoch {epoch + 1}, Iteration {i + 1}] loss: {running_loss / 2000:.3f}')
+                print('[Epoch {}, Iteration {}] loss: {.3f}'.format(epoch + 1,i + 1,running_loss / 2000))
                 running_loss = 0.0
 
             accuracy = 100 * correct / total
         epoch_accuracy.append(accuracy)
         
-        print(f'Accuracy of the network on epoch {epoch+1}: {accuracy:.3f}')
+        print('Accuracy of the network on epoch {}: {.3f}'.format(epoch+1,accuracy))
         
         dev_accuracy, dev_fscore = test_score(net,dev_loader,vocab_ingrs, net.num_classes)
         epoch_test_accuracy.append(dev_fscore)
@@ -331,7 +331,7 @@ def saveResults(results_folder, net, loss, epoch, epoch_accuracy, epoch_test_acc
                 'loss': loss,
                 }, os.path.join(results_folder,"training_state_logweights"))
 
-def main(file, balanced, load):
+def main(argv, file, balanced, load):
 
     df = createDFrame(file)
     vocab_ingrs, vocab_cuisine = createVocab(df)
@@ -346,7 +346,7 @@ def main(file, balanced, load):
 
     train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
 
-    net = Net(INPUT_SIZE, EMBED_DIM1, EMBED_DIM2, NUM_CLASSES).to()
+    net = Net(INPUT_SIZE, EMBED_DIM1, EMBED_DIM2, NUM_CLASSES).to(argv[0])
 
     loss, epoch, epoch_accuracy, epoch_test_accuracy, optimizer = train(net, train_loader, test_loader, vocab_ingrs, load, weights_classes)
 
@@ -360,4 +360,4 @@ if __name__=="__main__":
     file = FILES[2]
     balanced = False
     load = False
-    main(file, balanced, load)
+    main(sys.argv[1:],file, balanced, load)
