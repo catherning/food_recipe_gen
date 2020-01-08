@@ -340,7 +340,7 @@ def main(argv, file, balanced, load):
     NUM_CLASSES = len(vocab_cuisine)
 
     date = datetime.now().strftime("%m-%d-%H-%M")
-    RESULTS_FOLDER = os.path.join(os.getcwd(),"results",f"nn_{date}{balanced*'_bal'}_{file}")
+    RESULTS_FOLDER = os.path.join(os.getcwd(),"results","nn_{}{}_{}".format(date,balanced*'_bal',file))
     if not os.path.exists(RESULTS_FOLDER):
         os.makedirs(RESULTS_FOLDER)
 
