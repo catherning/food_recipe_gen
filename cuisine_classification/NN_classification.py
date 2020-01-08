@@ -23,7 +23,7 @@ import torch.optim as optim
 
 # ## Data preprocessing
 
-FOLDER_PATH = "D:\\Google Drive\\Catherning Folder\\THU\\Thesis\\Recipe datasets\\"
+FOLDER_PATH = "D:\\Google Drive\\Catherning Folder\\THU\\Thesis\\Recipe datasets\\" #"../recipe_datasets/" 
 DATASET = ["scirep-cuisines-detail","Yummly28"]
 FILES = ["random","cluster_centroid","full"]
 
@@ -230,13 +230,13 @@ def test_score(network, dataloader, vocab_ingrs, test=False,threshold=0.9):
             correct += (predicted == labels).sum().item()
 
     accuracy= 100 * correct / total
-    print('Accuracy of the network on the test dataset: {.3f}% for {} samples'.format(accuracy,total))
+    print('Accuracy of the network on the test dataset: {:.3f}% for {} samples'.format(accuracy,total))
 
     one_hot_pred = F.one_hot(torch.LongTensor(all_predict).to(torch.int64), network.num_classes)
     one_hot_lab = F.one_hot(torch.LongTensor(all_labels).to(torch.int64), network.num_classes)
     fbeta_pytorch = f2_score(one_hot_pred, one_hot_lab)
 
-    print('Score is {.3f}%'.format(100* fbeta_pytorch))
+    print('Score is {:.3f}%'.format(100* fbeta_pytorch))
     print('Count unknown ingr: {}'.format(count_unk))
     
     return accuracy, fbeta_pytorch
@@ -280,13 +280,13 @@ def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, w
             # print statistics
             running_loss += loss.item()
             if i % PRINT_FREQ == PRINT_FREQ-1:    # print every 2000 mini-batches
-                print('[Epoch {}, Iteration {}] loss: {.3f}'.format(epoch + 1,i + 1,running_loss / 2000))
+                print('[Epoch {}, Iteration {}] loss: {:.3f}'.format(epoch + 1,i + 1,running_loss / 2000))
                 running_loss = 0.0
 
             accuracy = 100 * correct / total
         epoch_accuracy.append(accuracy)
         
-        print('Accuracy of the network on epoch {}: {.3f}'.format(epoch+1,accuracy))
+        print('Accuracy of the network on epoch {}: {:.3f}'.format(epoch+1,accuracy))
         
         dev_accuracy, dev_fscore = test_score(net,dev_loader,vocab_ingrs, net.num_classes)
         epoch_test_accuracy.append(dev_fscore)
@@ -353,7 +353,7 @@ def main(argv, file, balanced, load):
         device = int(argv[0])
         net = net.to(device)
 
-    loss, epoch, epoch_accuracy, epoch_test_accuracy, optimizer = train(net, train_loader, test_loader, vocab_ingrs, load, weights_classes, device)
+    loss, epoch, epoch_accuracy, epoch_test_accuracy, optimizer = train(net, train_loader, test_loader, vocab_ingrs, RESULTS_FOLDER, load, weights_classes, device)
 
     _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, test=True,threshold=threshold)
 
