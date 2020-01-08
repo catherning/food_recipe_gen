@@ -6,6 +6,8 @@ import torch
 import recipe_1m_analysis.utils as utils
 import numpy as np
 import math
+import matplotlib
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 from datetime import datetime
 import csv
@@ -61,7 +63,7 @@ def createVocab(df):
 class IngrDataset(Dataset):
     """Recipes dataset for cuisine classification. Only from ingredients for now"""
 
-    def __init__(self, input_,labels, vocab_ingrs, vocab_cuisine,input_size):
+    def __init__(self, input_,labels, vocab_ingrs, vocab_cuisine):
         """
         Args:
             file (string): Path to the file
@@ -70,7 +72,7 @@ class IngrDataset(Dataset):
         self.labels = labels
         self.vocab_ingrs = vocab_ingrs
         self.vocab_cuisine = vocab_cuisine
-        self.input_size = input_size
+        self.input_size = len(vocab_ingrs)
 
         self.processData()
 
@@ -140,9 +142,9 @@ def createDataLoaders(df,vocab_ingrs,vocab_cuisine,balanced=False):
     y_dev = y_dev.reset_index()
     y_test = y_test.reset_index()
 
-    train_dataset = IngrDataset(X_train,y_train,vocab_ingrs,vocab_cuisine,INPUT_SIZE)
-    dev_dataset = IngrDataset(X_dev,y_dev,vocab_ingrs,vocab_cuisine,INPUT_SIZE)
-    test_dataset = IngrDataset(X_test,y_test,vocab_ingrs,vocab_cuisine,INPUT_SIZE)
+    train_dataset = IngrDataset(X_train,y_train,vocab_ingrs,vocab_cuisine)
+    dev_dataset = IngrDataset(X_dev,y_dev,vocab_ingrs,vocab_cuisine)
+    test_dataset = IngrDataset(X_test,y_test,vocab_ingrs,vocab_cuisine)
 
     if balanced:
         # Weighted random sampling, with stratified split for the train and test dataset. But loss doesn't decrease (need to see more epochs ?)
@@ -239,7 +241,7 @@ def test_score(network, dataloader, vocab_ingrs, test=False,threshold=0.9):
     
     return accuracy, fbeta_pytorch
 
-def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, weights_classes=None):
+def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, weights_classes=None,device="cuda"):
     if balanced:
         criterion = nn.CrossEntropyLoss(weights_classes)
     else:
@@ -261,8 +263,8 @@ def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, w
         total = 0
         for i, data in enumerate(train_loader, 0):
             # get the inputs; data is a list of [inputs, labels]
-            inputs = data[0]
-            labels = data[1]
+            inputs = data[0].to(device)
+            labels = data[1].to(device)
             optimizer.zero_grad()
 
             # forward + backward + optimize
@@ -332,7 +334,6 @@ def saveResults(results_folder, net, loss, epoch, epoch_accuracy, epoch_test_acc
                 }, os.path.join(results_folder,"training_state_logweights"))
 
 def main(argv, file, balanced, load):
-
     df = createDFrame(file)
     vocab_ingrs, vocab_cuisine = createVocab(df)
     
@@ -346,9 +347,13 @@ def main(argv, file, balanced, load):
 
     train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
 
-    net = Net(INPUT_SIZE, EMBED_DIM1, EMBED_DIM2, NUM_CLASSES).to(argv[0])
+    net = Net(INPUT_SIZE, EMBED_DIM1, EMBED_DIM2, NUM_CLASSES)
+    
+    if argv:
+        device = int(argv[0])
+        net = net.to(device)
 
-    loss, epoch, epoch_accuracy, epoch_test_accuracy, optimizer = train(net, train_loader, test_loader, vocab_ingrs, load, weights_classes)
+    loss, epoch, epoch_accuracy, epoch_test_accuracy, optimizer = train(net, train_loader, test_loader, vocab_ingrs, load, weights_classes, device)
 
     _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, test=True,threshold=threshold)
 
