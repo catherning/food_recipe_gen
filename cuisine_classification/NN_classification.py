@@ -55,11 +55,11 @@ argparser.add_argument('--classify-file', type=str, default=os.path.join(os.getc
 
 
 # Model settings
-argparser.add_argument('--print-step', type=int, default=1024,
+argparser.add_argument('--print-step', type=int, default=512,
                        help='Display steps')
-argparser.add_argument('--embed-dim1', type=int, default=256,
+argparser.add_argument('--embed-dim1', type=int, default=128,
                        help='Display steps')
-argparser.add_argument('--embed-dim2', type=int, default=64,
+argparser.add_argument('--embed-dim2', type=int, default=32,
                        help='Display steps')
 argparser.add_argument('--embed-dim3', type=int, default=50,
                        help='Display steps')
@@ -72,7 +72,7 @@ argparser.add_argument('--batch-size', type=int, default=128,
                        help='Display steps')
 argparser.add_argument('--nb-epochs', type=int, default=30,
                        help='Display steps')
-argparser.add_argument('--proba-threshold', type=float, default=0.9,
+argparser.add_argument('--proba-threshold', type=float, default=0.95,
                        help='Threshold proba for test and inference')
 argparser.add_argument('--train-mode', type='bool', nargs='?',
                         const=True, default=True,
@@ -91,9 +91,9 @@ argparser.add_argument('--device', type=int, default=0,
 
 args = argparser.parse_args()
 
-EMBED_DIM1 = 1024
-EMBED_DIM2 = 256
-EMBED_DIM3 = 64
+EMBED_DIM1 = args.embed_dim1
+EMBED_DIM2 = args.embed_dim2
+EMBED_DIM3 = args.embed_dim3
 BATCH_SIZE = args.batch_size
 PRINT_FREQ = args.print_step
 NB_EPOCHS = args.nb_epochs
@@ -102,6 +102,7 @@ balanced = args.balanced
 load = args.load
 if load:
     args.load_folder = os.path.join(os.getcwd(),"cuisine_classification","results",args.load_folder,"model_logweights")
+
 
 def createDFrame(file):
     dataset = DATASET[1]
@@ -319,8 +320,8 @@ def test_score(network, dataloader, vocab_ingrs, device=0, test=False,threshold=
     one_hot_lab = F.one_hot(torch.LongTensor(all_labels).to(torch.int64), network.num_classes)
     fbeta_pytorch = f2_score(one_hot_pred, one_hot_lab)
 
-    print('Score is {:.3f}%'.format(100* fbeta_pytorch))
-    print('Count unknown ingr: {}'.format(count_unk))
+    # print('Score is {:.3f}%'.format(100* fbeta_pytorch))
+    # print('Count unknown ingr: {}'.format(count_unk))
     
     return accuracy, fbeta_pytorch
 
@@ -329,7 +330,7 @@ def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, weights_class
         criterion = nn.CrossEntropyLoss(weights_classes)
     else:
         criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(net.parameters(), lr=0.01) #change to Adam ?
+    optimizer = optim.Adam(net.parameters(), lr=0.001)
 
     print("Begin training")
     # else:
@@ -390,7 +391,7 @@ def plotAccuracy(results_folder, epoch_accuracy,epoch_test_accuracy):
     ax.set_xlabel('epoch')
     ax.set_ylabel('accuracy')
     ax.set_title('Accuracy during training')
-    fig.show()
+    # fig.show()
 
     fig.savefig(os.path.join(results_folder,'accuracy_training.png'), dpi=fig.dpi)
 

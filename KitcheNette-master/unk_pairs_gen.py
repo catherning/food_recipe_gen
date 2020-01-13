@@ -26,7 +26,7 @@ def getKnowPairs(filepath):
         except AttributeError:
             count_e += 1
 
-    print(f"Removed {count_e} false pairings")
+    print("Removed {} false pairings".format(count_e))
     return known_dict
 
 
