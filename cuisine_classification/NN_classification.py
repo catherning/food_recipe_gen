@@ -27,14 +27,14 @@ FOLDER_PATH = "../recipe_datasets/" #"D:\\Google Drive\\Catherning Folder\\THU\\
 DATASET = ["scirep-cuisines-detail","Yummly28"]
 FILES = ["random","cluster_centroid","full"]
 
-EMBED_DIM1 = 1024
-EMBED_DIM2 = 256
-EMBED_DIM3 = 64
+EMBED_DIM1 = 512
+EMBED_DIM2 = 128
+EMBED_DIM3 = 32
 BATCH_SIZE = 100
 PRINT_FREQ = 20
-NB_EPOCHS = 30
+NB_EPOCHS = 20
 
-threshold = 0.90
+threshold = 0.95
 
 def createDFrame(file):
     dataset = DATASET[1]
@@ -163,7 +163,7 @@ def createDataLoaders(df,vocab_ingrs,vocab_cuisine,balanced=False):
 
 # # Model
 class Net(nn.Module):
-    def __init__(self, vocab_size, embedding_dim1, embedding_dim2, num_classes):
+    def __init__(self, vocab_size, embedding_dim1, embedding_dim2, embedding_dim3, num_classes):
         super(Net, self).__init__()
         self.vocab_size = vocab_size
         self.num_classes = num_classes
@@ -239,8 +239,8 @@ def test_score(network, dataloader, vocab_ingrs, device=0, test=False,threshold=
     one_hot_lab = F.one_hot(torch.LongTensor(all_labels).to(torch.int64), network.num_classes)
     fbeta_pytorch = f2_score(one_hot_pred, one_hot_lab)
 
-    print('Score is {:.3f}%'.format(100* fbeta_pytorch))
-    print('Count unknown ingr: {}'.format(count_unk))
+    # print('Score is {:.3f}%'.format(100* fbeta_pytorch))
+    # print('Count unknown ingr: {}'.format(count_unk))
     
     return accuracy, fbeta_pytorch
 
@@ -249,7 +249,7 @@ def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, w
         criterion = nn.CrossEntropyLoss(weights_classes)
     else:
         criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(net.parameters(), lr=0.01) #change to Adam ?
+    optimizer = optim.Adam(net.parameters(), lr=0.001)
 
     if load:
         net.load_state_dict(torch.load(os.path.join(FOLDER_PATH,DATASET[1],"model_logweights")))
@@ -313,7 +313,7 @@ def plotAccuracy(results_folder, epoch_accuracy,epoch_test_accuracy):
     ax.set_xlabel('epoch')
     ax.set_ylabel('accuracy')
     ax.set_title('Accuracy during training')
-    fig.show()
+    # fig.show()
 
     fig.savefig(os.path.join(results_folder,'accuracy_training.png'), dpi=fig.dpi)
 
@@ -346,13 +346,13 @@ def main(argv, file, balanced, load):
     NUM_CLASSES = len(vocab_cuisine)
 
     date = datetime.now().strftime("%m-%d-%H-%M")
-    RESULTS_FOLDER = os.path.join(os.getcwd(),"results","nn_{}{}_{}".format(date,balanced*'_bal',file))
+    RESULTS_FOLDER = os.path.join(os.getcwd(),"cuisine_classification","results","nn_{}{}_{}".format(date,balanced*'_bal',file))
     if not os.path.exists(RESULTS_FOLDER):
         os.makedirs(RESULTS_FOLDER)
 
     train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
 
-    net = Net(INPUT_SIZE, EMBED_DIM1, EMBED_DIM2, NUM_CLASSES)
+    net = Net(INPUT_SIZE, EMBED_DIM1, EMBED_DIM2, EMBED_DIM3, NUM_CLASSES)
     
     if argv:
         device = int(argv[0])
