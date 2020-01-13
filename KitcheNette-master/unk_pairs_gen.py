@@ -46,7 +46,7 @@ def getMainIngr(vocab_ingrs):
         except:
             print(main_ingr)
 
-    # TODO: remove special tokens sos, eos, pad, unk more properly
+    # TODO: remove special tokens sos, eos, pad, unk more properly (doesn't work for now)
     del vocab_main_ingr.word2idx["<"]
     del vocab_main_ingr.idx2word[0]
 
@@ -67,12 +67,13 @@ def generatePairings(list_ingr, save_path,known_dict):
 
 
 if __name__ == "__main__":
-    known_file = os.path.join(
-        os.getcwd(), "KitcheNette-master", "data", "kitchenette_pairing_scores.csv")
+    path = os.path.join(
+        os.getcwd(), "KitcheNette-master", "data")
+    known_file =  os.path.join(path,"kitchenette_pairing_scores.csv")
     known_dict = getKnowPairs(known_file)
 
     with open(os.path.join(FOLDER_PATH, DATA_FILES[3]), 'rb') as f:
         vocab_ingrs = pickle.load(f)
 
     list_ingr = getMainIngr(vocab_ingrs)
-    generatePairings(list_ingr, 'main_pairing_prediction.csv',known_dict)
+    generatePairings(list_ingr, os.path.join(path,'main_pairing_prediction.csv'),known_dict)
