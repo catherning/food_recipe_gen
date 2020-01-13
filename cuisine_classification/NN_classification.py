@@ -1,6 +1,7 @@
 import sys
 import os
 sys.path.insert(0, os.path.join(os.getcwd()))
+import argparse
 import pandas as pd
 import torch
 import recipe_1m_analysis.utils as utils
@@ -11,6 +12,7 @@ matplotlib.use("agg")
 import matplotlib.pyplot as plt
 from datetime import datetime
 import csv
+import pickle
 
 from sklearn import metrics
 from sklearn.model_selection import train_test_split
@@ -20,21 +22,86 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-
 # ## Data preprocessing
 
 FOLDER_PATH = "../recipe_datasets/" #"D:\\Google Drive\\Catherning Folder\\THU\\Thesis\\Recipe datasets\\" #"../recipe_datasets/" 
 DATASET = ["scirep-cuisines-detail","Yummly28"]
 FILES = ["random","cluster_centroid","full"]
 
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+argparser = argparse.ArgumentParser()
+argparser.register('type', 'bool', str2bool)
+
+# Directories
+argparser.add_argument('--data-folder', type=str, default=FOLDER_PATH,
+                       help='Dataset path')
+argparser.add_argument('--file-type', type=str, default="full", choices=FILES,
+                       help='Type of undersampling. Full is no undersampling')
+argparser.add_argument('--saving-path', type=str, default=os.path.join(os.getcwd(),"results"),
+                       help='Saving path')
+argparser.add_argument('--load-folder', type=str,
+                       help='Loading best model in folder load-path')
+argparser.add_argument('--classify-file', type=str, default=os.path.join(os.getcwd(),"recipe_1m_analysis","data","recipe1m_train.pkl"),
+                       help='The dataset of ingr to classify')
+
+
+# Model settings
+argparser.add_argument('--print-step', type=int, default=1024,
+                       help='Display steps')
+argparser.add_argument('--embed-dim1', type=int, default=256,
+                       help='Display steps')
+argparser.add_argument('--embed-dim2', type=int, default=64,
+                       help='Display steps')
+argparser.add_argument('--embed-dim3', type=int, default=50,
+                       help='Display steps')
+argparser.add_argument('--balanced', type='bool', nargs='?',
+                        const=True, default=False,
+                       help='Weighted loss to give more importance to less represented cuisines. Default: False')
+
+# Training settings
+argparser.add_argument('--batch-size', type=int, default=128,
+                       help='Display steps')
+argparser.add_argument('--nb-epochs', type=int, default=30,
+                       help='Display steps')
+argparser.add_argument('--proba-threshold', type=float, default=0.9,
+                       help='Threshold proba for test and inference')
+argparser.add_argument('--train-mode', type='bool', nargs='?',
+                        const=True, default=True,
+                       help='Enable training')
+argparser.add_argument('--test', type='bool', nargs='?',
+                        const=True, default=True,
+                       help='Enable test')
+argparser.add_argument('--classify', type='bool', nargs='?',
+                        const=True, default=False,
+                       help='Enable classifying on Recipe1M')
+argparser.add_argument('--load', type='bool', nargs='?',
+                        const=True, default=False,
+                       help='Load a model already trained')
+argparser.add_argument('--device', type=int, default=0,
+                       help='CUDA device')
+
+args = argparser.parse_args()
+
 EMBED_DIM1 = 1024
 EMBED_DIM2 = 256
 EMBED_DIM3 = 64
-BATCH_SIZE = 100
-PRINT_FREQ = 20
-NB_EPOCHS = 30
-
-threshold = 0.90
+BATCH_SIZE = args.batch_size
+PRINT_FREQ = args.print_step
+NB_EPOCHS = args.nb_epochs
+THRESHOLD = args.proba_threshold
+balanced = args.balanced
+load = args.load
+if load:
+    args.load_folder = os.path.join(os.getcwd(),"cuisine_classification","results",args.load_folder,"model_logweights")
 
 def createDFrame(file):
     dataset = DATASET[1]
@@ -64,18 +131,21 @@ def createVocab(df):
 class IngrDataset(Dataset):
     """Recipes dataset for cuisine classification. Only from ingredients for now"""
 
-    def __init__(self, input_,labels, vocab_ingrs, vocab_cuisine):
+    def __init__(self, input_, vocab_ingrs, vocab_cuisine, labels=None):
         """
         Args:
             file (string): Path to the file
         """
         self.input_ = input_
-        self.labels = labels
         self.vocab_ingrs = vocab_ingrs
         self.vocab_cuisine = vocab_cuisine
         self.input_size = len(vocab_ingrs)
 
-        self.processData()
+        if labels is not None:
+            self.labels = labels
+            self.processData()
+        else:
+            self.processIngr()
 
     def __len__(self):
         return len(self.input_)
@@ -86,6 +156,11 @@ class IngrDataset(Dataset):
 
         return self.data[idx]
     
+    def processIngr(self):
+        self.data={}
+        for ingrs in self.input_.iterrows():
+            self.data[ingrs[0]]=self.ingr2idx(ingrs[1]["ingredients"])
+
     def processData(self):
         self.data={}
         for ingrs, label in zip(self.input_.iterrows(),self.labels.iterrows()):
@@ -143,9 +218,9 @@ def createDataLoaders(df,vocab_ingrs,vocab_cuisine,balanced=False):
     y_dev = y_dev.reset_index()
     y_test = y_test.reset_index()
 
-    train_dataset = IngrDataset(X_train,y_train,vocab_ingrs,vocab_cuisine)
-    dev_dataset = IngrDataset(X_dev,y_dev,vocab_ingrs,vocab_cuisine)
-    test_dataset = IngrDataset(X_test,y_test,vocab_ingrs,vocab_cuisine)
+    train_dataset = IngrDataset(X_train,vocab_ingrs,vocab_cuisine,y_train)
+    dev_dataset = IngrDataset(X_dev,vocab_ingrs,vocab_cuisine,y_dev)
+    test_dataset = IngrDataset(X_test,vocab_ingrs,vocab_cuisine,y_test)
 
     if balanced:
         # Weighted random sampling, with stratified split for the train and test dataset. But loss doesn't decrease (need to see more epochs ?)
@@ -163,20 +238,25 @@ def createDataLoaders(df,vocab_ingrs,vocab_cuisine,balanced=False):
 
 # # Model
 class Net(nn.Module):
-    def __init__(self, vocab_size, embedding_dim1, embedding_dim2, num_classes):
+    def __init__(self, vocab_size, num_classes, embedding_dim1, embedding_dim2, embedding_dim3=None):
         super(Net, self).__init__()
         self.vocab_size = vocab_size
         self.num_classes = num_classes
+        self.embedding_dim3 = embedding_dim3
 
         self.layer_1 = nn.Linear(vocab_size, embedding_dim1, bias=True)
         self.layer_2 = nn.Linear(embedding_dim1, embedding_dim2, bias=True)
-        self.layer_3 = nn.Linear(embedding_dim2, embedding_dim3, bias=True)
-        self.output_layer = nn.Linear(embedding_dim3, num_classes, bias=True)
+        if embedding_dim3:
+            self.layer_3 = nn.Linear(embedding_dim2, embedding_dim3, bias=True)
+            self.output_layer = nn.Linear(embedding_dim3, num_classes, bias=True)
+        else:
+            self.output_layer = nn.Linear(embedding_dim2, num_classes, bias=True)
 
     def forward(self, x):
         out = F.relu(self.layer_1(x))
         out = F.relu(self.layer_2(out))
-        out = F.relu(self.layer_3(out))
+        if self.embedding_dim3:
+            out = F.relu(self.layer_3(out))
         out = self.output_layer(out)
         return out
 
@@ -222,7 +302,7 @@ def test_score(network, dataloader, vocab_ingrs, device=0, test=False,threshold=
                 # Also not that good, accuracy of 42% instead of 82% on dev set 
                 proba = torch.nn.functional.softmax(outputs,dim=1)
                 p_max, predicted = torch.max(proba,1)
-                if p_max < threshold:
+                if p_max < THRESHOLD:
                     continue
             else:
                 _, predicted = torch.max(outputs.data, 1)
@@ -244,16 +324,13 @@ def test_score(network, dataloader, vocab_ingrs, device=0, test=False,threshold=
     
     return accuracy, fbeta_pytorch
 
-def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, load=False, weights_classes=None,device=0):
+def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, weights_classes=None,device=0):
     if balanced:
         criterion = nn.CrossEntropyLoss(weights_classes)
     else:
         criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(net.parameters(), lr=0.01) #change to Adam ?
 
-    if load:
-        net.load_state_dict(torch.load(os.path.join(FOLDER_PATH,DATASET[1],"model_logweights")))
-        
     print("Begin training")
     # else:
     epoch_accuracy = []
@@ -308,8 +385,8 @@ def plotAccuracy(results_folder, epoch_accuracy,epoch_test_accuracy):
     ax = fig.add_subplot(111)
     x_points = [i for i in range(0,NB_EPOCHS)]
 
-    p = ax.plot(x_points, epoch_accuracy, 'b')
-    p2 = ax.plot(x_points, epoch_test_accuracy, 'b')
+    ax.plot(x_points, epoch_accuracy, 'b')
+    ax.plot(x_points, epoch_test_accuracy, 'b')
     ax.set_xlabel('epoch')
     ax.set_ylabel('accuracy')
     ax.set_title('Accuracy during training')
@@ -323,11 +400,11 @@ def saveResults(results_folder, net, loss, epoch, epoch_accuracy, epoch_test_acc
         with open(results_file,"w", newline='') as f:
             writer = csv.writer(f, delimiter=';')
             writer.writerow(["file","balanced","epoch","train_accuracy","test_fscore","dev_fscore","threshold"])
-            writer.writerow([file,balanced,NB_EPOCHS,epoch_accuracy[-1],epoch_test_accuracy[-1],dev_fscore,threshold])
+            writer.writerow([args.file_type,balanced,NB_EPOCHS,epoch_accuracy[-1],epoch_test_accuracy[-1],dev_fscore,THRESHOLD])
     else:
         with open(results_file,"a", newline='') as f:
             writer = csv.writer(f, delimiter=';')
-            writer.writerow([file,balanced,NB_EPOCHS,epoch_accuracy[-1],epoch_test_accuracy[-1],dev_fscore,threshold])
+            writer.writerow([args.file_type,balanced,NB_EPOCHS,epoch_accuracy[-1],epoch_test_accuracy[-1],dev_fscore,THRESHOLD])
 
     torch.save(net.state_dict(), os.path.join(results_folder,"model_logweights"))
 
@@ -338,39 +415,43 @@ def saveResults(results_folder, net, loss, epoch, epoch_accuracy, epoch_test_acc
                 'loss': loss,
                 }, os.path.join(results_folder,"training_state_logweights"))
 
-def main(argv, file, balanced, load):
-    df = createDFrame(file)
+def classifyFromIngr(vocab_ingrs,vocab_cuisine):
+    with open(args.classify_file,"rb") as f:
+        data = pickle.load(f)
+    df = pandas.DataFrame(data)
+    dataset = IngrDataset(df["ingredients"],vocab_ingrs,vocab_cuisine)
+
+def main():
+    df = createDFrame(args.file_type)
     vocab_ingrs, vocab_cuisine = createVocab(df)
     
     INPUT_SIZE = len(vocab_ingrs)
     NUM_CLASSES = len(vocab_cuisine)
 
     date = datetime.now().strftime("%m-%d-%H-%M")
-    RESULTS_FOLDER = os.path.join(os.getcwd(),"results","nn_{}{}_{}".format(date,balanced*'_bal',file))
+    RESULTS_FOLDER = os.path.join(os.getcwd(),"results","nn_{}{}_{}".format(date,balanced*'_bal',args.file_type))
     if not os.path.exists(RESULTS_FOLDER):
         os.makedirs(RESULTS_FOLDER)
 
-    train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
+    net = Net(INPUT_SIZE, NUM_CLASSES, EMBED_DIM1, EMBED_DIM2).to(args.device)
 
-    net = Net(INPUT_SIZE, EMBED_DIM1, EMBED_DIM2, NUM_CLASSES)
+    if load:
+        net.load_state_dict(torch.load(args.load_folder))
+        
+    if args.train_mode:
+        train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
+        loss, epoch, epoch_accuracy, epoch_test_accuracy, optimizer = train(net, train_loader, test_loader, vocab_ingrs, RESULTS_FOLDER, weights_classes, args.device)
+        saveResults(RESULTS_FOLDER, net, loss, epoch, epoch_accuracy, epoch_test_accuracy, dev_fscore, optimizer)
+        _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, args.device, test=True,threshold=THRESHOLD)
+        plotAccuracy(RESULTS_FOLDER, epoch_accuracy,epoch_test_accuracy)
+
+    if args.test:
+        train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
+        _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, args.device, test=True,threshold=THRESHOLD)
     
-    if argv:
-        device = int(argv[0])
-    else:
-        device = 0
-    
-    net = net.to(device)
+    if args.classify:
+        classifyFromIngr(vocab_ingrs,vocab_cuisine)
 
-    loss, epoch, epoch_accuracy, epoch_test_accuracy, optimizer = train(net, train_loader, test_loader, vocab_ingrs, RESULTS_FOLDER, load, weights_classes, device)
-
-    _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, device, test=True,threshold=threshold)
-
-    plotAccuracy(RESULTS_FOLDER, epoch_accuracy,epoch_test_accuracy)
-
-    saveResults(RESULTS_FOLDER, net, loss, epoch, epoch_accuracy, epoch_test_accuracy, dev_fscore, optimizer)
 
 if __name__=="__main__":
-    file = FILES[2]
-    balanced = False
-    load = False
-    main(sys.argv[1:],file, balanced, load)
+    main()
