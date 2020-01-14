@@ -7,6 +7,7 @@ import torch
 import recipe_1m_analysis.utils as utils
 import numpy as np
 import math
+from collections import Counter
 import matplotlib
 matplotlib.use("agg")
 import matplotlib.pyplot as plt
@@ -117,17 +118,22 @@ def createDFrame(file):
 
     return df
 
-def createVocab(df):
-    vocab_ingrs = utils.Vocabulary()
-    for ingredients in df.loc[:,"ingredients"]:
-        for ingr in ingredients:
-            vocab_ingrs.add_word(ingr)
-    vocab_ingrs.add_word("<unk>")
+def createVocab(df,clustering=False):
+    if clustering:
+        counter_ingr = Counter()
+        # TODO: will clustering help ? for now, when transfer to Recipe1M, lot of unk ingr.
 
-    vocab_cuisine = utils.Vocabulary()
-    for cuisine in df['cuisine'].value_counts().index:
-        vocab_cuisine.add_word(cuisine)
-    return vocab_ingrs, vocab_cuisine
+    else:
+        vocab_ingrs = utils.Vocabulary()
+        for ingredients in df.loc[:,"ingredients"]:
+            for ingr in ingredients:
+                vocab_ingrs.add_word(ingr)
+        vocab_ingrs.add_word("<unk>")
+
+        vocab_cuisine = utils.Vocabulary()
+        for cuisine in df['cuisine'].value_counts().index:
+            vocab_cuisine.add_word(cuisine)
+        return vocab_ingrs, vocab_cuisine
 
 class IngrDataset(Dataset):
     """Recipes dataset for cuisine classification. Only from ingredients for now"""
@@ -159,8 +165,8 @@ class IngrDataset(Dataset):
     
     def processIngr(self):
         self.data={}
-        for ingrs in self.input_.iterrows():
-            self.data[ingrs[0]]=self.ingr2idx(ingrs[1]["ingredients"])
+        for idx,ingrs in self.input_.items():
+            self.data[idx]=self.ingr2idx(ingrs)
 
     def processData(self):
         self.data={}
@@ -182,6 +188,7 @@ class IngrDataset(Dataset):
         onehot_enc = F.one_hot(input_.to(torch.int64), self.input_size)
         output = torch.sum(onehot_enc,0)
         return output
+    
         
 
 def make_weights_for_balanced_classes(samples, vocab_cuisine):
@@ -228,13 +235,13 @@ def createDataLoaders(df,vocab_ingrs,vocab_cuisine,balanced=False):
         weights_classes, weights_labels = make_weights_for_balanced_classes(y_train["cuisine"], vocab_cuisine) 
         print(len(weights_labels))
         sampler = torch.utils.data.sampler.WeightedRandomSampler(weights_labels, len(weights_labels)) 
-        train_loader = DataLoader(train_dataset,batch_size = BATCH_SIZE, sampler = sampler)#, pin_memory=True)
+        train_loader = DataLoader(train_dataset,batch_size = BATCH_SIZE, sampler = sampler,num_workers=4)
     else:
-        train_loader = DataLoader(train_dataset,batch_size = BATCH_SIZE)#, pin_memory=True)    
+        train_loader = DataLoader(train_dataset,batch_size = BATCH_SIZE,num_workers=4) 
         weights_classes = None
 
-    dev_loader = DataLoader(dev_dataset,batch_size = 1)
-    test_loader = DataLoader(test_dataset, batch_size=1)#, sampler = sampler)
+    dev_loader = DataLoader(dev_dataset,batch_size = BATCH_SIZE,num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size = BATCH_SIZE,num_workers=4)
     return train_loader, dev_loader, test_loader, weights_classes
 
 # # Model
@@ -416,11 +423,43 @@ def saveResults(results_folder, net, loss, epoch, epoch_accuracy, epoch_test_acc
                 'loss': loss,
                 }, os.path.join(results_folder,"training_state_logweights"))
 
-def classifyFromIngr(vocab_ingrs,vocab_cuisine):
+
+def classifying(network, dataloader, vocab_ingrs, device=0, test=False,threshold=0.95):
+    network.eval()
+    count_unk=0
+    with torch.no_grad():
+        for data in dataloader:
+            inputs = data.to(device)
+
+            # Removing samples where you don't know more than 2 of the ingr doesn't help the model much
+            if inputs[0][vocab_ingrs.word2idx["<unk>"]]>3:
+                count_unk+=1
+                continue
+
+            outputs = network(inputs.float())
+            
+            if test:
+                # Only taking the prediction when the model thinks it's threshold% probable that the label is x
+                # Also not that good, accuracy of 42% instead of 82% on dev set 
+                proba = torch.nn.functional.softmax(outputs,dim=1)
+                p_max, predicted = torch.max(proba,1)
+                if p_max < THRESHOLD:
+                    continue
+            else:
+                _, predicted = torch.max(outputs.data, 1)
+            
+            all_predict+=predicted
+    
+    return all_predict
+
+def classifyFromIngr(net,vocab_ingrs,vocab_cuisine):
     with open(args.classify_file,"rb") as f:
         data = pickle.load(f)
-    df = pandas.DataFrame(data)
+    df = pd.DataFrame(data)
     dataset = IngrDataset(df["ingredients"],vocab_ingrs,vocab_cuisine)
+    dataloader = DataLoader(dataset,batch_size = BATCH_SIZE,num_workers=4,shuffle=False)
+    all_predict = classifying(net, dataloader, vocab_ingrs, device=args.device, test=False,threshold=THRESHOLD)
+
 
 def main():
     df = createDFrame(args.file_type)
@@ -442,16 +481,16 @@ def main():
     if args.train_mode:
         train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
         loss, epoch, epoch_accuracy, epoch_test_accuracy, optimizer = train(net, train_loader, test_loader, vocab_ingrs, RESULTS_FOLDER, weights_classes, args.device)
-        saveResults(RESULTS_FOLDER, net, loss, epoch, epoch_accuracy, epoch_test_accuracy, dev_fscore, optimizer)
         _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, args.device, test=True,threshold=THRESHOLD)
         plotAccuracy(RESULTS_FOLDER, epoch_accuracy,epoch_test_accuracy)
+        saveResults(RESULTS_FOLDER, net, loss, epoch, epoch_accuracy, epoch_test_accuracy, dev_fscore, optimizer)
 
     if args.test:
         train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
         _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, args.device, test=True,threshold=THRESHOLD)
     
     if args.classify:
-        classifyFromIngr(vocab_ingrs,vocab_cuisine)
+        classifyFromIngr(net,vocab_ingrs,vocab_cuisine)
 
 
 if __name__=="__main__":

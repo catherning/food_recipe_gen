@@ -66,8 +66,8 @@ def remove_plurals(counter_ingrs, ingr_clusters):
 
 
 def cluster_ingredients(counter_ingrs):
-    mydict = dict()
-    mydict_ingrs = dict()
+    new_counter = dict()
+    new_ingr_cluster = dict()
 
     for k, v in counter_ingrs.items():
         k_split = k.split('_')
@@ -90,19 +90,19 @@ def cluster_ingredients(counter_ingrs):
                         w = parts[0]
                     elif parts[1] in counter_ingrs.keys():
                         w = parts[1]
-                if w in mydict.keys():
-                    mydict[w] += v
-                    mydict_ingrs[w].append(k)
+                if w in new_counter.keys():
+                    new_counter[w] += v
+                    new_ingr_cluster[w].append(k)
                 else:
-                    mydict[w] = v
-                    mydict_ingrs[w] = [k]
+                    new_counter[w] = v
+                    new_ingr_cluster[w] = [k]
                 gotit = 1
                 break
         if gotit == 0:
-            mydict[k] = v
-            mydict_ingrs[k] = [k]
+            new_counter[k] = v
+            new_ingr_cluster[k] = [k]
 
-    return mydict, mydict_ingrs
+    return new_counter, new_ingr_cluster
 
 
 def update_counter(list_, counter_toks, istrain=False):
