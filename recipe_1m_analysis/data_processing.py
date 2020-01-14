@@ -21,7 +21,6 @@ import recipe_1m_analysis.ingr_normalization as ingr_norm
 
 # TODO: clean all this mess
 
-
 def get_instruction(instruction, replace_dict, instruction_mode=True):
     instruction = instruction.lower()
 
@@ -141,24 +140,24 @@ def genTokVoc(counter_toks):
         pickle.dump(vocab_toks, f)
     print("Total token vocabulary size: {}".format(len(vocab_toks)))
 
-def genIngrVoc(counter_ingrs):
+def cleanCounterIngr(counter_ingrs):
     # manually add missing entries for better clustering
     base_words = ['peppers', 'tomato', 'spinach_leaves', 'turkey_breast', 'lettuce_leaf',
-                  'chicken_thighs', 'milk_powder', 'bread_crumbs', 'onion_flakes',
-                  'red_pepper', 'pepper_flakes', 'juice_concentrate', 'cracker_crumbs', 'hot_chili',
-                  'seasoning_mix', 'dill_weed', 'pepper_sauce', 'sprouts', 'cooking_spray', 'cheese_blend',
-                  'basil_leaves', 'pineapple_chunks', 'marshmallow', 'chile_powder',
-                  'cheese_blend', 'corn_kernels', 'tomato_sauce', 'chickens', 'cracker_crust',
-                  'lemonade_concentrate', 'red_chili', 'mushroom_caps', 'mushroom_cap', 'breaded_chicken',
-                  'frozen_pineapple', 'pineapple_chunks', 'seasoning_mix', 'seaweed', 'onion_flakes',
-                  'bouillon_granules', 'lettuce_leaf', 'stuffing_mix', 'parsley_flakes', 'chicken_breast',
-                  'basil_leaves', 'baguettes', 'green_tea', 'peanut_butter', 'green_onion', 'fresh_cilantro',
-                  'breaded_chicken', 'hot_pepper', 'dried_lavender', 'white_chocolate',
-                  'dill_weed', 'cake_mix', 'cheese_spread', 'turkey_breast', 'chicken_thighs', 'basil_leaves',
-                  'mandarin_orange', 'laurel', 'cabbage_head', 'pistachio', 'cheese_dip',
-                  'thyme_leave', 'boneless_pork', 'red_pepper', 'onion_dip', 'skinless_chicken', 'dark_chocolate',
-                  'canned_corn', 'muffin', 'cracker_crust', 'bread_crumbs', 'frozen_broccoli',
-                  'philadelphia', 'cracker_crust', 'chicken_breast']
+                'chicken_thighs', 'milk_powder', 'bread_crumbs', 'onion_flakes',
+                'red_pepper', 'pepper_flakes', 'juice_concentrate', 'cracker_crumbs', 'hot_chili',
+                'seasoning_mix', 'dill_weed', 'pepper_sauce', 'sprouts', 'cooking_spray', 'cheese_blend',
+                'basil_leaves', 'pineapple_chunks', 'marshmallow', 'chile_powder',
+                'cheese_blend', 'corn_kernels', 'tomato_sauce', 'chickens', 'cracker_crust',
+                'lemonade_concentrate', 'red_chili', 'mushroom_caps', 'mushroom_cap', 'breaded_chicken',
+                'frozen_pineapple', 'pineapple_chunks', 'seasoning_mix', 'seaweed', 'onion_flakes',
+                'bouillon_granules', 'lettuce_leaf', 'stuffing_mix', 'parsley_flakes', 'chicken_breast',
+                'basil_leaves', 'baguettes', 'green_tea', 'peanut_butter', 'green_onion', 'fresh_cilantro',
+                'breaded_chicken', 'hot_pepper', 'dried_lavender', 'white_chocolate',
+                'dill_weed', 'cake_mix', 'cheese_spread', 'turkey_breast', 'chicken_thighs', 'basil_leaves',
+                'mandarin_orange', 'laurel', 'cabbage_head', 'pistachio', 'cheese_dip',
+                'thyme_leave', 'boneless_pork', 'red_pepper', 'onion_dip', 'skinless_chicken', 'dark_chocolate',
+                'canned_corn', 'muffin', 'cracker_crust', 'bread_crumbs', 'frozen_broccoli',
+                'philadelphia', 'cracker_crust', 'chicken_breast']
 
     for base_word in base_words:
         if base_word not in counter_ingrs.keys():
@@ -166,6 +165,11 @@ def genIngrVoc(counter_ingrs):
 
     counter_ingrs, cluster_ingrs = cluster_ingredients(counter_ingrs)
     counter_ingrs, cluster_ingrs = remove_plurals(counter_ingrs, cluster_ingrs)
+
+    return counter_ingrs, cluster_ingrs
+
+def genIngrVoc(counter_ingrs):
+    counter_ingrs, cluster_ingrs = cleanCounterIngr(counter_ingrs)
 
     ## Ingredient vocab
     # Create a vocab wrapper for ingredients
@@ -181,7 +185,6 @@ def genIngrVoc(counter_ingrs):
             for ingr in cluster_ingrs[word]:
                 idx = vocab_ingrs.add_word(ingr, idx)
             idx += 1
-        
 
     with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_ingrs.pkl'), 'wb') as f:
         pickle.dump(vocab_ingrs, f)
@@ -257,6 +260,7 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
         with open(instrs_file, 'wb') as f:
             pickle.dump(counter_toks, f)
 
+    # TODO: Should put that above dump of counters, but then, have to force gen the counters because no clustering and removing of ingrs.
     genTokVoc(counter_toks)
     vocab_ingrs = genIngrVoc(counter_ingrs)
 

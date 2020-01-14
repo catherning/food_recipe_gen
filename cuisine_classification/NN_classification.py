@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import csv
 import pickle
+from recipe_1m_analysis.data_processing import cleanCounterIngr
 
 from sklearn import metrics
 from sklearn.model_selection import train_test_split
@@ -71,6 +72,8 @@ argparser.add_argument('--balanced', type='bool', nargs='?',
 # Training settings
 argparser.add_argument('--batch-size', type=int, default=128,
                        help='Display steps')
+argparser.add_argument('--min-ingrs', type=int, default=10,
+                       help='Display steps')
 argparser.add_argument('--nb-epochs', type=int, default=30,
                        help='Display steps')
 argparser.add_argument('--proba-threshold', type=float, default=0.95,
@@ -120,8 +123,22 @@ def createDFrame(file):
 
 def createVocab(df,clustering=False):
     if clustering:
-        counter_ingr = Counter()
-        # TODO: will clustering help ? for now, when transfer to Recipe1M, lot of unk ingr.
+        counter_ingrs = Counter()
+        counter_ingrs.update(df.loc[:,"ingredients"])
+        # just try counter_ingrs.update(df.loc[:,"ingredients"])
+        # for ingredients in df.loc[:,"ingredients"]:
+        #     counter_ingrs.update([ingr for ingr in ingredients])
+        counter_ingrs, cluster_ingrs = cleanCounterIngr(counter_ingrs)
+
+        vocab_ingrs = utils.Vocabulary()
+        idx = 0
+        # Add the ingredients to the vocabulary.
+        for word,cnt in counter_ingrs.items():
+            if cnt >= args.min_ingrs:
+                for ingr in cluster_ingrs[word]:
+                    idx = vocab_ingrs.add_word(ingr, idx)
+                idx += 1
+        vocab_ingrs.add_word("<unk>",idx)
 
     else:
         vocab_ingrs = utils.Vocabulary()
@@ -130,15 +147,15 @@ def createVocab(df,clustering=False):
                 vocab_ingrs.add_word(ingr)
         vocab_ingrs.add_word("<unk>")
 
-        vocab_cuisine = utils.Vocabulary()
-        for cuisine in df['cuisine'].value_counts().index:
-            vocab_cuisine.add_word(cuisine)
+    vocab_cuisine = utils.Vocabulary()
+    for cuisine in df['cuisine'].value_counts().index:
+        vocab_cuisine.add_word(cuisine)
         return vocab_ingrs, vocab_cuisine
 
 class IngrDataset(Dataset):
     """Recipes dataset for cuisine classification. Only from ingredients for now"""
 
-    def __init__(self, input_, vocab_ingrs, vocab_cuisine, labels=None):
+    def __init__(self, input_, labels,vocab_ingrs, vocab_cuisine,type_label="cuisine"):
         """
         Args:
             file (string): Path to the file
@@ -147,12 +164,14 @@ class IngrDataset(Dataset):
         self.vocab_ingrs = vocab_ingrs
         self.vocab_cuisine = vocab_cuisine
         self.input_size = len(vocab_ingrs)
+        self.labels = labels
 
-        if labels is not None:
-            self.labels = labels
+        if type_label=="cuisine":
             self.processData()
-        else:
+        elif type_label=="id":
             self.processIngr()
+        else:
+            raise AttributeError("Don't know the type of label {}".format(type_label))
 
     def __len__(self):
         return len(self.input_)
@@ -165,15 +184,17 @@ class IngrDataset(Dataset):
     
     def processIngr(self):
         self.data={}
-        for idx,ingrs in self.input_.items():
-            self.data[idx]=self.ingr2idx(ingrs)
+        for (idx,ingrs),label in zip(self.input_.items(),self.labels.items()):
+            self.data[idx]=(torch.LongTensor(self.ingr2idx(ingrs)),label[1])
+            if idx==1000: #TODO: to remove when running smoothly
+                break
 
     def processData(self):
         self.data={}
-        for ingrs, label in zip(self.input_.iterrows(),self.labels.iterrows()):
-            self.data[ingrs[0]]=(self.ingr2idx(ingrs[1]["ingredients"]), self.vocab_cuisine.word2idx[label[1]["cuisine"]])
-            if ingrs[0]!=label[0]:
-                raise AttributeError("Not same idx: {} {}".format(ingrs[0],label[0]))
+        for (idx,ingrs), label in zip(self.input_.iterrows(),self.labels.iterrows()):
+            self.data[idx]=(self.ingr2idx(ingrs[1]["ingredients"]), self.vocab_cuisine.word2idx[label[1]["cuisine"]])
+            if idx!=label[0]:
+                raise AttributeError("Not same idx: {} {}".format(idx,label[0]))
     
     def ingr2idx(self, ingr_list):
         # If I didn't do the one-hot encoding by myself and used directly an embedding layer in the net, 
@@ -226,9 +247,9 @@ def createDataLoaders(df,vocab_ingrs,vocab_cuisine,balanced=False):
     y_dev = y_dev.reset_index()
     y_test = y_test.reset_index()
 
-    train_dataset = IngrDataset(X_train,vocab_ingrs,vocab_cuisine,y_train)
-    dev_dataset = IngrDataset(X_dev,vocab_ingrs,vocab_cuisine,y_dev)
-    test_dataset = IngrDataset(X_test,vocab_ingrs,vocab_cuisine,y_test)
+    train_dataset = IngrDataset(X_train,y_train,vocab_ingrs,vocab_cuisine)
+    dev_dataset = IngrDataset(X_dev,y_dev,vocab_ingrs,vocab_cuisine)
+    test_dataset = IngrDataset(X_test,y_test,vocab_ingrs,vocab_cuisine)
 
     if balanced:
         # Weighted random sampling, with stratified split for the train and test dataset. But loss doesn't decrease (need to see more epochs ?)
@@ -286,7 +307,7 @@ def fbeta_score(y_true, y_pred, beta, threshold, eps=1e-9):
         div(precision.mul(beta2) + recall + eps).
         mul(1 + beta2))
 
-def test_score(network, dataloader, vocab_ingrs, device=0, test=False,threshold=0.9):
+def test_score(network, dataloader, vocab_ingrs, device=0,threshold=None):
     network.eval()
     count_unk=0
     correct = 0
@@ -305,12 +326,12 @@ def test_score(network, dataloader, vocab_ingrs, device=0, test=False,threshold=
             labels = data[1].to(device)
             outputs = network(inputs.float())
             
-            if test:
+            if threshold:
                 # Only taking the prediction when the model thinks it's threshold% probable that the label is x
                 # Also not that good, accuracy of 42% instead of 82% on dev set 
                 proba = torch.nn.functional.softmax(outputs,dim=1)
                 p_max, predicted = torch.max(proba,1)
-                if p_max < THRESHOLD:
+                if p_max < threshold:
                     continue
             else:
                 _, predicted = torch.max(outputs.data, 1)
@@ -402,17 +423,17 @@ def plotAccuracy(results_folder, epoch_accuracy,epoch_test_accuracy):
 
     fig.savefig(os.path.join(results_folder,'accuracy_training.png'), dpi=fig.dpi)
 
-def saveResults(results_folder, net, loss, epoch, epoch_accuracy, epoch_test_accuracy, dev_fscore, optimizer):
+def saveResults(results_folder, net, loss, epoch, epoch_accuracy, epoch_test_accuracy, dev_fscore, dev_fscore_threshold, optimizer):
     results_file = os.path.join(results_folder,"results.csv")
     if os.path.isfile(results_file):
         with open(results_file,"w", newline='') as f:
             writer = csv.writer(f, delimiter=';')
-            writer.writerow(["file","balanced","epoch","train_accuracy","test_fscore","dev_fscore","threshold"])
-            writer.writerow([args.file_type,balanced,NB_EPOCHS,epoch_accuracy[-1],epoch_test_accuracy[-1],dev_fscore,THRESHOLD])
+            writer.writerow(["file","balanced","epoch","train_accuracy","test_fscore","dev_fscore","threshold","dev_fscore_threshold"])
+            writer.writerow([args.file_type,balanced,NB_EPOCHS,epoch_accuracy[-1],epoch_test_accuracy[-1],dev_fscore,THRESHOLD,dev_fscore_threshold])
     else:
         with open(results_file,"a", newline='') as f:
             writer = csv.writer(f, delimiter=';')
-            writer.writerow([args.file_type,balanced,NB_EPOCHS,epoch_accuracy[-1],epoch_test_accuracy[-1],dev_fscore,THRESHOLD])
+            writer.writerow([args.file_type,balanced,NB_EPOCHS,epoch_accuracy[-1],epoch_test_accuracy[-1],dev_fscore,THRESHOLD,dev_fscore_threshold])
 
     torch.save(net.state_dict(), os.path.join(results_folder,"model_logweights"))
 
@@ -424,46 +445,48 @@ def saveResults(results_folder, net, loss, epoch, epoch_accuracy, epoch_test_acc
                 }, os.path.join(results_folder,"training_state_logweights"))
 
 
-def classifying(network, dataloader, vocab_ingrs, device=0, test=False,threshold=0.95):
+def classifying(network, dataloader, vocab_ingrs, device=0, threshold=None):
     network.eval()
     count_unk=0
+    predictions = {}
     with torch.no_grad():
-        for data in dataloader:
-            inputs = data.to(device)
+        for batch, data in enumerate(dataloader):
+            inputs = data[0].to(device)
 
             # Removing samples where you don't know more than 2 of the ingr doesn't help the model much
+            # Can only do that if batch=1 OR do it in creation of IngrDataset
             if inputs[0][vocab_ingrs.word2idx["<unk>"]]>3:
                 count_unk+=1
                 continue
 
             outputs = network(inputs.float())
             
-            if test:
+            if threshold:
                 # Only taking the prediction when the model thinks it's threshold% probable that the label is x
                 # Also not that good, accuracy of 42% instead of 82% on dev set 
                 proba = torch.nn.functional.softmax(outputs,dim=1)
                 p_max, predicted = torch.max(proba,1)
-                if p_max < THRESHOLD:
+                if p_max < threshold:
                     continue
             else:
                 _, predicted = torch.max(outputs.data, 1)
-            
-            all_predict+=predicted
-    
-    return all_predict
+
+            for pred in predicted:
+                predictions[data[1]]=pred
+    return predictions
 
 def classifyFromIngr(net,vocab_ingrs,vocab_cuisine):
     with open(args.classify_file,"rb") as f:
         data = pickle.load(f)
     df = pd.DataFrame(data)
-    dataset = IngrDataset(df["ingredients"],vocab_ingrs,vocab_cuisine)
-    dataloader = DataLoader(dataset,batch_size = BATCH_SIZE,num_workers=4,shuffle=False)
-    all_predict = classifying(net, dataloader, vocab_ingrs, device=args.device, test=False,threshold=THRESHOLD)
+    dataset = IngrDataset(df["ingredients"],df["id"],vocab_ingrs,vocab_cuisine,type_label="id")
+    dataloader = DataLoader(dataset,batch_size = 1,shuffle=False)#,num_workers=4)
+    predictions = classifying(net, dataloader, vocab_ingrs, device=args.device, threshold=THRESHOLD)
 
 
 def main():
     df = createDFrame(args.file_type)
-    vocab_ingrs, vocab_cuisine = createVocab(df)
+    vocab_ingrs, vocab_cuisine = createVocab(df)# TODO: when classification is done without. to test ,clustering = True)
     
     INPUT_SIZE = len(vocab_ingrs)
     NUM_CLASSES = len(vocab_cuisine)
@@ -481,13 +504,15 @@ def main():
     if args.train_mode:
         train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
         loss, epoch, epoch_accuracy, epoch_test_accuracy, optimizer = train(net, train_loader, test_loader, vocab_ingrs, RESULTS_FOLDER, weights_classes, args.device)
-        _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, args.device, test=True,threshold=THRESHOLD)
+        _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, args.device)
+        _, dev_fscore_threshold = test_score(net, dev_loader, vocab_ingrs, args.device, threshold=THRESHOLD)
         plotAccuracy(RESULTS_FOLDER, epoch_accuracy,epoch_test_accuracy)
-        saveResults(RESULTS_FOLDER, net, loss, epoch, epoch_accuracy, epoch_test_accuracy, dev_fscore, optimizer)
+        saveResults(RESULTS_FOLDER, net, loss, epoch, epoch_accuracy, epoch_test_accuracy, dev_fscore, dev_fscore_threshold,optimizer)
 
     if args.test:
         train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
-        _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, args.device, test=True,threshold=THRESHOLD)
+        _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, args.device)
+        _, dev_fscore_threshold = test_score(net, dev_loader, vocab_ingrs, args.device, threshold=THRESHOLD)
     
     if args.classify:
         classifyFromIngr(net,vocab_ingrs,vocab_cuisine)
