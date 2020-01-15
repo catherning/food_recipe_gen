@@ -253,17 +253,18 @@ def createDataLoaders(df,vocab_ingrs,vocab_cuisine,balanced=False):
 
     dev_loader = DataLoader(dev_dataset,batch_size = 1)#,num_workers=4)
     test_loader = DataLoader(test_dataset, batch_size = 1)#,num_workers=4)
-    return train_loader, dev_loader, test_loader, weights_classes
+    return train_loader, test_loader, dev_loader, weights_classes
 
 # # Model
 class Net(nn.Module):
-    def __init__(self, vocab_ingrs, vocab_cuisine, embedding_dim1, embedding_dim2, embedding_dim3=None, weights_classes=None):
+    def __init__(self, vocab_ingrs, vocab_cuisine, embedding_dim1, embedding_dim2, embedding_dim3=None, device = 0, weights_classes=None):
         super(Net, self).__init__()
         self.vocab_size = len(vocab_ingrs)
-        self.num_classes = len(vocab_cuisine)
+        self.num_classes = num_classes = len(vocab_cuisine)
         self.vocab_ingrs = vocab_ingrs
         self.vocab_cuisine = vocab_cuisine
         self.embedding_dim3 = embedding_dim3
+        self.device = device
         
         self.layer_1 = nn.Linear(self.vocab_size, embedding_dim1, bias=True)
         self.layer_2 = nn.Linear(embedding_dim1, embedding_dim2, bias=True)
@@ -288,7 +289,7 @@ class Net(nn.Module):
         out = self.output_layer(out)
         return out
 
-    def train(self,train_loader,dev_loader, result_folder):
+    def train_process(self,train_loader,dev_loader, result_folder):
         print("Begin training")
         epoch_accuracy = []
         epoch_test_accuracy = []
@@ -336,14 +337,15 @@ class Net(nn.Module):
         print('Finished Training')
         return loss,epoch_accuracy,epoch_test_accuracy
 
-    def test_score(self, dataloader, dataset_type="dev", threshold=None):
+    def test(self, dataloader, dataset_type="dev", threshold=None):
         self.eval()
         count_unk=0
         correct = 0
         total = 0
+        predictions = {}
 
         with torch.no_grad():
-            for data in dataloader:
+            for batch, data in enumerate(dataloader):
                 inputs = data[0].to(self.device)
 
                 # Removing samples where you don't know more than 2 of the ingr doesn't help the model much
@@ -366,11 +368,14 @@ class Net(nn.Module):
                 
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
+                predictions[data[1][0]]=predicted[0].item()
 
-        accuracy= 100 * correct / total
-        print('Accuracy of the network on the {} dataset: {:.3f}% for {} samples with threshold {}'.format(dataset_type,accuracy,total,threshold))
-
-        return accuracy
+        if dataset_type=="classify":
+            return predictions
+        else:
+            accuracy= 100 * correct / total
+            print('Accuracy of the network on the {} dataset: {:.3f}% for {} samples with threshold {}'.format(dataset_type,accuracy,total,threshold))
+            return accuracy
 
     def plotAccuracy(self, results_folder, epoch_accuracy,epoch_test_accuracy):
         fig = plt.figure()
@@ -406,34 +411,6 @@ class Net(nn.Module):
                     'loss': loss,
                     }, os.path.join(results_folder,"training_state_logweights"))
 
-    def classifying(self, dataloader, threshold=None):
-        self.eval()
-        count_unk=0
-        predictions = {}
-        with torch.no_grad():
-            for batch, data in enumerate(dataloader):
-                inputs = data[0].to(self.device)
-
-                # Removing samples where you don't know more than 2 of the ingr doesn't help the model much
-                # Can only do that if batch=1 OR do it in creation of IngrDataset
-                # Do ratio of unk instead ?
-                if inputs[0][self.vocab_ingrs.word2idx["<unk>"]]>3:
-                    count_unk+=1
-                    continue
-
-                outputs = self.forward(inputs.float())
-                
-                if threshold:
-                    proba = torch.nn.functional.softmax(outputs,dim=1)
-                    p_max, predicted = torch.max(proba,1)
-                    if p_max < threshold:
-                        continue
-                else:
-                    _, predicted = torch.max(outputs.data, 1)
-
-                predictions[data[1][0]]=pred.item()
-        return predictions
-
     def classifyFromIngr(self):
         with open(args.classify_file,"rb") as f:
             data = pickle.load(f)
@@ -441,7 +418,7 @@ class Net(nn.Module):
         df = pd.DataFrame.from_dict(data, orient='index')  # columns=['A', 'B', 'C', 'D'])
         dataset = IngrDataset(df["ingredients"],df["id"],self.vocab_ingrs,self.vocab_cuisine,type_label="id")
         dataloader = DataLoader(dataset,batch_size = 1,shuffle=False)
-        predictions = self.classifying(dataloader)#, threshold=args.proba_threshold)
+        predictions = self.test(dataloader,dataset_type="classify")#, threshold=args.proba_threshold)
         
         for idx, prediction in predictions.items():
             data[idx]["cuisine"]=prediction
@@ -460,7 +437,8 @@ def main():
         os.makedirs(RESULTS_FOLDER)
 
     EMBED_DIM3 = args.embed_dim3
-    net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2).to(args.device)
+    train_loader, test_loader, dev_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, args.balanced)
+    net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2,device=args.device,weights_classes=weights_classes).to(args.device)
 
     if args.load:
         if args.train_mode:
@@ -472,15 +450,13 @@ def main():
         net.load_state_dict(torch.load(args.load_folder))
         
     if args.train_mode:
-        train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, args.balanced)
-        loss, epoch_accuracy, epoch_test_accuracy = net.train(train_loader, test_loader, RESULTS_FOLDER, weights_classes)
+        loss, epoch_accuracy, epoch_test_accuracy = net.train_process(train_loader, test_loader, RESULTS_FOLDER)
         dev_accuracy = net.test_score(dev_loader)
         dev_accuracy_threshold = net.test_score(dev_loader, threshold=args.proba_threshold)
-        plotAccuracy(RESULTS_FOLDER, epoch_accuracy,epoch_test_accuracy)
+        net.plotAccuracy(RESULTS_FOLDER, epoch_accuracy,epoch_test_accuracy)
         net.saveResults(RESULTS_FOLDER, loss, args.nb_epochs, epoch_accuracy, epoch_test_accuracy, dev_accuracy, dev_accuracy_threshold)
 
-    if args.test:
-        train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, args.balanced)
+    if args.test and not args.train_mode:
         dev_accuracy = net.test_score(dev_loader, "test")
         dev_accuracy_threshold = net.test_score(dev_loader, "test", args.proba_threshold)
     
