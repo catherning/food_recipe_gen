@@ -26,9 +26,7 @@ import torch.optim as optim
 
 # ## Data preprocessing
 
-FOLDER_PATH = "../recipe_datasets/" #"D:\\Google Drive\\Catherning Folder\\THU\\Thesis\\Recipe datasets\\" #"../recipe_datasets/" 
 DATASET = ["scirep-cuisines-detail","Yummly28"]
-FILES = ["random","cluster_centroid","full"]
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -44,9 +42,9 @@ argparser = argparse.ArgumentParser()
 argparser.register('type', 'bool', str2bool)
 
 # Directories
-argparser.add_argument('--data-folder', type=str, default=FOLDER_PATH,
+argparser.add_argument('--data-folder', type=str, default="../recipe_datasets/",
                        help='Dataset path')
-argparser.add_argument('--file-type', type=str, default="full", choices=FILES,
+argparser.add_argument('--file-type', type=str, default="full", choices=["random","cluster_centroid","full"],
                        help='Type of undersampling. Full is no undersampling')
 argparser.add_argument('--saving-path', type=str, default=os.path.join(os.getcwd(),"results"),
                        help='Saving path')
@@ -54,7 +52,8 @@ argparser.add_argument('--load-folder', type=str,
                        help='Loading best model in folder load-path')
 argparser.add_argument('--classify-file', type=str, default=os.path.join(os.getcwd(),"recipe_1m_analysis","data","recipe1m_train.pkl"),
                        help='The dataset of ingr to classify')
-
+argparser.add_argument('--save-class-file', type=str, default=os.path.join(os.getcwd(),"recipe_1m_analysis","data","recipe1m_train_cuisine.pkl"),
+                       help='The dataset of ingr to classify')
 
 # Model settings
 argparser.add_argument('--print-step', type=int, default=512,
@@ -87,7 +86,7 @@ argparser.add_argument('--test', type='bool', nargs='?',
 argparser.add_argument('--classify', type='bool', nargs='?',
                         const=True, default=False,
                        help='Enable classifying on Recipe1M')
-argparser.add_argument('--load', type='bool', nargs='?',
+argparser.add_argument('--load', type='bool', nargs='?', #should be able to remove this line and just use load-folder ?
                         const=True, default=False,
                        help='Load a model already trained')
 argparser.add_argument('--device', type=int, default=0,
@@ -95,6 +94,7 @@ argparser.add_argument('--device', type=int, default=0,
 
 args = argparser.parse_args()
 
+FOLDER_PATH = args.data_folder
 EMBED_DIM1 = args.embed_dim1
 EMBED_DIM2 = args.embed_dim2
 EMBED_DIM3 = args.embed_dim3
@@ -104,8 +104,7 @@ NB_EPOCHS = args.nb_epochs
 THRESHOLD = args.proba_threshold
 balanced = args.balanced
 load = args.load
-if load:
-    args.load_folder = os.path.join(os.getcwd(),"cuisine_classification","results",args.load_folder,"model_logweights")
+
 
 
 def createDFrame(file):
@@ -150,7 +149,8 @@ def createVocab(df,clustering=False):
     vocab_cuisine = utils.Vocabulary()
     for cuisine in df['cuisine'].value_counts().index:
         vocab_cuisine.add_word(cuisine)
-        return vocab_ingrs, vocab_cuisine
+
+    return vocab_ingrs, vocab_cuisine
 
 class IngrDataset(Dataset):
     """Recipes dataset for cuisine classification. Only from ingredients for now"""
@@ -174,7 +174,7 @@ class IngrDataset(Dataset):
             raise AttributeError("Don't know the type of label {}".format(type_label))
 
     def __len__(self):
-        return len(self.input_)
+        return len(self.data)
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
@@ -192,9 +192,12 @@ class IngrDataset(Dataset):
     def processData(self):
         self.data={}
         for (idx,ingrs), label in zip(self.input_.iterrows(),self.labels.iterrows()):
-            self.data[idx]=(self.ingr2idx(ingrs[1]["ingredients"]), self.vocab_cuisine.word2idx[label[1]["cuisine"]])
+            self.data[idx]=(self.ingr2idx(ingrs["ingredients"]), self.vocab_cuisine.word2idx[label[1]["cuisine"]])
+            # TODO: delete if never raised ?
             if idx!=label[0]:
                 raise AttributeError("Not same idx: {} {}".format(idx,label[0]))
+            if idx==2000:
+                break
     
     def ingr2idx(self, ingr_list):
         # If I didn't do the one-hot encoding by myself and used directly an embedding layer in the net, 
@@ -261,8 +264,8 @@ def createDataLoaders(df,vocab_ingrs,vocab_cuisine,balanced=False):
         train_loader = DataLoader(train_dataset,batch_size = BATCH_SIZE,num_workers=4) 
         weights_classes = None
 
-    dev_loader = DataLoader(dev_dataset,batch_size = BATCH_SIZE,num_workers=4)
-    test_loader = DataLoader(test_dataset, batch_size = BATCH_SIZE,num_workers=4)
+    dev_loader = DataLoader(dev_dataset,batch_size = 1)#,num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size = 1)#,num_workers=4)
     return train_loader, dev_loader, test_loader, weights_classes
 
 # # Model
@@ -307,7 +310,7 @@ def fbeta_score(y_true, y_pred, beta, threshold, eps=1e-9):
         div(precision.mul(beta2) + recall + eps).
         mul(1 + beta2))
 
-def test_score(network, dataloader, vocab_ingrs, device=0,threshold=None):
+def test_score(network, dataloader, vocab_ingrs,device=0, dataset_type="dev", threshold=None):
     network.eval()
     count_unk=0
     correct = 0
@@ -342,7 +345,7 @@ def test_score(network, dataloader, vocab_ingrs, device=0,threshold=None):
             correct += (predicted == labels).sum().item()
 
     accuracy= 100 * correct / total
-    print('Accuracy of the network on the test dataset: {:.3f}% for {} samples'.format(accuracy,total))
+    print('Accuracy of the network on the {} dataset: {:.3f}% for {} samples with threshold {}'.format(dataset_type,accuracy,total,threshold))
 
     one_hot_pred = F.one_hot(torch.LongTensor(all_predict).to(torch.int64), network.num_classes)
     one_hot_lab = F.one_hot(torch.LongTensor(all_labels).to(torch.int64), network.num_classes)
@@ -389,7 +392,7 @@ def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, weights_class
 
             # print statistics
             running_loss += loss.item()
-            if i % PRINT_FREQ == PRINT_FREQ-1:    # print every 2000 mini-batches
+            if i % PRINT_FREQ == PRINT_FREQ-1:
                 print('[Epoch {}, Iteration {}] loss: {:.3f}'.format(epoch + 1,i + 1,running_loss / 2000))
                 running_loss = 0.0
 
@@ -398,7 +401,7 @@ def train(net,train_loader,dev_loader, vocab_ingrs, result_folder, weights_class
         
         print('Accuracy of the network on epoch {}: {:.3f}'.format(epoch+1,accuracy))
         
-        dev_accuracy, dev_fscore = test_score(net,dev_loader,vocab_ingrs, device)
+        dev_accuracy, dev_fscore = test_score(net,dev_loader,vocab_ingrs, device,"dev")
         epoch_test_accuracy.append(dev_fscore)
         if dev_fscore > best_score:
             best_score = dev_fscore
@@ -455,6 +458,7 @@ def classifying(network, dataloader, vocab_ingrs, device=0, threshold=None):
 
             # Removing samples where you don't know more than 2 of the ingr doesn't help the model much
             # Can only do that if batch=1 OR do it in creation of IngrDataset
+            # Do ratio of unk instead ?
             if inputs[0][vocab_ingrs.word2idx["<unk>"]]>3:
                 count_unk+=1
                 continue
@@ -471,8 +475,9 @@ def classifying(network, dataloader, vocab_ingrs, device=0, threshold=None):
             else:
                 _, predicted = torch.max(outputs.data, 1)
 
+            # XXX: no need for loop if keep batch 1
             for pred in predicted:
-                predictions[data[1]]=pred
+                predictions[data[1][0]]=pred.item()
     return predictions
 
 def classifyFromIngr(net,vocab_ingrs,vocab_cuisine):
@@ -481,7 +486,29 @@ def classifyFromIngr(net,vocab_ingrs,vocab_cuisine):
     df = pd.DataFrame(data)
     dataset = IngrDataset(df["ingredients"],df["id"],vocab_ingrs,vocab_cuisine,type_label="id")
     dataloader = DataLoader(dataset,batch_size = 1,shuffle=False)#,num_workers=4)
-    predictions = classifying(net, dataloader, vocab_ingrs, device=args.device, threshold=THRESHOLD)
+    predictions = classifying(net, dataloader, vocab_ingrs, device=args.device)#, threshold=THRESHOLD)
+    
+    # for idx, prediction in predictions.items():
+        # df[df["id"]==idx]["cuisine"]=prediction
+    # OR
+
+
+    # for el in data:
+    #     try:
+    #         el["cuisine"]=predictions[el["id"]]
+    #     except KeyError:
+    #         continue
+    
+    #there's so few predictions, that's better ? def better if change pickled data in dataprocessing
+    for idx, prediction in predictions.items():
+        data[idx]["cuisine"]=prediction
+
+
+    with open(args.save_class_file,"wb") as f:
+        pickle.dump(data) 
+
+
+
 
 
 def main():
@@ -492,13 +519,19 @@ def main():
     NUM_CLASSES = len(vocab_cuisine)
 
     date = datetime.now().strftime("%m-%d-%H-%M")
-    RESULTS_FOLDER = os.path.join(os.getcwd(),"results","nn_{}{}_{}".format(date,balanced*'_bal',args.file_type))
+    RESULTS_FOLDER = os.path.join(os.getcwd(),"cuisine_classification","results","nn_{}{}_{}".format(date,balanced*'_bal',args.file_type))
     if not os.path.exists(RESULTS_FOLDER):
         os.makedirs(RESULTS_FOLDER)
 
     net = Net(INPUT_SIZE, NUM_CLASSES, EMBED_DIM1, EMBED_DIM2).to(args.device)
 
     if load:
+        if args.train_mode:
+            model = "model_logweights"
+        elif args.classify or args.test:
+            model = "best_model"
+
+        args.load_folder = os.path.join(os.getcwd(),"cuisine_classification","results",args.load_folder,model)
         net.load_state_dict(torch.load(args.load_folder))
         
     if args.train_mode:
@@ -511,8 +544,8 @@ def main():
 
     if args.test:
         train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, balanced)
-        _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, args.device)
-        _, dev_fscore_threshold = test_score(net, dev_loader, vocab_ingrs, args.device, threshold=THRESHOLD)
+        _, dev_fscore = test_score(net, dev_loader, vocab_ingrs, args.device,"test")
+        _, dev_fscore_threshold = test_score(net, dev_loader, vocab_ingrs, args.device, "test", THRESHOLD)
     
     if args.classify:
         classifyFromIngr(net,vocab_ingrs,vocab_cuisine)

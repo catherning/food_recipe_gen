@@ -190,7 +190,7 @@ def genIngrVoc(counter_ingrs):
         pickle.dump(vocab_ingrs, f)
     print("Total ingr vocabulary size: {}".format(len(vocab_ingrs)))
 
-    return vocab_ingrs
+    return vocab_ingrs, counter_ingrs
 
 def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs):
     #####
@@ -254,15 +254,14 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
                 counter_toks.update(title)
                 counter_ingrs.update([ingr.name for ingr in ingrs_list])
 
+        genTokVoc(counter_toks)
+        vocab_ingrs = genIngrVoc(counter_ingrs)
+
         with open(ingrs_file, 'wb') as f:
             pickle.dump(counter_ingrs, f)
 
         with open(instrs_file, 'wb') as f:
             pickle.dump(counter_toks, f)
-
-    # TODO: Should put that above dump of counters, but then, have to force gen the counters because no clustering and removing of ingrs.
-    genTokVoc(counter_toks)
-    vocab_ingrs = genIngrVoc(counter_ingrs)
 
     return vocab_ingrs
 
@@ -272,7 +271,7 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
     # 2. Tokenize and build dataset based on vocabularies.
     ######
 
-    dataset = {'train': [], 'val': [], 'test': []}
+    dataset = {'train': {}, 'val': {}, 'test': {}}
 
     for i, entry in tqdm(enumerate(layer1)):
 
@@ -318,9 +317,9 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
         title = nltk.tokenize.word_tokenize(entry['title'].lower())
 
         # TODO: add cuisine after classification is done
-        newentry = {'id': entry['id'], 'instructions': instrs_list, 'tokenized': toks,
+        newentry = {'instructions': instrs_list, 'tokenized': toks,
                     'ingredients': ingrs_list, 'title': title}
-        dataset[entry['partition']].append(newentry)
+        dataset[entry['partition']][entry['id']]=newentry
 
     print("Dataset size:")
     for split in dataset.keys():
