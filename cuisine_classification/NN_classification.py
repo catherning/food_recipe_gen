@@ -176,8 +176,6 @@ class IngrDataset(Dataset):
         self.data={}
         for (idx,ingrs),label in zip(self.input_.items(),self.labels):
             self.data[idx]=(torch.LongTensor(self.ingr2idx(ingrs)),label)
-            if idx==1000: #TODO: to remove when running smoothly
-                break
 
     def processData(self):
         self.data={}
@@ -186,9 +184,7 @@ class IngrDataset(Dataset):
             # TODO: delete if never raised ?
             if idx!=label[0]:
                 raise AttributeError("Not same idx: {} {}".format(idx,label[0]))
-            if idx==2000:
-                break
-    
+
     def ingr2idx(self, ingr_list):
         # If I didn't do the one-hot encoding by myself and used directly an embedding layer in the net, 
         # I would have to pad the input
