@@ -72,7 +72,7 @@ argparser.add_argument('--balanced', type='bool', nargs='?',
                        help='Weighted loss to give more importance to less represented cuisines. Default: False')
 
 # Training settings
-argparser.add_argument('--batch-size', type=int, default=128,
+argparser.add_argument('--batch-size', type=int, default=64,
                        help='Display steps')
 argparser.add_argument('--min-ingrs', type=int, default=10,
                        help='Display steps')
@@ -231,8 +231,6 @@ def createDataLoaders(df,vocab_ingrs,vocab_cuisine,balanced=False):
     X_train, X_dev, y_train, y_dev = train_test_split(df["ingredients"],df["cuisine"], test_size=0.2, random_state=42,stratify=df["cuisine"])
     X_dev, X_test, y_dev, y_test = train_test_split(X_dev,y_dev, test_size=0.5, random_state=42,stratify=y_dev)
 
-    INPUT_SIZE = len(vocab_ingrs)
-
     X_train = X_train.reset_index()
     X_dev = X_dev.reset_index()
     X_test = X_test.reset_index()
@@ -352,9 +350,9 @@ class Net(nn.Module):
                 inputs = data[0].to(self.device)
 
                 # Removing samples where you don't know more than 2 of the ingr doesn't help the model much
-                if inputs[0][self.vocab_ingrs.word2idx["<unk>"]]>3:
-                    count_unk+=1
-                    continue
+                # if inputs[0][self.vocab_ingrs.word2idx["<unk>"]]>3:
+                #     count_unk+=1
+                #     continue
 
                 labels = data[1].to(self.device)
                 outputs = self.forward(inputs.float())
@@ -441,7 +439,7 @@ def main():
 
     EMBED_DIM3 = args.embed_dim3
     train_loader, test_loader, dev_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, args.balanced)
-    net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2,device=args.device,weights_classes=weights_classes).to(args.device)
+    net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2,args.embed_dim3, device=args.device,weights_classes=weights_classes).to(args.device)
 
     if args.load:
         if args.train_mode:
@@ -454,8 +452,8 @@ def main():
         
     if args.train_mode:
         loss, epoch_accuracy, epoch_test_accuracy = net.train_process(train_loader, test_loader, RESULTS_FOLDER)
-        dev_accuracy = net.test(dev_loader)
-        dev_accuracy_threshold = net.test(dev_loader, threshold=args.proba_threshold)
+        dev_accuracy = net.test(dev_loader, "dev")
+        dev_accuracy_threshold = net.test(dev_loader, "dev", args.proba_threshold)
         net.plotAccuracy(RESULTS_FOLDER, epoch_accuracy,epoch_test_accuracy)
         net.saveResults(RESULTS_FOLDER, loss, args.nb_epochs, epoch_accuracy, epoch_test_accuracy, dev_accuracy, dev_accuracy_threshold)
 
