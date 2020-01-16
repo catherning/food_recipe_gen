@@ -330,7 +330,7 @@ class Net(nn.Module):
             
             print('Accuracy of the network on epoch {}: {:.3f}'.format(epoch+1,accuracy))
             
-            dev_accuracy = self.test_score(dev_loader,"dev")
+            dev_accuracy = self.test(dev_loader)
             epoch_test_accuracy.append(dev_accuracy)
             if dev_accuracy > best_score:
                 best_score = dev_accuracy
@@ -348,7 +348,7 @@ class Net(nn.Module):
         predictions = {}
 
         with torch.no_grad():
-            for batch, data in enumerate(dataloader):
+            for data in dataloader:
                 inputs = data[0].to(self.device)
 
                 # Removing samples where you don't know more than 2 of the ingr doesn't help the model much
@@ -454,14 +454,14 @@ def main():
         
     if args.train_mode:
         loss, epoch_accuracy, epoch_test_accuracy = net.train_process(train_loader, test_loader, RESULTS_FOLDER)
-        dev_accuracy = net.test_score(dev_loader)
-        dev_accuracy_threshold = net.test_score(dev_loader, threshold=args.proba_threshold)
+        dev_accuracy = net.test(dev_loader)
+        dev_accuracy_threshold = net.test(dev_loader, threshold=args.proba_threshold)
         net.plotAccuracy(RESULTS_FOLDER, epoch_accuracy,epoch_test_accuracy)
         net.saveResults(RESULTS_FOLDER, loss, args.nb_epochs, epoch_accuracy, epoch_test_accuracy, dev_accuracy, dev_accuracy_threshold)
 
     if args.test and not args.train_mode:
-        dev_accuracy = net.test_score(dev_loader, "test")
-        dev_accuracy_threshold = net.test_score(dev_loader, "test", args.proba_threshold)
+        dev_accuracy = net.test(dev_loader, "test")
+        dev_accuracy_threshold = net.test(dev_loader, "test", args.proba_threshold)
     
     if args.classify:
         net.classifyFromIngr()
