@@ -50,9 +50,12 @@ argparser.add_argument('--saving-path', type=str, default=os.path.join(os.getcwd
                        help='Saving path')
 argparser.add_argument('--load-folder', type=str,
                        help='Loading best model in folder load-path')
-argparser.add_argument('--classify-file', type=str, default=os.path.join(os.getcwd(),"recipe_1m_analysis","data","recipe1m_train.pkl"),
+# TODO: change classify file to each file when running
+argparser.add_argument('--classify-folder', type=str, default=os.path.join(os.getcwd(),"recipe_1m_analysis","data"),
                        help='The dataset of ingr to classify')
-argparser.add_argument('--save-class-file', type=str, default=os.path.join(os.getcwd(),"recipe_1m_analysis","data","recipe1m_train_cuisine.pkl"),
+argparser.add_argument('--classify-file', type=str, default="recipe1m_train.pkl",
+                       help='The dataset of ingr to classify')
+argparser.add_argument('--save-class-file', type=str, default="recipe1m_train_cuisine.pkl",
                        help='The dataset of ingr to classify')
 
 # Model settings
@@ -171,8 +174,8 @@ class IngrDataset(Dataset):
     
     def processIngr(self):
         self.data={}
-        for (idx,ingrs),label in zip(self.input_.items(),self.labels.items()):
-            self.data[idx]=(torch.LongTensor(self.ingr2idx(ingrs)),label[1])
+        for (idx,ingrs),label in zip(self.input_.items(),self.labels):
+            self.data[idx]=(torch.LongTensor(self.ingr2idx(ingrs)),label)
             if idx==1000: #TODO: to remove when running smoothly
                 break
 
@@ -412,18 +415,18 @@ class Net(nn.Module):
                     }, os.path.join(results_folder,"training_state_logweights"))
 
     def classifyFromIngr(self):
-        with open(args.classify_file,"rb") as f:
+        with open(os.path.join(args.classify_folder,args.classify_file),"rb") as f:
             data = pickle.load(f)
-        # df = pd.DataFrame(data)
-        df = pd.DataFrame.from_dict(data, orient='index')  # columns=['A', 'B', 'C', 'D'])
-        dataset = IngrDataset(df["ingredients"],df["id"],self.vocab_ingrs,self.vocab_cuisine,type_label="id")
+        df = pd.DataFrame.from_dict(data, orient='index')
+        df = df.reset_index()
+        dataset = IngrDataset(df["ingredients"],df["index"],self.vocab_ingrs,self.vocab_cuisine,type_label="id")
         dataloader = DataLoader(dataset,batch_size = 1,shuffle=False)
         predictions = self.test(dataloader,dataset_type="classify")#, threshold=args.proba_threshold)
         
         for idx, prediction in predictions.items():
             data[idx]["cuisine"]=prediction
 
-        with open(args.save_class_file,"wb") as f:
+        with open(os.path.join(args.classify_folder,args.save_class_file),"wb") as f:
             pickle.dump(data, f) 
 
 
