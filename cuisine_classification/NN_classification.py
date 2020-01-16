@@ -59,13 +59,13 @@ argparser.add_argument('--save-class-file', type=str, default="recipe1m_train_cu
                        help='The dataset of ingr to classify')
 
 # Model settings
-argparser.add_argument('--print-step', type=int, default=512,
+argparser.add_argument('--print-step', type=int, default=50,
                        help='Display steps')
-argparser.add_argument('--embed-dim1', type=int, default=128,
+argparser.add_argument('--embed-dim1', type=int, default=512,
                        help='Display steps')
-argparser.add_argument('--embed-dim2', type=int, default=32,
+argparser.add_argument('--embed-dim2', type=int, default=128,
                        help='Display steps')
-argparser.add_argument('--embed-dim3', type=int, default=50,
+argparser.add_argument('--embed-dim3', type=int, default=32,
                        help='Display steps')
 argparser.add_argument('--balanced', type='bool', nargs='?',
                         const=True, default=False,
@@ -292,7 +292,7 @@ class Net(nn.Module):
         out = self.output_layer(out)
         return out
 
-    def train_process(self,train_loader,dev_loader, result_folder):
+    def train_process(self,train_loader,test_loader, result_folder):
         print("Begin training")
         epoch_accuracy = []
         epoch_test_accuracy = []
@@ -330,17 +330,17 @@ class Net(nn.Module):
             
             print('Accuracy of the network on epoch {}: {:.3f}'.format(epoch+1,accuracy))
             
-            dev_accuracy = self.test(dev_loader)
-            epoch_test_accuracy.append(dev_accuracy)
-            if dev_accuracy > best_score:
-                best_score = dev_accuracy
+            test_accuracy = self.test(test_loader)
+            epoch_test_accuracy.append(test_accuracy)
+            if test_accuracy > best_score:
+                best_score = test_accuracy
                 print("Best model so far. Saving it.")
                 torch.save(self.state_dict(), os.path.join(result_folder,"best_model"))
 
         print('Finished Training')
         return loss,epoch_accuracy,epoch_test_accuracy
 
-    def test(self, dataloader, dataset_type="dev", threshold=None):
+    def test(self, dataloader, dataset_type="test", threshold=None):
         self.eval()
         count_unk=0
         correct = 0
@@ -460,8 +460,8 @@ def main():
         net.saveResults(RESULTS_FOLDER, loss, args.nb_epochs, epoch_accuracy, epoch_test_accuracy, dev_accuracy, dev_accuracy_threshold)
 
     if args.test and not args.train_mode:
-        dev_accuracy = net.test(dev_loader, "test")
-        dev_accuracy_threshold = net.test(dev_loader, "test", args.proba_threshold)
+        dev_accuracy = net.test(dev_loader, "dev")
+        dev_accuracy_threshold = net.test(dev_loader, "dev", args.proba_threshold)
     
     if args.classify:
         net.classifyFromIngr()
