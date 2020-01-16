@@ -61,11 +61,11 @@ argparser.add_argument('--save-class-file', type=str, default="recipe1m_train_cu
 # Model settings
 argparser.add_argument('--print-step', type=int, default=50,
                        help='Display steps')
-argparser.add_argument('--embed-dim1', type=int, default=512,
+argparser.add_argument('--embed-dim1', type=int, default=256,
                        help='Display steps')
-argparser.add_argument('--embed-dim2', type=int, default=128,
+argparser.add_argument('--embed-dim2', type=int, default=64,
                        help='Display steps')
-argparser.add_argument('--embed-dim3', type=int, default=32,
+argparser.add_argument('--embed-dim3', type=int, default=16,
                        help='Display steps')
 argparser.add_argument('--balanced', type='bool', nargs='?',
                         const=True, default=False,
@@ -243,14 +243,14 @@ def createDataLoaders(df,vocab_ingrs,vocab_cuisine,balanced=False):
         weights_classes, weights_labels = make_weights_for_balanced_classes(y_train["cuisine"], vocab_cuisine) 
         print(len(weights_labels))
         sampler = torch.utils.data.sampler.WeightedRandomSampler(weights_labels, len(weights_labels)) 
-        train_loader = DataLoader(train_dataset,batch_size = args.batch_size, sampler = sampler,num_workers=4)
+        train_loader = DataLoader(train_dataset,batch_size = args.batch_size, sampler = sampler)#,num_workers=4)
     else:
-        train_loader = DataLoader(train_dataset,batch_size = args.batch_size,num_workers=4) 
+        train_loader = DataLoader(train_dataset,batch_size = args.batch_size)#,num_workers=4) 
         weights_classes = None
 
     dev_loader = DataLoader(dev_dataset,batch_size = 1)#,num_workers=4)
     test_loader = DataLoader(test_dataset, batch_size = 1)#,num_workers=4)
-    return train_loader, test_loader, dev_loader, weights_classes
+    return train_loader, dev_loader, test_loader, weights_classes
 
 # # Model
 class Net(nn.Module):
@@ -263,6 +263,7 @@ class Net(nn.Module):
         self.embedding_dim3 = embedding_dim3
         self.device = device
         
+        self.dropout = nn.Dropout(0.2)
         self.layer_1 = nn.Linear(self.vocab_size, embedding_dim1, bias=True)
         self.layer_2 = nn.Linear(embedding_dim1, embedding_dim2, bias=True)
         if embedding_dim3:
@@ -280,9 +281,9 @@ class Net(nn.Module):
 
     def forward(self, x):
         out = F.relu(self.layer_1(x))
-        out = F.relu(self.layer_2(out))
+        out = F.relu(self.layer_2(self.dropout(out)))
         if self.embedding_dim3:
-            out = F.relu(self.layer_3(out))
+            out = F.relu(self.layer_3(self.dropout(out)))
         out = self.output_layer(out)
         return out
 
@@ -334,7 +335,7 @@ class Net(nn.Module):
         print('Finished Training')
         return loss,epoch_accuracy,epoch_test_accuracy
 
-    def test(self, dataloader, dataset_type="test", threshold=None):
+    def test(self, dataloader, dataset_type="dev", threshold=None):
         self.eval()
         count_unk=0
         correct = 0
@@ -434,8 +435,8 @@ def main():
         os.makedirs(RESULTS_FOLDER)
 
     EMBED_DIM3 = args.embed_dim3
-    train_loader, test_loader, dev_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, args.balanced)
-    net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2,args.embed_dim3, device=args.device,weights_classes=weights_classes).to(args.device)
+    train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, args.balanced)
+    net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2, device=args.device,weights_classes=weights_classes).to(args.device)
 
     if args.load:
         if args.train_mode:
@@ -447,15 +448,15 @@ def main():
         net.load_state_dict(torch.load(args.load_folder))
         
     if args.train_mode:
-        loss, epoch_accuracy, epoch_test_accuracy = net.train_process(train_loader, test_loader, RESULTS_FOLDER)
-        dev_accuracy = net.test(dev_loader, "dev")
-        dev_accuracy_threshold = net.test(dev_loader, "dev", args.proba_threshold)
+        loss, epoch_accuracy, epoch_test_accuracy = net.train_process(train_loader, dev_loader, RESULTS_FOLDER)
+        test_accuracy = net.test(dev_loader, "test")
+        test_accuracy_threshold = net.test(dev_loader, "test", args.proba_threshold)
         net.plotAccuracy(RESULTS_FOLDER, epoch_accuracy,epoch_test_accuracy)
-        net.saveResults(RESULTS_FOLDER, loss, args.nb_epochs, epoch_accuracy, epoch_test_accuracy, dev_accuracy, dev_accuracy_threshold)
+        net.saveResults(RESULTS_FOLDER, loss, args.nb_epochs, epoch_accuracy, epoch_test_accuracy, test_accuracy, test_accuracy_threshold)
 
     if args.test and not args.train_mode:
-        dev_accuracy = net.test(dev_loader, "dev")
-        dev_accuracy_threshold = net.test(dev_loader, "dev", args.proba_threshold)
+        test_accuracy = net.test(test_loader, "test")
+        test_accuracy_threshold = net.test(test_loader, "test", args.proba_threshold)
     
     if args.classify:
         net.classifyFromIngr()
