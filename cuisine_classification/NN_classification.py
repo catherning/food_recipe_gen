@@ -416,13 +416,15 @@ class Net(nn.Module):
         df = df.reset_index()
         dataset = IngrDataset(df["ingredients"],df["index"],self.vocab_ingrs,self.vocab_cuisine,type_label="id")
         dataloader = DataLoader(dataset,batch_size = 1,shuffle=False)
+        print("Classifying...")
         predictions = self.test(dataloader,dataset_type="classify")#, threshold=args.proba_threshold)
         
         for idx, prediction in predictions.items():
             data[idx]["cuisine"]=prediction
 
         with open(os.path.join(args.classify_folder,args.save_class_file),"wb") as f:
-            pickle.dump(data, f) 
+            pickle.dump(data, f)
+        print("Saving predictions.") 
 
 
 def main():
