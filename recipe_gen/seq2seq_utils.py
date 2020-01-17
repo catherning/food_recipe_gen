@@ -55,6 +55,10 @@ class RecipesDataset(Dataset):
             
         with open(os.path.join(args.data_folder,args.vocab_tok_file),'rb') as f:
             self.vocab_tokens=pickle.load(f)
+        
+        if self.model_name == "Seq2seqCuisinePairing":
+            with open(os.path.join(args.data_folder,args.vocab_cuisine_file),'rb') as f:
+                self.vocab_cuisine = pickle.load(f)
 
         self.PAD_token = self.vocab_ingrs.word2idx.get("<pad>",0)
         self.SOS_token = self.vocab_ingrs.word2idx.get("<sos>",1)
@@ -81,24 +85,29 @@ class RecipesDataset(Dataset):
 
     def process_data(self):
         data = []
-        if self.model_name ==" Seq2seqTitlePairing":
-            for recipe in self.data.values():
-                pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"]]
-                if self.filterSinglePair(pair):
-                    data.append(self.tensorsFromPair(pair))
-        elif self.model_name ==" Seq2seqCuisinePairing":
+        if self.model_name ==" Seq2seqCuisinePairing":
             count_e = 0
             for recipe in self.data.values():
                 try:
-                    pair = [recipe["ingredients"],recipe["tokenized"],recipe["cuisine"]]
+                    recipe["cuisine"]
+                    pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"]]
                     if self.filterSinglePair(pair):
-                        data.append(self.tensorsFromPair(pair))
+                        _dict = self.tensorsFromPair(pair)
+                        _dict["cuisine"]=recipe["cuisine"]
+                        del _dict["title"]
+                        data.append(_dict)
                 except AttributeError:
                     count_e+=1
                     continue
             print("{} recipes without cuisine. {} recipes kept.".format(count_e,len(data)))
-        self.data = data
 
+        else:
+            for recipe in self.data.values():
+                pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"]]
+                if self.filterSinglePair(pair):
+                    data.append(self.tensorsFromPair(pair))
+
+        self.data = data
 
     def filterSinglePair(self,p):
         length=0
@@ -157,10 +166,11 @@ class RecipesDataset(Dataset):
         input_tensor,_ = self.tensorFromSentence(self.vocab_ingrs, pair[0])
         target_tensor,target_length = self.tensorFromSentence(self.vocab_tokens, pair[1],instructions=True)
         title,_ = self.tensorFromSentence(self.vocab_tokens,pair[2])
+        
         return {"ingr":input_tensor,
-                "target_instr": target_tensor,
-                "target_length":target_length,
-                "title":title}
+                    "target_instr": target_tensor,
+                    "target_length":target_length,
+                    "title":title}
                 # "ingr_tok":pair[0],
                 # "target_tok":pair[1]}
 

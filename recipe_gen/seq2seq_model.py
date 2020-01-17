@@ -54,6 +54,7 @@ class Seq2seq(nn.Module):
             self.encoder.parameters(), lr=args.learning_rate)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
+        self.optim_list = [self.encoder_optimizer,self.decoder_optimizer]
 
         # Training param
         self.decay_factor = args.decay_factor
@@ -157,8 +158,9 @@ class Seq2seq(nn.Module):
         return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
 
     def train_iter(self, batch, iter):
-        self.encoder_optimizer.zero_grad()
-        self.decoder_optimizer.zero_grad()
+        for optim in self.optim_list:
+            optim.zero_grad()
+
         target_length = batch["target_length"]
         target_tensor = batch["target_instr"].to(self.device)
 
@@ -174,8 +176,8 @@ class Seq2seq(nn.Module):
         if self.training:
             loss.backward()
 
-            self.encoder_optimizer.step()
-            self.decoder_optimizer.step()
+            for optim in self.optim_list:
+                optim.step()
 
         return loss.item(), decoded_words
 
@@ -270,6 +272,7 @@ class Seq2seqAtt(Seq2seq):
         self.decoder = AttnDecoderRNN(args, self.output_size)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
+        self.optim_list[1]=self.decoder_optimizer
 
     def evaluateAndShowAttention(self, input_sentence):
         loss, output_words, attentions = self.evaluateFromText(input_sentence)
@@ -285,6 +288,7 @@ class Seq2seqIngrAtt(Seq2seqAtt):
         self.decoder = IngrAttnDecoderRNN(args, self.output_size)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
+        self.optim_list[1]=self.decoder_optimizer
 
 
 class Seq2seqIngrPairingAtt(Seq2seqAtt):
@@ -295,6 +299,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
             args, self.output_size, unk_token=self.train_dataset.UNK_token)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
+        self.optim_list[1]=self.decoder_optimizer
 
     def forwardDecoderStep(self, decoder_input, decoder_hidden,
                             encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words):
@@ -357,8 +362,9 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         super().__init__(args)
         self.title_encoder = EncoderRNN(args, self.output_size) 
         #output because tok of  title are in vocab_toks
-        self.encoder_optimizer = optim.Adam(
+        self.title_optimizer = optim.Adam(
             self.title_encoder.parameters(), lr=args.learning_rate)
+        self.optim_list.append(self.title_optimizer)
 
     def forward(self, batch, iter=iter):
         """
@@ -415,9 +421,10 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
 class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
     def __init__(self, args):
         super().__init__(args)
-        self.title_encoder = EncoderRNN(args, self.input_size)
-        self.encoder_optimizer = optim.Adam(
-            self.title_encoder.parameters(), lr=args.learning_rate)
+        self.cuisine_encoder = EncoderRNN(args, self.input_size)
+        self.cuisine_optimizer = optim.Adam(
+            self.cuisine_encoder.parameters(), lr=args.learning_rate)
+        self.optim_list.append(self.cuisine_optimizer)
 
     def forward(self, batch, iter=iter):
         """
@@ -438,7 +445,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         except AttributeError:
             Warning("Evaluation mode: only taking ingredient list as input")
 
-        title_tensor = batch["title"].to(self.device)
+        title_tensor = batch["cuisine"].to(self.device)
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)

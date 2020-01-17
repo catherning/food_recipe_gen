@@ -47,6 +47,8 @@ argparser.add_argument('--vocab-ingr-file', type=str, default=DATA_FILES[3],
                        help='Dataset path')
 argparser.add_argument('--vocab-tok-file', type=str, default=DATA_FILES[4],
                        help='Dataset path')
+argparser.add_argument('--vocab-cuisine-file', type=str, default="vocab_cuisine.pkl"",
+                       help='Dataset path')
 argparser.add_argument('--train-file', type=str, default=DATA_FILES[5],
                        help='Dataset path')
 argparser.add_argument('--test-file', type=str, default=DATA_FILES[2],

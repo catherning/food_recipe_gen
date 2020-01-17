@@ -414,6 +414,7 @@ class Net(nn.Module):
             data = pickle.load(f)
         df = pd.DataFrame.from_dict(data, orient='index')
         df = df.reset_index()
+        print("Recipe1m loaded")
         dataset = IngrDataset(df["ingredients"],df["index"],self.vocab_ingrs,self.vocab_cuisine,type_label="id")
         dataloader = DataLoader(dataset,batch_size = 1,shuffle=False)
         print("Classifying...")
@@ -444,6 +445,7 @@ def main():
 
         args.load_folder = os.path.join(os.getcwd(),"cuisine_classification","results",args.load_folder,model)
         net.load_state_dict(torch.load(args.load_folder))
+        print("Network loaded.")
         
     if args.train_mode:
         date = datetime.now().strftime("%m-%d-%H-%M")
