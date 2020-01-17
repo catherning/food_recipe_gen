@@ -54,7 +54,7 @@ class Seq2seq(nn.Module):
             self.encoder.parameters(), lr=args.learning_rate)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list = [self.encoder_optimizer,self.decoder_optimizer]
+        self.optim_list = [self.encoder_optimizer, self.decoder_optimizer]
 
         # Training param
         self.decay_factor = args.decay_factor
@@ -89,7 +89,8 @@ class Seq2seq(nn.Module):
         return chosen_id
 
     def initForward(self, input_tensor, pairing=False):
-        self.batch_size = len(input_tensor) #XXX: should be able not to reassign if do view with correct hidden size instead
+        # XXX: should be able not to reassign if do view with correct hidden size instead
+        self.batch_size = len(input_tensor)
         decoder_input = torch.tensor(
             [[self.train_dataset.SOS_token]*self.batch_size], device=self.device)
         # decoder_input final (<max_len,batch)
@@ -108,9 +109,9 @@ class Seq2seq(nn.Module):
         return decoder_input, decoded_words, decoder_outputs, decoder_attentions
 
     def forwardDecoderStep(self, decoder_input, decoder_hidden,
-                            encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words):
+                           encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words):
         decoder_output, decoder_hidden, decoder_attention = self.decoder(
-            decoder_input, decoder_hidden, encoder_outputs) # can remove encoder_outputs ? not used in decoder
+            decoder_input, decoder_hidden, encoder_outputs)  # can remove encoder_outputs ? not used in decoder
         decoder_outputs[:, di] = decoder_output
         decoder_attentions = self.addAttention(
             di, decoder_attentions, decoder_attention)
@@ -132,22 +133,23 @@ class Seq2seq(nn.Module):
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor)
 
-        # encoder_outputs (max_ingr,batch, 2*hidden_size) 
+        # encoder_outputs (max_ingr,batch, 2*hidden_size)
         # encoder_hidden (2, batch, hidden_size)
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
-        decoder_hidden = encoder_hidden # (2, batch, hidden_size) 
+        decoder_hidden = encoder_hidden  # (2, batch, hidden_size)
 
         sampling_proba = 1-inverse_sigmoid_decay(
-                self.decay_factor, iter) if self.training else 1
+            self.decay_factor, iter) if self.training else 1
 
         for di in range(self.max_length):
             decoder_attentions, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
-                                                                          encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words)
+                                                               encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words)
 
             if random.random() < sampling_proba:
-                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[:, 0]
+                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
+                    :, 0]
                 if len(idx_end) == self.batch_size:
                     break
                 decoder_input = topi.squeeze().detach().view(
@@ -213,7 +215,7 @@ class Seq2seq(nn.Module):
 
             self.evalProcess()
 
-    def evaluateFromText(self, sentence, target=None,title=None):
+    def evaluateFromText(self, sentence, target=None, title=None):
         self.eval()
         with torch.no_grad():
             input_tensor, _ = self.train_dataset.tensorFromSentence(
@@ -226,26 +228,29 @@ class Seq2seq(nn.Module):
                 target_tensor = target_tensor.view(1, -1).to(self.device)
             else:
                 target_tensor = None
-            
+
             if title is not None:
                 title_tensor, _ = self.train_dataset.tensorFromSentence(
                     self.train_dataset.vocab_tokens, title)
                 title_tensor = title_tensor.view(1, -1).to(self.device)
             else:
                 title_tensor = None
-                
-            batch = {"ingr":input_tensor,"target_instr":target_tensor,"title":title_tensor}
+
+            batch = {"ingr": input_tensor,
+                     "target_instr": target_tensor, "title": title_tensor}
             return self.forward(batch)
 
     def evaluateRandomly(self, n=10):
         for i in range(n):
             pair = random.choice(self.test_dataset.pairs)
-            loss, output_words, _ = self.evaluateFromText(pair[0], target=pair[1],title=pair[2])
+            loss, output_words, _ = self.evaluateFromText(
+                pair[0], target=pair[1], title=pair[2])
             output_sentence = ' '.join(output_words[0])
 
             self.logger.info(
                 "Input: "+" ".join([ingr.name for ingr in pair[0]]))
-            self.logger.info("Target: "+str([" ".join(instr) for instr in pair[1]]))
+            self.logger.info(
+                "Target: "+str([" ".join(instr) for instr in pair[1]]))
             self.logger.info("Generated: "+output_sentence)
 
     def evalProcess(self):
@@ -255,10 +260,10 @@ class Seq2seq(nn.Module):
         print_loss_total = 0
 
         for iter, batch in enumerate(self.test_dataloader, start=1):
-            loss,_ = self.train_iter(batch,iter)
+            loss, _ = self.train_iter(batch, iter)
             print_loss_total += loss
 
-            if iter%self.args.print_step==0:
+            if iter % self.args.print_step == 0:
                 print("Current loss = {}".format(print_loss_total/iter))
 
         print_loss_avg = print_loss_total / iter
@@ -272,7 +277,7 @@ class Seq2seqAtt(Seq2seq):
         self.decoder = AttnDecoderRNN(args, self.output_size)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1]=self.decoder_optimizer
+        self.optim_list[1] = self.decoder_optimizer
 
     def evaluateAndShowAttention(self, input_sentence):
         loss, output_words, attentions = self.evaluateFromText(input_sentence)
@@ -288,7 +293,7 @@ class Seq2seqIngrAtt(Seq2seqAtt):
         self.decoder = IngrAttnDecoderRNN(args, self.output_size)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1]=self.decoder_optimizer
+        self.optim_list[1] = self.decoder_optimizer
 
 
 class Seq2seqIngrPairingAtt(Seq2seqAtt):
@@ -299,10 +304,10 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
             args, self.output_size, unk_token=self.train_dataset.UNK_token)
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1]=self.decoder_optimizer
+        self.optim_list[1] = self.decoder_optimizer
 
     def forwardDecoderStep(self, decoder_input, decoder_hidden,
-                            encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words):
+                           encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words):
         decoder_output, decoder_hidden, decoder_attention = self.decoder(
             decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
 
@@ -337,11 +342,11 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         decoder_hidden = encoder_hidden
 
         sampling_proba = 1-inverse_sigmoid_decay(
-                self.decay_factor, iter) if self.training else 1
+            self.decay_factor, iter) if self.training else 1
 
         for di in range(self.max_length):
             decoder_attentions, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
-                                                                          encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
+                                                               encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
             if random.random() < sampling_proba:
                 idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
@@ -360,8 +365,8 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
 class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
     def __init__(self, args):
         super().__init__(args)
-        self.title_encoder = EncoderRNN(args, self.output_size) 
-        #output because tok of  title are in vocab_toks
+        self.title_encoder = EncoderRNN(args, self.output_size)
+        # output because tok of  title are in vocab_toks
         self.title_optimizer = optim.Adam(
             self.title_encoder.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.title_optimizer)
@@ -379,7 +384,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         input_tensor = batch["ingr"].to(self.device)
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor, pairing=True)
-        
+
         try:
             target_tensor = batch["target_instr"].to(self.device)
         except AttributeError:
@@ -399,10 +404,11 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
             (encoder_hidden, title_encoder_hidden), dim=2)
 
         sampling_proba = 1-inverse_sigmoid_decay(
-                self.decay_factor, iter) if self.training else 1
+            self.decay_factor, iter) if self.training else 1
 
         for di in range(self.max_length):
-            decoder_attentions, topi = self.forwardDecoderStep(decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
+            decoder_attentions, topi = self.forwardDecoderStep(
+                decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
             if random.random() < sampling_proba:
                 idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
@@ -417,11 +423,12 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
 
         return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
 
-    
+
 class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
     def __init__(self, args):
         super().__init__(args)
-        self.cuisine_encoder = EncoderRNN(args, self.input_size)
+        self.cuisine_encoder = EncoderRNN(
+            args, len(self.train_dataset.vocab_cuisine))
         self.cuisine_optimizer = optim.Adam(
             self.cuisine_encoder.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.cuisine_optimizer)
@@ -439,12 +446,13 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         input_tensor = batch["ingr"].to(self.device)
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor, pairing=True)
-        
+
         try:
             target_tensor = batch["target_instr"].to(self.device)
         except AttributeError:
             Warning("Evaluation mode: only taking ingredient list as input")
 
+        # XXX: if only change, that, can just rename both title and cuisine to a fusion
         title_tensor = batch["cuisine"].to(self.device)
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
@@ -459,10 +467,11 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
             (encoder_hidden, title_encoder_hidden), dim=2)
 
         sampling_proba = 1-inverse_sigmoid_decay(
-                self.decay_factor, iter) if self.training else 1
+            self.decay_factor, iter) if self.training else 1
 
         for di in range(self.max_length):
-            decoder_attentions, topi = self.forwardDecoderStep(decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
+            decoder_attentions, topi = self.forwardDecoderStep(
+                decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
             if random.random() < sampling_proba:
                 idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
