@@ -86,10 +86,10 @@ argparser.add_argument('--nb-epochs', type=int, default=30,
 argparser.add_argument('--proba-threshold', type=float, default=0.95,
                        help='Threshold proba for test and inference')
 argparser.add_argument('--clustering', type='bool', nargs='?',
-                       const=True, default=True,
+                       const=True, default=False,
                        help='Does clustering for the vocab')
 argparser.add_argument('--train-mode', type='bool', nargs='?',
-                       const=True, default=False,
+                       const=True, default=True,
                        help='Enable training')
 argparser.add_argument('--test', type='bool', nargs='?',
                        const=True, default=True,
@@ -315,10 +315,10 @@ class Net(nn.Module):
         out = self.output_layer(out)
         return out
 
-    def train_process(self, train_loader, test_loader, result_folder):
+    def train_process(self, train_loader, dev_loader, result_folder):
         print("Begin training")
         epoch_accuracy = []
-        epoch_test_accuracy = []
+        epoch_dev_accuracy = []
         best_score = 0
 
         for epoch in range(args.nb_epochs):
@@ -355,16 +355,16 @@ class Net(nn.Module):
             print('Accuracy of the network on epoch {}: {:.3f}'.format(
                 epoch+1, accuracy))
 
-            test_accuracy = self.test(test_loader)
-            epoch_test_accuracy.append(test_accuracy)
-            if test_accuracy > best_score:
-                best_score = test_accuracy
+            dev_accuracy = self.dev(dev_loader)
+            epoch_dev_accuracy.append(dev_accuracy)
+            if dev_accuracy > best_score:
+                best_score = dev_accuracy
                 print("Best model so far. Saving it.")
                 torch.save(self.state_dict(), os.path.join(
                     result_folder, "best_model"))
 
         print('Finished Training')
-        return loss, epoch_accuracy, epoch_test_accuracy
+        return loss, epoch_accuracy, epoch_dev_accuracy
 
     def test(self, dataloader, dataset_type="dev", threshold=None):
         self.eval()
@@ -491,6 +491,11 @@ def main():
 
         loss, epoch_accuracy, epoch_test_accuracy = net.train_process(
             train_loader, dev_loader, RESULTS_FOLDER)
+        
+        args.load_folder = os.path.join(RESULTS_FOLDER, "best_model")
+        net.load_state_dict(torch.load(args.load_folder))
+        print("Best network reloaded.")
+
         test_accuracy = net.test(dev_loader, "test")
         test_accuracy_threshold = net.test(
             dev_loader, "test", args.proba_threshold)
