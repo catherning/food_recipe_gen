@@ -178,7 +178,7 @@ class IngrDataset(Dataset):
                 "Don't know the type of label {}".format(type_label))
 
     def __len__(self):
-        return len(self.data)
+        return len(self.labels)
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
@@ -187,7 +187,7 @@ class IngrDataset(Dataset):
         return self.data[idx]
 
     def processId(self):
-        self.data = {}
+        self.data = [None]*len(self.labels)
         for idx, (ingrs, label) in enumerate(zip(self.input_, self.labels)):
             self.data[idx] = (torch.LongTensor(self.ingr2idx(ingrs)), label)
 
@@ -442,34 +442,35 @@ class Net(nn.Module):
     def classifyFromIngr(self):
         with open(os.path.join(args.classify_folder, args.classify_file), "rb") as f:
             data = pickle.load(f)
-        # df = pd.DataFrame.from_dict(data, orient='index')
-        # df = df.reset_index()
         data_ingrs = [v["ingredients"] for v in data.values()]
-        dataset = IngrDataset(data_ingrs, data.keys(),
-                              self.vocab_ingrs, self.vocab_cuisine, type_label="id")
-        print("Recipe1m loaded")
-        dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-        print("Classifying...")
-        # , threshold=args.proba_threshold)
-        predictions = self.test(dataloader, dataset_type="classify")
+        data_keys =  list(data.keys())
+        split_size = 50000
+        for i in range(len(data_ingrs)//split_size):
+            dataset = IngrDataset(data_ingrs[i*split_size:(i+1)*split_size], data_keys[i*split_size:(i+1)*split_size],
+                                self.vocab_ingrs, self.vocab_cuisine, type_label="id")
+            print("Iter {} : Recipe1m loaded".format(i))
+            dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+            print("Classifying...")
+            # , threshold=args.proba_threshold)
+            predictions = self.test(dataloader, dataset_type="classify")
 
-        for idx, prediction in predictions.items():
-            data[idx]["cuisine"] = prediction
+            for idx, prediction in predictions.items():
+                data[idx]["cuisine"] = prediction
 
-        with open(os.path.join(args.classify_folder, args.save_class_file), "wb") as f:
-            pickle.dump(data, f)
-        print("Saving predictions.")
+            with open(os.path.join(args.classify_folder, args.save_class_file+"_{}".format(i)), "wb") as f:
+                pickle.dump(data, f)
+            print("Saving predictions.")
 
 
 def main():
     df = createDFrame(args.file_type)
     vocab_ingrs, vocab_cuisine = createVocab(df,clustering = args.clustering)
 
-    EMBED_DIM3 = args.embed_dim3
-    train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(
-        df, vocab_ingrs, vocab_cuisine, args.balanced)
+    # EMBED_DIM3 = args.embed_dim3
+    # train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(
+    #     df, vocab_ingrs, vocab_cuisine, args.balanced)
     net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2,
-              device=args.device, weights_classes=weights_classes).to(args.device)
+              device=args.device, weights_classes=None).to(args.device)
 
     if args.load:
         if args.train_mode:
@@ -479,7 +480,7 @@ def main():
 
         args.load_folder = os.path.join(
             os.getcwd(), "cuisine_classification", "results", args.load_folder, model)
-        net.load_state_dict(torch.load(args.load_folder))
+        net.load_state_dict(torch.load(args.load_folder,map_location='cuda:0'))
         print("Network loaded.")
 
     if args.train_mode:
