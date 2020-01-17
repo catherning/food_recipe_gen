@@ -48,6 +48,7 @@ class RecipesDataset(Dataset):
     def __init__(self,args,train=True):
         self.max_length = args.max_length
         self.max_ingr = args.max_ingr
+        self.model_name =  args.model_name
 
         with open(os.path.join(args.data_folder,args.vocab_ingr_file),'rb') as f:
             self.vocab_ingrs=pickle.load(f)
@@ -77,22 +78,27 @@ class RecipesDataset(Dataset):
             idx = idx.tolist()
 
         return self.data[idx]
-    
-    def preprocess_data(self):
-        pairs=[]
-        for recipe in self.data.values(): #TODO: add cuisine
-            pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"]]
-            if self.filterSinglePair(pair):
-                pairs.append(pair)
-
-        # pairs = self.filterPairs(pairs)  
-        return pairs
 
     def process_data(self):
-        self.pairs = pairs = self.preprocess_data()
-        self.data = []
-        for pair in pairs:
-            self.data.append(self.tensorsFromPair(pair))
+        data = []
+        if self.model_name ==" Seq2seqTitlePairing":
+            for recipe in self.data.values():
+                pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"]]
+                if self.filterSinglePair(pair):
+                    data.append(self.tensorsFromPair(pair))
+        elif self.model_name ==" Seq2seqCuisinePairing":
+            count_e = 0
+            for recipe in self.data.values():
+                try:
+                    pair = [recipe["ingredients"],recipe["tokenized"],recipe["cuisine"]]
+                    if self.filterSinglePair(pair):
+                        data.append(self.tensorsFromPair(pair))
+                except AttributeError:
+                    count_e+=1
+                    continue
+            print("{} recipes without cuisine. {} recipes kept.".format(count_e,len(data)))
+        self.data = data
+
 
     def filterSinglePair(self,p):
         length=0
@@ -113,11 +119,6 @@ class RecipesDataset(Dataset):
             length+=len(sent)
         
         return length < self.max_length-1 and len(p[0])<self.max_ingr-1 # -1 because need to add eos to input and target
-
-
-    def filterPairs(self,pairs):
-        return [pair for pair in pairs if self.filterSinglePair(pair)]
-
 
     def instr2idx(self, sentence): 
         # if doesn't find, use unk_token kind of useless because filtered before ?

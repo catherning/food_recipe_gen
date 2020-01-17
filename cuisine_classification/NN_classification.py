@@ -429,10 +429,6 @@ def main():
     df = createDFrame(args.file_type)
     vocab_ingrs, vocab_cuisine = createVocab(df)# TODO: when classification is done without. to test ,clustering = True)
 
-    date = datetime.now().strftime("%m-%d-%H-%M")
-    RESULTS_FOLDER = os.path.join(os.getcwd(),"cuisine_classification","results","nn_{}{}_{}".format(date,args.balanced*'_bal',args.file_type))
-    if not os.path.exists(RESULTS_FOLDER):
-        os.makedirs(RESULTS_FOLDER)
 
     EMBED_DIM3 = args.embed_dim3
     train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(df, vocab_ingrs,vocab_cuisine, args.balanced)
@@ -448,6 +444,11 @@ def main():
         net.load_state_dict(torch.load(args.load_folder))
         
     if args.train_mode:
+        date = datetime.now().strftime("%m-%d-%H-%M")
+        RESULTS_FOLDER = os.path.join(os.getcwd(),"cuisine_classification","results","{}{}_{}".format(date,args.balanced*'_bal',args.file_type))
+        if not os.path.exists(RESULTS_FOLDER):
+            os.makedirs(RESULTS_FOLDER)
+
         loss, epoch_accuracy, epoch_test_accuracy = net.train_process(train_loader, dev_loader, RESULTS_FOLDER)
         test_accuracy = net.test(dev_loader, "test")
         test_accuracy_threshold = net.test(dev_loader, "test", args.proba_threshold)
@@ -459,6 +460,8 @@ def main():
         test_accuracy_threshold = net.test(test_loader, "test", args.proba_threshold)
     
     if args.classify:
+        with open(os.path.join(args.classify_folder,"vocab_cuisine.pkl"),"wb") as f:
+            pickle.dump(vocab_cuisine, f) 
         net.classifyFromIngr()
 
 

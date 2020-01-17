@@ -355,7 +355,8 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
 class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
     def __init__(self, args):
         super().__init__(args)
-        self.title_encoder = EncoderRNN(args, self.input_size)
+        self.title_encoder = EncoderRNN(args, self.output_size) 
+        #output because tok of  title are in vocab_toks
         self.encoder_optimizer = optim.Adam(
             self.title_encoder.parameters(), lr=args.learning_rate)
 
@@ -411,3 +412,60 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
 
     
+class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
+    def __init__(self, args):
+        super().__init__(args)
+        self.title_encoder = EncoderRNN(args, self.input_size)
+        self.encoder_optimizer = optim.Adam(
+            self.title_encoder.parameters(), lr=args.learning_rate)
+
+    def forward(self, batch, iter=iter):
+        """
+        input_tensor: (batch_size,max_ingr)
+        target_tensor: (batch_size,max_len)
+
+        return:
+        decoder_outputs: (batch,max_len,size voc)
+        decoder_words: final (<max_len,batch)
+        decoder_attentions: (max_len,batch,max_ingr)
+        """
+        input_tensor = batch["ingr"].to(self.device)
+        decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
+            input_tensor, pairing=True)
+        
+        try:
+            target_tensor = batch["target_instr"].to(self.device)
+        except AttributeError:
+            Warning("Evaluation mode: only taking ingredient list as input")
+
+        title_tensor = batch["title"].to(self.device)
+
+        encoder_outputs, encoder_hidden = self.encoder.forward_all(
+            input_tensor)
+        # encoder_outputs (max_ingr,hidden_size, batch)
+        # encoder_hidden (1,hidden_size, batch)
+
+        title_encoder_outputs, title_encoder_hidden = self.title_encoder.forward_all(
+            title_tensor)
+
+        decoder_hidden = torch.cat(
+            (encoder_hidden, title_encoder_hidden), dim=2)
+
+        sampling_proba = 1-inverse_sigmoid_decay(
+                self.decay_factor, iter) if self.training else 1
+
+        for di in range(self.max_length):
+            decoder_attentions, topi = self.forwardDecoderStep(decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
+
+            if random.random() < sampling_proba:
+                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
+                    :, 0]
+                if len(idx_end) == self.batch_size:
+                    break
+
+                decoder_input = topi.squeeze().detach().view(
+                    1, -1)  # detach from history as input
+            else:
+                decoder_input = target_tensor[:, di].view(1, -1)
+
+        return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
