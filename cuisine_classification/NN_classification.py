@@ -178,7 +178,7 @@ class IngrDataset(Dataset):
                 "Don't know the type of label {}".format(type_label))
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.data)
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
@@ -377,7 +377,7 @@ class Net(nn.Module):
             for data in dataloader:
                 inputs = data[0].to(self.device)
 
-                labels = data[1].to(self.device)
+                
                 outputs = self.forward(inputs.float())
 
                 if threshold:
@@ -387,9 +387,14 @@ class Net(nn.Module):
                         continue
                 else:
                     _, predicted = torch.max(outputs.data, 1)
-
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+                
+                try:
+                    labels = data[1].to(self.device)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+                except AttributeError:
+                    pass
+                    
                 predictions[data[1][0]] = predicted[0].item()
 
         if dataset_type == "classify":
@@ -457,20 +462,20 @@ class Net(nn.Module):
             for idx, prediction in predictions.items():
                 data[idx]["cuisine"] = prediction
 
-            with open(os.path.join(args.classify_folder, args.save_class_file+"_{}".format(i)), "wb") as f:
-                pickle.dump(data, f)
-            print("Saving predictions.")
+        with open(os.path.join(args.classify_folder, args.save_class_file), "wb") as f:
+            pickle.dump(data, f)
+        print("Saving predictions.")
 
 
 def main():
     df = createDFrame(args.file_type)
     vocab_ingrs, vocab_cuisine = createVocab(df,clustering = args.clustering)
 
-    # EMBED_DIM3 = args.embed_dim3
-    # train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(
-    #     df, vocab_ingrs, vocab_cuisine, args.balanced)
+    EMBED_DIM3 = args.embed_dim3
+    train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(
+        df, vocab_ingrs, vocab_cuisine, args.balanced)
     net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2,
-              device=args.device, weights_classes=None).to(args.device)
+              device=args.device, weights_classes=weights_classes).to(args.device)
 
     if args.load:
         if args.train_mode:
@@ -480,7 +485,7 @@ def main():
 
         args.load_folder = os.path.join(
             os.getcwd(), "cuisine_classification", "results", args.load_folder, model)
-        net.load_state_dict(torch.load(args.load_folder,map_location='cuda:0'))
+        net.load_state_dict(torch.load(args.load_folder))#,map_location='cuda:0'))
         print("Network loaded.")
 
     if args.train_mode:
