@@ -484,8 +484,8 @@ def main():
 
     if args.train_mode:
         date = datetime.now().strftime("%m-%d-%H-%M")
-        RESULTS_FOLDER = os.path.join(os.getcwd(), "cuisine_classification", "results", "{}{}_{}".format(
-            date, args.balanced*'_bal', args.file_type))
+        RESULTS_FOLDER = os.path.join(os.getcwd(), "cuisine_classification", "results", "{}{}_{}{}".format(
+            date, args.balanced*'_bal', args.file_type,args.clustering*'_clust'))
         if not os.path.exists(RESULTS_FOLDER):
             os.makedirs(RESULTS_FOLDER)
 
