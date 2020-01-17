@@ -1,0 +1,1 @@
+python cuisine_classification/NN_classification.py --device ${1-0} --clustering

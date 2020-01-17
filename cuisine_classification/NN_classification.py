@@ -5,6 +5,7 @@ import os
 import pickle
 import sys
 from collections import Counter
+import itertools
 from datetime import datetime
 
 import matplotlib
@@ -84,8 +85,11 @@ argparser.add_argument('--nb-epochs', type=int, default=30,
                        help='Display steps')
 argparser.add_argument('--proba-threshold', type=float, default=0.95,
                        help='Threshold proba for test and inference')
-argparser.add_argument('--train-mode', type='bool', nargs='?',
+argparser.add_argument('--clustering', type='bool', nargs='?',
                        const=True, default=True,
+                       help='Does clustering for the vocab')
+argparser.add_argument('--train-mode', type='bool', nargs='?',
+                       const=True, default=False,
                        help='Enable training')
 argparser.add_argument('--test', type='bool', nargs='?',
                        const=True, default=True,
@@ -121,7 +125,7 @@ def createDFrame(file):
 def createVocab(df, clustering=False):
     if clustering:
         counter_ingrs = Counter()
-        counter_ingrs.update(df.loc[:, "ingredients"])
+        counter_ingrs.update(itertools.chain.from_iterable(df.loc[:, "ingredients"]))
         # just try counter_ingrs.update(df.loc[:,"ingredients"])
         # for ingredients in df.loc[:,"ingredients"]:
         #     counter_ingrs.update([ingr for ingr in ingredients])
@@ -166,9 +170,9 @@ class IngrDataset(Dataset):
         self.labels = labels
 
         if type_label == "cuisine":
-            self.processData()
+            self.processCuisine()
         elif type_label == "id":
-            self.processIngr()
+            self.processId()
         else:
             raise AttributeError(
                 "Don't know the type of label {}".format(type_label))
@@ -182,20 +186,17 @@ class IngrDataset(Dataset):
 
         return self.data[idx]
 
-    def processIngr(self):
+    def processId(self):
         self.data = {}
-        for (idx, ingrs), label in zip(self.input_.items(), self.labels):
+        for idx, (ingrs, label) in enumerate(zip(self.input_, self.labels)):
             self.data[idx] = (torch.LongTensor(self.ingr2idx(ingrs)), label)
 
-    def processData(self):
+    def processCuisine(self):
         self.data = {}
         for (idx, ingrs), label in zip(self.input_.iterrows(), self.labels.iterrows()):
+            # try except if want to remove recipes with too many unk ingrs ?
             self.data[idx] = (self.ingr2idx(ingrs["ingredients"]),
                               self.vocab_cuisine.word2idx[label[1]["cuisine"]])
-            # TODO: delete if never raised ?
-            if idx != label[0]:
-                raise AttributeError(
-                    "Not same idx: {} {}".format(idx, label[0]))
 
     def ingr2idx(self, ingr_list):
         # If I didn't do the one-hot encoding by myself and used directly an embedding layer in the net,
@@ -209,6 +210,11 @@ class IngrDataset(Dataset):
         input_ = torch.LongTensor(input_)
         onehot_enc = F.one_hot(input_.to(torch.int64), self.input_size)
         output = torch.sum(onehot_enc, 0)
+
+        # Removing samples where you don't know more than 2 of the ingr doesn't help the model much ?
+        # if output[self.vocab_ingrs.word2idx["<unk>"]]>3:
+        #     count_unk+=1
+        #     raise AttributeError
         return output
 
 
@@ -236,7 +242,6 @@ def make_weights_for_balanced_classes(samples, vocab_cuisine):
 
 
 def createDataLoaders(df, vocab_ingrs, vocab_cuisine, balanced=False):
-    # TODO when switch to python file, can put num_workers & have to put if __name__ == '__main__':
     X_train, X_dev, y_train, y_dev = train_test_split(
         df["ingredients"], df["cuisine"], test_size=0.2, random_state=42, stratify=df["cuisine"])
     X_dev, X_test, y_dev, y_test = train_test_split(
@@ -261,14 +266,14 @@ def createDataLoaders(df, vocab_ingrs, vocab_cuisine, balanced=False):
         sampler = torch.utils.data.sampler.WeightedRandomSampler(
             weights_labels, len(weights_labels))
         train_loader = DataLoader(
-            train_dataset, batch_size=args.batch_size, sampler=sampler)  # ,num_workers=4)
+            train_dataset, batch_size=args.batch_size, sampler=sampler)
     else:
         train_loader = DataLoader(
-            train_dataset, batch_size=args.batch_size)  # ,num_workers=4)
+            train_dataset, batch_size=args.batch_size)
         weights_classes = None
 
-    dev_loader = DataLoader(dev_dataset, batch_size=1)  # ,num_workers=4)
-    test_loader = DataLoader(test_dataset, batch_size=1)  # ,num_workers=4)
+    dev_loader = DataLoader(dev_dataset, batch_size=1)
+    test_loader = DataLoader(test_dataset, batch_size=1)
     return train_loader, dev_loader, test_loader, weights_classes
 
 # # Model
@@ -372,17 +377,10 @@ class Net(nn.Module):
             for data in dataloader:
                 inputs = data[0].to(self.device)
 
-                # Removing samples where you don't know more than 2 of the ingr doesn't help the model much
-                # if inputs[0][self.vocab_ingrs.word2idx["<unk>"]]>3:
-                #     count_unk+=1
-                #     continue
-
                 labels = data[1].to(self.device)
                 outputs = self.forward(inputs.float())
 
                 if threshold:
-                    # Only taking the prediction when the model thinks it's threshold% probable that the label is x
-                    # Also not that good, accuracy of 42% instead of 82% on dev set
                     proba = torch.nn.functional.softmax(outputs, dim=1)
                     p_max, predicted = torch.max(proba, 1)
                     if p_max < threshold:
@@ -444,11 +442,12 @@ class Net(nn.Module):
     def classifyFromIngr(self):
         with open(os.path.join(args.classify_folder, args.classify_file), "rb") as f:
             data = pickle.load(f)
-        df = pd.DataFrame.from_dict(data, orient='index')
-        df = df.reset_index()
-        print("Recipe1m loaded")
-        dataset = IngrDataset(df["ingredients"], df["index"],
+        # df = pd.DataFrame.from_dict(data, orient='index')
+        # df = df.reset_index()
+        data_ingrs = [v["ingredients"] for v in data.values()]
+        dataset = IngrDataset(data_ingrs, data.keys(),
                               self.vocab_ingrs, self.vocab_cuisine, type_label="id")
+        print("Recipe1m loaded")
         dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
         print("Classifying...")
         # , threshold=args.proba_threshold)
@@ -464,8 +463,7 @@ class Net(nn.Module):
 
 def main():
     df = createDFrame(args.file_type)
-    # TODO: when classification is done without. to test ,clustering = True)
-    vocab_ingrs, vocab_cuisine = createVocab(df)
+    vocab_ingrs, vocab_cuisine = createVocab(df,clustering = args.clustering)
 
     EMBED_DIM3 = args.embed_dim3
     train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(
