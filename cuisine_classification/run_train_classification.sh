@@ -1,1 +1,1 @@
-python cuisine_classification/NN_classification.py --device ${1-0} --clustering
+python cuisine_classification/NN_classification.py --device ${1-0} --clustering --balanced --nb-epochs 200

@@ -355,7 +355,7 @@ class Net(nn.Module):
             print('Accuracy of the network on epoch {}: {:.3f}'.format(
                 epoch+1, accuracy))
 
-            dev_accuracy = self.dev(dev_loader)
+            dev_accuracy = self.test(dev_loader)
             epoch_dev_accuracy.append(dev_accuracy)
             if dev_accuracy > best_score:
                 best_score = dev_accuracy
