@@ -61,7 +61,7 @@ argparser.add_argument('--model-name', type=str, choices=['Seq2seq','Seq2seqAtt'
                        help='Model name for saving/loading')
 argparser.add_argument('--print-step', type=int, default=50,
                        help='Display steps')
-argparser.add_argument('--validation-step', type=int, default=1,
+argparser.add_argument('--validation-step', type=int, default=1, #XXX: utility ?
                        help='Number of random search validation')
 argparser.add_argument('--train-mode', type='bool', nargs='?',
                         const=True, default=True,
@@ -77,19 +77,6 @@ argparser.add_argument('--resume', type='bool', nargs='?',
                        help='Resume saved model')
 argparser.add_argument('--device', type=int, default=0,
                        help='GPU device number')
-
-# Save outputs
-argparser.add_argument('--save-embed', type='bool', nargs='?',
-                        const=True, default=False,
-                       help='Save embeddings with loaded model')
-argparser.add_argument('--save-prediction', type='bool', nargs='?',
-                        const=True, default=False,
-                       help='Save predictions with loaded model')
-argparser.add_argument('--save-prediction-unknowns', type='bool', nargs='?',
-                        const=True, default=False,
-                       help='Save pair scores with loaded model')
-argparser.add_argument('--embed-d', type=int, default=1,
-                       help='0:val task data, 1:v0.n data')
 
 # Train config
 argparser.add_argument('--batch-size', type=int, default=8)
