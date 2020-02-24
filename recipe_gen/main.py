@@ -47,7 +47,7 @@ argparser.add_argument('--vocab-ingr-file', type=str, default=DATA_FILES[3],
                        help='Dataset path')
 argparser.add_argument('--vocab-tok-file', type=str, default=DATA_FILES[4],
                        help='Dataset path')
-argparser.add_argument('--vocab-cuisine-file', type=str, default="vocab_cuisine.pkl"",
+argparser.add_argument('--vocab-cuisine-file', type=str, default="vocab_cuisine.pkl",
                        help='Dataset path')
 argparser.add_argument('--train-file', type=str, default=DATA_FILES[5],
                        help='Dataset path')
@@ -166,7 +166,7 @@ def main():
 
     if args.test:
         # Evaluate on whole test dataset
-        model.evalProcess()
+        model.evalOutput()
         
         # Evaluate on 2 random samples in test dataset and print results
         model.evaluateRandomly(n=2)

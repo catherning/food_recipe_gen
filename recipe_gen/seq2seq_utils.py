@@ -87,10 +87,10 @@ class RecipesDataset(Dataset):
         data = []
         if self.model_name ==" Seq2seqCuisinePairing":
             count_e = 0
-            for recipe in self.data.values():
+            for idx,recipe in self.data.items():
                 try:
                     recipe["cuisine"]
-                    pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"]]
+                    pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"],idx]
                     if self.filterSinglePair(pair):
                         _dict = self.tensorsFromPair(pair)
                         _dict["cuisine"]=recipe["cuisine"]
@@ -102,8 +102,8 @@ class RecipesDataset(Dataset):
             print("{} recipes without cuisine. {} recipes kept.".format(count_e,len(data)))
 
         else:
-            for recipe in self.data.values():
-                pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"]]
+            for idx,recipe in self.data.items():
+                pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"],idx]
                 if self.filterSinglePair(pair):
                     data.append(self.tensorsFromPair(pair))
 
@@ -170,7 +170,8 @@ class RecipesDataset(Dataset):
         return {"ingr":input_tensor,
                     "target_instr": target_tensor,
                     "target_length":target_length,
-                    "title":title}
+                    "title":title,
+                    "id":pair[-1]}
                 # "ingr_tok":pair[0],
                 # "target_tok":pair[1]}
 

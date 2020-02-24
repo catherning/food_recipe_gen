@@ -38,7 +38,7 @@ class Seq2seq(nn.Module):
                                                             batch_size=args.batch_size, shuffle=True,
                                                             num_workers=4)
         self.test_dataloader = torch.utils.data.DataLoader(self.test_dataset,
-                                                           batch_size=args.batch_size, shuffle=True,
+                                                           batch_size=args.batch_size, shuffle=False,
                                                            num_workers=4)
 
         self.batch_size = args.batch_size
@@ -261,6 +261,26 @@ class Seq2seq(nn.Module):
 
         for iter, batch in enumerate(self.test_dataloader, start=1):
             loss, _ = self.train_iter(batch, iter)
+            print_loss_total += loss
+
+            if iter % self.args.print_step == 0:
+                print("Current loss = {}".format(print_loss_total/iter))
+
+        print_loss_avg = print_loss_total / iter
+        self.logger.info("Eval loss = {}".format(print_loss_avg))
+    
+    def evalOutput(self):
+        self.eval()
+        start = time.time()
+        plot_losses = []
+        print_loss_total = 0
+
+        for iter, batch in enumerate(self.test_dataloader, start=1):
+            loss, output_words = self.train_iter(batch, iter)
+
+            for i,ex in enumerate(output_words):
+                self.logger.info(batch["id"][i]+" "+' '.join(ex))
+
             print_loss_total += loss
 
             if iter % self.args.print_step == 0:

@@ -252,7 +252,9 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
             title = nltk.tokenize.word_tokenize(entry['title'].lower())
             if entry['partition'] == 'train':
                 counter_toks.update(title)
-                counter_ingrs.update([ingr.name for ingr in ingrs_list])
+                ingr_str = [ingr.name for ingr in ingrs_list]
+                counter_ingrs.update(ingr_str)
+                counter_toks.update(ingr_str) # add ingr to whole recipe vocab
 
         genTokVoc(counter_toks)
         vocab_ingrs = genIngrVoc(counter_ingrs)
