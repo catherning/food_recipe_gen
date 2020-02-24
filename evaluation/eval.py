@@ -28,6 +28,7 @@ def processOutput(folder_path,gen_ref=False):
                 if len(output[0])!=10 or output[0]=="train_mode": # improve, an arg name could have len 10 like the ex id
                     continue
                 # TODO: check if punction with/without space is oks     
+                # TODO: opt => direct can calculate the metrics instead of looping again
                 processed[output[0]]={"ref":list(itertools.chain.from_iterable(ref[output[0]]["tokenized"])),
                                     "gen":output[1:-1],
                                     "ingr":[ingr.name for ingr in ref[output[0]]["ingredients"]]}
@@ -60,5 +61,6 @@ for data in processed.values():
     
 print(bleu/len(processed))
 print(meteor/len(processed))
+print(sum(len(data["ingr"]) for data in processed.values())/len(processed))
 print(r_ingr/len(processed))
 print(t_ingr/len(processed))
