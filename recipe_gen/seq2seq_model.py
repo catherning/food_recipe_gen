@@ -191,6 +191,8 @@ class Seq2seq(nn.Module):
         plot_loss_total = 0
         best_loss = math.inf
 
+        lmbda = lambda epoch: 0.95
+        scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(optim,lr_lambda=lmbda) for optim in self.optim_list]
         for ep in range(1, self.args.epoch+1):
             for iter, batch in enumerate(self.train_dataloader, start=1):
                 if iter == self.args.n_iters:
@@ -210,10 +212,15 @@ class Seq2seq(nn.Module):
                     torch.save(self.state_dict(), os.path.join(
                         self.savepath, "model_{}_{}".format(datetime.now().strftime('%m-%d-%H-%M'), iter)))
                     if print_loss_avg < best_loss:
+                        print("Best model so far, saving it.")
                         torch.save(self.state_dict(), os.path.join(
                             self.savepath, "best_model"))
 
-            self.evalProcess()
+            if ep%(self.args.epoch//10)==0: #eval ten times
+                self.evalProcess()
+            
+            for scheduler in scheduler_list:
+                scheduler.step()
 
     def evaluateFromText(self, sentence, target=None, title=None):
         self.eval()
