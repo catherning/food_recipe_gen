@@ -257,7 +257,7 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
                 counter_toks.update(ingr_str) # add ingr to whole recipe vocab
 
         genTokVoc(counter_toks)
-        vocab_ingrs = genIngrVoc(counter_ingrs)
+        vocab_ingrs, counter_ingrs = genIngrVoc(counter_ingrs)
 
         with open(ingrs_file, 'wb') as f:
             pickle.dump(counter_ingrs, f)

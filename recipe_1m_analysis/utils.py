@@ -8,7 +8,7 @@ class Vocabulary(object):
 
     def __call__(self, word):
         if word not in self.word2idx:
-            return self.word2idx['<pad>']
+            return self.word2idx['<unk>']
         return self.word2idx[word]
 
     def __len__(self):

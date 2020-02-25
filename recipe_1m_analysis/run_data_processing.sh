@@ -6,5 +6,5 @@ python "./recipe_1m_analysis/data_processing.py" \
 --maxnumingrs 15 \
 --minnumingrs 3 \
 --minnumwords 30 \
---forcegen
+--forcegen \
 --forcegen-all

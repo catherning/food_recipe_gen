@@ -264,7 +264,7 @@ class Seq2seq(nn.Module):
             print_loss_total += loss
 
             if iter % self.args.print_step == 0:
-                print("Current loss = {}".format(print_loss_total/iter))
+                print("Eval Current loss = {}".format(print_loss_total/iter))
 
         print_loss_avg = print_loss_total / iter
         self.logger.info("Eval loss = {}".format(print_loss_avg))
