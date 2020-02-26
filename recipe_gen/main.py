@@ -80,6 +80,7 @@ argparser.add_argument('--device', type=int, default=0,
 
 # Train config
 argparser.add_argument('--batch-size', type=int, default=8)
+argparser.add_argument('--begin-epoch', type=int, default=1)
 argparser.add_argument('--epoch', type=int, default=100)
 argparser.add_argument('--n-iters', type=int, default=500)
 argparser.add_argument('--learning-rate', type=float, default=0.001)
@@ -142,8 +143,18 @@ def main():
     model = model_class(args)
 
     if args.resume:
+        checkpoint = torch.load(os.path.join(
+            os.getcwd(), "recipe_gen", "results",args.model_name,args.load_folder))
+        model.load_state_dict(checkpoint['model_state_dict'])
+        [optim.load_state_dict(checkpoint['optimizer_state_dict'][i]) for i,optim in enumerate(model.optim_list)]
+        args.begin_epoch = checkpoint['epoch']
+        # loss = checkpoint['loss']
+        print("Model loaded for resuming training.")
+
+    if args.load:
         model.load_state_dict(torch.load(os.path.join(
-            os.getcwd(), "recipe_gen", "results",args.model_name,args.load_folder, "best_model")))
+            os.getcwd(), "recipe_gen", "results",args.model_name,args.load_folder, "best_model"))) 
+            #for consistency, don't add best_model, ask user to add it ?
         print("Model loaded.")
     
     model.to(args.device)

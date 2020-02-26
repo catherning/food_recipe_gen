@@ -193,7 +193,7 @@ class Seq2seq(nn.Module):
 
         lmbda = lambda epoch: 0.95
         scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(optim,lr_lambda=lmbda) for optim in self.optim_list]
-        for ep in range(1, self.args.epoch+1):
+        for ep in range(self.args.begin_epoch, self.args.epoch+1):
             for iter, batch in enumerate(self.train_dataloader, start=1):
                 if iter == self.args.n_iters:
                     break
@@ -209,14 +209,19 @@ class Seq2seq(nn.Module):
                         start, iter / self.args.n_iters), iter, int(iter / self.args.n_iters * 100), print_loss_avg))
                     print(" ".join(decoded_words[0]))
 
-                    torch.save(self.state_dict(), os.path.join(
-                        self.savepath, "model_{}_{}".format(datetime.now().strftime('%m-%d-%H-%M'), iter)))
+                    torch.save({
+                        'epoch': ep,
+                        'model_state_dict': self.state_dict(),
+                        'optimizer_state_dict': [optim.state_dict() for optim in self.optim_list],
+                        'loss': loss,
+                        }, os.path.join(self.savepath,"train_model_{}_{}.tar".format(datetime.now().strftime('%m-%d-%H-%M'), iter)))
+
                     if print_loss_avg < best_loss:
                         print("Best model so far, saving it.")
                         torch.save(self.state_dict(), os.path.join(
                             self.savepath, "best_model"))
 
-            if ep%(self.args.epoch//10)==0: #eval ten times
+            if ep%(max(5,self.args.epoch//10))==0: #eval ten times or every 5 times
                 self.evalProcess()
             
             for scheduler in scheduler_list:
