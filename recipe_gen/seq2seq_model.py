@@ -202,7 +202,7 @@ class Seq2seq(nn.Module):
                 print_loss_total += loss
                 plot_loss_total += loss
 
-                if iter % self.args.print_step == 0:
+                if iter % max(self.args.print_step,self.args.n_iters//10) == 0:
                     print_loss_avg = print_loss_total / self.args.print_step
                     print_loss_total = 0
                     self.logger.info('Epoch {} {} ({} {}%) loss={}'.format(ep, timeSince(
