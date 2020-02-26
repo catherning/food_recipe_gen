@@ -75,6 +75,9 @@ argparser.add_argument('--test', type='bool', nargs='?',
 argparser.add_argument('--resume', type='bool', nargs='?',
                         const=True, default=False,
                        help='Resume saved model')
+argparser.add_argument('--load', type='bool', nargs='?',
+                        const=True, default=False,
+                       help='Load model for testing and inference')
 argparser.add_argument('--device', type=int, default=0,
                        help='GPU device number')
 
