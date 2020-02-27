@@ -19,6 +19,7 @@ from recipe_1m_analysis.utils import Vocabulary
 
 
 MAX_LENGTH = 100
+MAX_STEP = 10
 MAX_INGR = 10
 FOLDER_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)),os.pardir,"recipe_1m_analysis", "data") 
 DATA_FILES = ["allingrs_count.pkl",
@@ -41,6 +42,7 @@ argparser.add_argument('--test-file', type=str, default=DATA_FILES[2],
                     help='Dataset path')
 argparser.add_argument('--max-ingr', type=int, default=MAX_INGR)
 argparser.add_argument('--max-length', type=int, default=MAX_LENGTH)
+argparser.add_argument('--max-step', type=int, default=MAX_STEP)
 
 class RecipesDataset(Dataset):
     """Recipes dataset."""
@@ -59,6 +61,11 @@ class RecipesDataset(Dataset):
         if self.model_name == "Seq2seqCuisinePairing":
             with open(os.path.join(args.data_folder,args.vocab_cuisine_file),'rb') as f:
                 self.vocab_cuisine = pickle.load(f)
+
+        if "Hierarchical" in self.model_name:
+            self.hierarchical = True
+        else:
+            self.hierarchical = False
 
         self.PAD_token = self.vocab_ingrs.word2idx.get("<pad>",0)
         self.SOS_token = self.vocab_ingrs.word2idx.get("<sos>",1)
@@ -139,7 +146,9 @@ class RecipesDataset(Dataset):
         except AttributeError:
             return torch.Tensor([self.vocab_ingrs.word2idx.get(word,self.UNK_token) for word in ingr_list])
 
-    def tensorFromSentence(self,vocab, sentence,instructions=False):
+    def tensorFromSentence(self,vocab, sentence,instructions=False): 
+        # XXX: careful target_length with hierarchical.... and flatten
+
         max_size = instructions * self.max_length + (1-instructions) * self.max_ingr
         tensor_ = torch.ones(max_size,dtype=torch.long) * self.PAD_token
         if instructions:
