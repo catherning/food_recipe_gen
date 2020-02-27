@@ -57,10 +57,10 @@ argparser.add_argument('--load-folder', type=str,
                        help='Loading best model in folder load-path')
 # TODO: change classify file to each file when running
 argparser.add_argument('--classify-folder', type=str, default=os.path.join(os.getcwd(), "recipe_1m_analysis", "data"),
-                       help='The dataset of ingr to classify')
+                       help='The folder where classify-file is.')
 argparser.add_argument('--classify-file', type=str, default="recipe1m_train.pkl",
-                       help='The dataset of ingr to classify')
-argparser.add_argument('--save-class-file', type=str, default="recipe1m_train_cuisine.pkl",
+                       help='The dataset of ingr to classify (train, test or dev)')
+argparser.add_argument('--save-class-file', type=str, default="recipe1m_train_cuisine.pkl", #XXX: can fuse in one arg, only train, dev, test
                        help='The dataset of ingr to classify')
 
 # Model settings

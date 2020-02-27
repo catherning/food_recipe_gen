@@ -336,8 +336,8 @@ class HierarchicalSeq2seq(Seq2seq):
                     di=self.max_length
                 decoder_input = topi.squeeze().detach().view(
                     1, -1)  # detach from history as input
-            else:
-                decoder_input = target_tensor[:, di].view(1, -1)
+        else:
+            decoder_input = target_tensor[:, di].view(1, -1)
     
         return decoder_attentions, topi
 
@@ -388,6 +388,19 @@ class Seq2seqAtt(Seq2seq):
         self.logger.info('input = ' + input_sentence)
         self.logger.info('output = ' + ' '.join(output_words))
         showAttention(input_sentence, output_words, attentions)
+
+
+class Seq2seqTrans(Seq2seq):
+    def __init__(self, args):
+        super().__init__(args)
+
+        self.decoderLayer = nn.TransformerDecoderLayer(d_model=args.hidden_size, nhead=8)
+        self.decoder = nn.TransformerDecoder(self.decoderLayer, 4)
+        
+        self.decoder_optimizer = optim.Adam(
+            self.decoder.parameters(), lr=args.learning_rate)
+        self.optim_list[1] = self.decoder_optimizer
+
 
 
 class Seq2seqIngrAtt(Seq2seqAtt):

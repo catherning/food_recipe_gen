@@ -109,7 +109,7 @@ class HierDecoderRNN(nn.Module):
         hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
         hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
         
-        for 
+        #TODO: generation of sentence representation here
 
         output, hidden = self.gru(output, hidden)
         output = self.softmax(self.out(output[0]))
