@@ -95,7 +95,8 @@ argparser.add_argument('--topk', type=float, default=3)
 # Model config
 argparser.add_argument('--hidden-size', type=int, default=128)
 argparser.add_argument('--max-ingr', type=int, default=10)
-argparser.add_argument('--max-length', type=int, default=100)
+argparser.add_argument('--max-length', type=int, default=100) 
+argparser.add_argument('--max-step', type=int, default=10) #for hierarchical, then max-length <30 is better, per step
 
 argparser.add_argument('--seed', type=int, default=3)
 

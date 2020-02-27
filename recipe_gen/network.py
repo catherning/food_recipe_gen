@@ -83,6 +83,41 @@ class DecoderRNN(nn.Module):
     def initHidden(self):
         return torch.zeros(1, 1, self.hidden_size)
 
+class HierDecoderRNN(nn.Module):
+    def __init__(self, args, output_size):
+        super(DecoderRNN, self).__init__()
+        self.hidden_size = hidden_size = args.hidden_size
+        self.batch_size = args.batch_size
+
+        self.embedding = nn.Embedding(output_size, hidden_size)
+        self.hiddenLayer = nn.Linear(2*hidden_size,hidden_size)
+        self.gru = nn.GRUCell(hidden_size, hidden_size) #sentence RNN
+        self.sub_gru = nn.GRU(hidden_size, hidden_size) #word RNN
+        self.out = nn.Linear(hidden_size, output_size)
+        self.softmax = nn.LogSoftmax(dim=1)
+
+    def forward(self, input, hidden, encoder_output):
+        """
+        input (1,batch)
+        hidden (2, batch, hidden_size)
+        encoder_output (max_ingr,batch, 2*hidden_size) 
+        """
+        self.batch_size = input.shape[1]
+        output = self.embedding(input).view(1, self.batch_size, -1) #(1,batch,hidden)
+        output = F.relu(output)
+
+        hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
+        hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
+        
+        for 
+
+        output, hidden = self.gru(output, hidden)
+        output = self.softmax(self.out(output[0]))
+        return output, hidden, None
+
+    def initHidden(self):
+        return torch.zeros(1, 1, self.hidden_size)
+
 
 class AttnDecoderRNN(DecoderRNN):
     def __init__(self, args, output_size):

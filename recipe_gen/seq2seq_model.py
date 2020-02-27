@@ -203,7 +203,7 @@ class Seq2seq(nn.Module):
                 plot_loss_total += loss
 
                 if iter % max(self.args.print_step,self.args.n_iters//10) == 0:
-                    print_loss_avg = print_loss_total / self.args.print_step
+                    print_loss_avg = print_loss_total / max(self.args.print_step,self.args.n_iters//10)
                     print_loss_total = 0
                     self.logger.info('Epoch {} {} ({} {}%) loss={}'.format(ep, timeSince(
                         start, iter / self.args.n_iters), iter, int(iter / self.args.n_iters * 100), print_loss_avg))
@@ -220,6 +220,7 @@ class Seq2seq(nn.Module):
                         print("Best model so far, saving it.")
                         torch.save(self.state_dict(), os.path.join(
                             self.savepath, "best_model"))
+                        best_loss = print_loss_avg
 
             if ep%(max(5,self.args.epoch//10))==0: #eval ten times or every 5 times
                 self.evalProcess()
@@ -302,6 +303,77 @@ class Seq2seq(nn.Module):
         self.logger.info("Eval loss = {}".format(print_loss_avg))
 
 
+class HierarchicalSeq2seq(Seq2seq):
+    def __init__(self, args):
+        super().__init__(args)
+
+        self.max_length = args.max_length
+
+        self.decoder = AttnDecoderRNN(args, self.output_size)
+        self.decoder_optimizer = optim.Adam(
+            self.decoder.parameters(), lr=args.learning_rate)
+        self.optim_list[1] = self.decoder_optimizer
+
+    def evaluateAndShowAttention(self, input_sentence):
+        loss, output_words, attentions = self.evaluateFromText(input_sentence)
+        self.logger.info('input = ' + input_sentence)
+        self.logger.info('output = ' + ' '.join(output_words))
+        showAttention(input_sentence, output_words, attentions)
+
+    def forwardDecoderStep(self, decoder_input, decoder_hidden,
+                           encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words):
+        decoder_output, decoder_hidden, decoder_attention = self.decoder(
+            decoder_input, decoder_hidden, encoder_outputs)  # can remove encoder_outputs ? not used in decoder
+        decoder_outputs[:, di] = decoder_output
+        decoder_attentions = self.addAttention(
+            di, decoder_attentions, decoder_attention)
+        topi = self.samplek(decoder_output, decoded_words)
+
+        if random.random() < sampling_proba:
+                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
+                    :, 0]
+                if len(idx_end) == self.batch_size:
+                    di=self.max_length
+                decoder_input = topi.squeeze().detach().view(
+                    1, -1)  # detach from history as input
+            else:
+                decoder_input = target_tensor[:, di].view(1, -1)
+    
+        return decoder_attentions, topi
+
+    def forward(self, batch, iter=iter):
+        """
+        input_tensor: (batch_size,max_ingr)
+        target_tensor: (batch_size,max_len)
+
+        return:
+        decoder_outputs: (batch,max_len,size voc)
+        decoder_words: final (<max_len,batch)
+        decoder_attentions: (max_len,batch,max_ingr)
+        """
+        input_tensor = batch["ingr"].to(self.device)
+        target_tensor = batch["target_instr"].to(self.device)
+        decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
+            input_tensor)
+
+        # encoder_outputs (max_ingr,batch, 2*hidden_size)
+        # encoder_hidden (2, batch, hidden_size)
+        encoder_outputs, encoder_hidden = self.encoder.forward_all(
+            input_tensor)
+
+        decoder_hidden = encoder_hidden  # (2, batch, hidden_size)
+
+        sampling_proba = 1-inverse_sigmoid_decay(
+            self.decay_factor, iter) if self.training else 1
+
+        for di in range (self.max_step):
+            decoder_attentions, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
+                                                               encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words)
+
+            
+
+        return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
+
 class Seq2seqAtt(Seq2seq):
     def __init__(self, args):
         super().__init__(args)
@@ -326,6 +398,7 @@ class Seq2seqIngrAtt(Seq2seqAtt):
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
         self.optim_list[1] = self.decoder_optimizer
+        
 
 
 class Seq2seqIngrPairingAtt(Seq2seqAtt):
