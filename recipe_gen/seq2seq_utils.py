@@ -175,11 +175,10 @@ class RecipesDataset(Dataset):
         else:
             tokenized = self.ingr2idx(sentence)[:max_size-1]
             tensor_[:len(tokenized)]= tokenized
+            tensor_[len(tokenized)]=self.EOS_token
             b_id = len(tokenized)+1
 
-
         return tensor_, b_id
-
 
     def tensorsFromPair(self,pair):
         input_tensor,_ = self.tensorFromSentence(self.vocab_ingrs, pair[0])

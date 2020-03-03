@@ -36,10 +36,10 @@ class Seq2seq(nn.Module):
 
         self.train_dataloader = torch.utils.data.DataLoader(self.train_dataset,
                                                             batch_size=args.batch_size, shuffle=True,
-                                                            num_workers=4)
+                                                            num_workers=0)
         self.test_dataloader = torch.utils.data.DataLoader(self.test_dataset,
                                                            batch_size=args.batch_size, shuffle=False,
-                                                           num_workers=4)
+                                                           num_workers=0)
 
         self.batch_size = args.batch_size
         self.device = args.device
@@ -117,7 +117,7 @@ class Seq2seq(nn.Module):
         decoder_attentions = self.addAttention(
             di, decoder_attentions, decoder_attention)
         topi = self.samplek(decoder_output, decoded_words)
-        return decoder_attentions, topi
+        return decoder_attentions, decoder_hidden, topi
 
     def forward(self, batch, iter=iter):
         """
@@ -145,7 +145,7 @@ class Seq2seq(nn.Module):
             self.decay_factor, iter) if self.training else 1
 
         for di in range(self.max_length):
-            decoder_attentions, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
+            decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
                                                                encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words)
 
             if random.random() < sampling_proba:
@@ -381,9 +381,6 @@ class HierarchicalSeq2seq(Seq2seq):
                     decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, encoder_outputs,decoded_words,cur_step,target_tensor,
                     sampling_proba,self.train_dataset.EOS_token)  # can remove encoder_outputs ? not used in decoder
 
-
-            
-
         return decoder_outputs, decoded_words#, decoder_attentions[:di + 1]
 
 class Seq2seqAtt(Seq2seq):
@@ -445,7 +442,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
             di, decoder_attentions, decoder_attention)
         decoder_outputs[:, di] = decoder_output
         topi = self.samplek(decoder_output, decoded_words)
-        return decoder_attentions, topi
+        return decoder_attentions, decoder_hidden, topi
 
     def forward(self, batch, iter=iter):
         """
@@ -475,7 +472,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
             self.decay_factor, iter) if self.training else 1
 
         for di in range(self.max_length):
-            decoder_attentions, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
+            decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
                                                                encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
             if random.random() < sampling_proba:
@@ -537,7 +534,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
             self.decay_factor, iter) if self.training else 1
 
         for di in range(self.max_length):
-            decoder_attentions, topi = self.forwardDecoderStep(
+            decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(
                 decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
             if random.random() < sampling_proba:
@@ -600,7 +597,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
             self.decay_factor, iter) if self.training else 1
 
         for di in range(self.max_length):
-            decoder_attentions, topi = self.forwardDecoderStep(
+            decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(
                 decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
             if random.random() < sampling_proba:
