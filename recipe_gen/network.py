@@ -1,4 +1,5 @@
 import pickle
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -83,40 +84,68 @@ class DecoderRNN(nn.Module):
     def initHidden(self):
         return torch.zeros(1, 1, self.hidden_size)
 
-class HierDecoderRNN(nn.Module):
-    def __init__(self, args, output_size):
-        super(DecoderRNN, self).__init__()
-        self.hidden_size = hidden_size = args.hidden_size
-        self.batch_size = args.batch_size
+class HierDecoderRNN(DecoderRNN):
+    def __init__(self, args, output_size,vocab_tokens):
+        super().__init__(args, output_size)
+        self.args = args
+        self.device = args.device
+        self.vocab_tokens = vocab_tokens
+        #normal GRU is the sentence RNN
+        self.sub_gru = nn.GRU(self.hidden_size, self.hidden_size) #word RNN
 
-        self.embedding = nn.Embedding(output_size, hidden_size)
-        self.hiddenLayer = nn.Linear(2*hidden_size,hidden_size)
-        self.gru = nn.GRUCell(hidden_size, hidden_size) #sentence RNN
-        self.sub_gru = nn.GRU(hidden_size, hidden_size) #word RNN
-        self.out = nn.Linear(hidden_size, output_size)
-        self.softmax = nn.LogSoftmax(dim=1)
+    def samplek(self, decoder_output, decoded_words,cur_step):
+        # TODO: change for hierarchical
+        topv, topi = decoder_output.topk(self.args.topk)
+        distrib = torch.distributions.categorical.Categorical(logits=topv)
+        chosen_id = torch.zeros(
+            decoder_output.shape[0], dtype=torch.long, device=self.device)
+        for batch_id, idx in enumerate(distrib.sample()):
+            chosen_id[batch_id] = topi[batch_id, idx]
+            decoded_words[batch_id][cur_step].append(
+                self.vocab_tokens[chosen_id[batch_id].item()])
+        return chosen_id
 
-    def forward(self, input, hidden, encoder_output):
+    def forward(self, decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, encoder_outputs,decoded_words,cur_step,target_tensor,sampling_proba,EOS_token=2):
         """
         input (1,batch)
         hidden (2, batch, hidden_size)
-        encoder_output (max_ingr,batch, 2*hidden_size) 
+        encoder_output (max_ingr,batch, 2*hidden_size) for attention
         """
-        self.batch_size = input.shape[1]
-        output = self.embedding(input).view(1, self.batch_size, -1) #(1,batch,hidden)
+        self.batch_size = decoder_input.shape[1]
+        output = self.embedding(decoder_input).view(1, self.batch_size, -1) #(1,batch,hidden)
         output = F.relu(output)
 
-        hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
-        hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
-        
-        #TODO: generation of sentence representation here
+        decoder_hidden = torch.cat((decoder_hidden[0],decoder_hidden[1]),1).unsqueeze(0)
+        decoder_hidden = self.hiddenLayer(decoder_hidden) # because was size 2-hidden_size
 
-        output, hidden = self.gru(output, hidden)
-        output = self.softmax(self.out(output[0]))
-        return output, hidden, None
+        output, decoder_hidden = self.gru(output, decoder_hidden)
 
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size)
+        hidden_sub = output
+        #XXX: is it ok same embedding for both dec and subdec input ??? for now the init inputs are the same
+
+        for i in range(self.args.max_length):
+            output_sub = self.embedding(sub_decoder_input).view(1, self.batch_size, -1) #(1,batch,hidden)
+            output_sub = F.relu(output_sub)
+
+            output_sub, hidden_sub = self.sub_gru(output_sub, hidden_sub)
+            output_sub = self.softmax(self.out(output_sub[0]))
+
+            topi = self.samplek(output_sub, decoded_words,cur_step)
+            decoder_outputs[:, cur_step,i] = output_sub
+
+            if random.random() < sampling_proba:
+                    idx_end = (topi == EOS_token).nonzero()[
+                        :, 0]
+                    if len(idx_end) == self.batch_size:
+                        break
+                    output_sub = topi.squeeze().detach().view(
+                        1, -1)  # detach from history as input
+            else:
+                output_sub = target_tensor[:,cur_step, i].view(1, -1)
+            
+
+        return output_sub, decoder_hidden, decoded_words
+ 
 
 
 class AttnDecoderRNN(DecoderRNN):

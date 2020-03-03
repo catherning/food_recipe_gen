@@ -50,6 +50,7 @@ class RecipesDataset(Dataset):
     def __init__(self,args,train=True):
         self.max_length = args.max_length
         self.max_ingr = args.max_ingr
+        self.max_step = args.max_step
         self.model_name =  args.model_name
 
         with open(os.path.join(args.data_folder,args.vocab_ingr_file),'rb') as f:
@@ -147,28 +148,37 @@ class RecipesDataset(Dataset):
             return torch.Tensor([self.vocab_ingrs.word2idx.get(word,self.UNK_token) for word in ingr_list])
 
     def tensorFromSentence(self,vocab, sentence,instructions=False): 
-        # XXX: careful target_length with hierarchical.... and flatten
-
         max_size = instructions * self.max_length + (1-instructions) * self.max_ingr
         tensor_ = torch.ones(max_size,dtype=torch.long) * self.PAD_token
         if instructions:
-            # tensor_[0]= self.SOS_token
-            # b_id=1
-            b_id = 0
-            for sent in sentence:
-                tokenized = self.instr2idx(sent)
-                sent_len = len(tokenized)
-                tensor_[b_id:b_id+sent_len]= tokenized
-                b_id += sent_len
+            if self.hierarchical:
+                tensor_ = torch.ones(self.max_step,max_size,dtype=torch.long) * self.PAD_token
+                b_id = []
+                for i,sent in enumerate(sentence):
+                    if i>=MAX_STEP:
+                        break
+                    tokenized = self.instr2idx(sent)
+                    sent_len = len(tokenized)
+                    tensor_[i][:sent_len]= tokenized
+                    tensor_[i][sent_len]=self.EOS_token
+                    b_id.append(sent_len)            
+            else:
+                b_id = 0
+                for sent in sentence:
+                    tokenized = self.instr2idx(sent)
+                    sent_len = len(tokenized)
+                    tensor_[b_id:b_id+sent_len]= tokenized
+                    b_id += sent_len
+                tensor_[b_id]=self.EOS_token
+                b_id+=1
+
         else:
             tokenized = self.ingr2idx(sentence)[:max_size-1]
             tensor_[:len(tokenized)]= tokenized
-            b_id = len(tokenized)
+            b_id = len(tokenized)+1
 
-        #XXX: if dim error sometimes, could be because of that ? 
-        # the filter keeps instructions of length max_length-1, we add 1 special tokens
-        tensor_[b_id]=self.EOS_token
-        return tensor_,b_id+1 # b_id = length
+
+        return tensor_, b_id
 
 
     def tensorsFromPair(self,pair):
