@@ -91,7 +91,7 @@ argparser.add_argument('--learning-rate', type=float, default=0.001)
 argparser.add_argument('--decay_factor', type=float, default=500.,
                         help='Speed of increasing the probability of sampling from model. Default: 500.')
 argparser.add_argument('--dropout', type=float, default=0.1)
-argparser.add_argument('--topk', type=float, default=3)
+argparser.add_argument('--topk', type=int, default=3)
 
 # Model config
 argparser.add_argument('--hidden-size', type=int, default=128)

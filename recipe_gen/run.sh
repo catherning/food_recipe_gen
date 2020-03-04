@@ -1,7 +1,9 @@
 python ./recipe_gen/main.py \
     --device ${1-0} \
-    --batch-size 8 \
-    --epoch 30 \
-    --n-iters 5000 \
-    --max-ingr 15 \
-    --max-length 150
+    --batch-size 4 \
+    --epoch 20 \
+    --n-iters 11500 \
+    --max-ingr 10 \
+    --max-length 15 \
+    --model-name HierarchicalSeq2seq \
+    --topk 6
