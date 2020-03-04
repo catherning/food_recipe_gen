@@ -11,13 +11,19 @@ from recipe_gen.pairing_utils import PairingData
 class EncoderRNN(nn.Module):
     def __init__(self, args, input_size):
         super(EncoderRNN, self).__init__()
-        self.hidden_size = args.hidden_size
+        self.hidden_size = hidden_size = args.hidden_size
         self.device = args.device
         self.max_ingr = args.max_ingr
         self.batch_size = args.batch_size
 
-        self.embedding = nn.Embedding(input_size, args.hidden_size)
+        self.embedding = nn.Embedding(input_size, hidden_size)
         self.gru = nn.GRU(args.hidden_size, args.hidden_size, bidirectional=True) # TODO: change size as biGRU => num_dir = 2
+
+        # so that correct hidden dims for decoder because biGRU
+        if args.model_name=="Seq2seqTitlePairing": #XXX: and cuisine ?
+            self.hiddenLayer = nn.Linear(4*args.hidden_size,args.hidden_size)
+        else:
+            self.hiddenLayer = nn.Linear(2*args.hidden_size,args.hidden_size)
 
     def forward(self, input_, hidden):
         """
@@ -50,6 +56,9 @@ class EncoderRNN(nn.Module):
                 input_tensor[:, ei], encoder_hidden)
             encoder_outputs[ei] = encoder_output[0]
 
+        encoder_hidden = torch.cat((encoder_hidden[0],encoder_hidden[1]),1).unsqueeze(0)
+        encoder_hidden = self.hiddenLayer(encoder_hidden) # because was size 2-hidden_size
+
         return encoder_outputs, encoder_hidden
 
 class DecoderRNN(nn.Module):
@@ -59,7 +68,6 @@ class DecoderRNN(nn.Module):
         self.batch_size = args.batch_size
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.hiddenLayer = nn.Linear(2*hidden_size,hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
@@ -73,9 +81,6 @@ class DecoderRNN(nn.Module):
         self.batch_size = input.shape[1]
         output = self.embedding(input).view(1, self.batch_size, -1) #(1,batch,hidden)
         output = F.relu(output)
-
-        hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
-        hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
         
         output, hidden = self.gru(output, hidden)
         output = self.softmax(self.out(output[0]))
@@ -114,9 +119,6 @@ class HierDecoderRNN(DecoderRNN):
         self.batch_size = decoder_input.shape[1]
         output = self.embedding(decoder_input).view(1, self.batch_size, -1) #(1,batch,hidden)
         output = F.relu(output)
-
-        decoder_hidden = torch.cat((decoder_hidden[0],decoder_hidden[1]),1).unsqueeze(0)
-        decoder_hidden = self.hiddenLayer(decoder_hidden) # because was size 2-hidden_size
 
         output, decoder_hidden = self.gru(output, decoder_hidden)
 
@@ -163,9 +165,6 @@ class AttnDecoderRNN(DecoderRNN):
         embedded = self.embedding(input).view(1, self.batch_size, -1)
         # embedded (1,batch,2*hidden)
 
-        hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
-        hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
-
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
 
@@ -192,9 +191,6 @@ class IngrAttnDecoderRNN(DecoderRNN):
         embedded = self.embedding(input).view(1, self.batch_size, -1)
         # embedded (1,batch,hidden) ?
 
-        hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
-        hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
-
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
 
@@ -212,10 +208,6 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
         self.lin = nn.Linear(3*args.hidden_size,2*args.hidden_size)
 
-        if args.model_name=="Seq2seqTitlePairing":
-            self.hiddenLayer = nn.Linear(4*args.hidden_size,args.hidden_size)
-        else:
-            self.hiddenLayer = nn.Linear(2*args.hidden_size,args.hidden_size)
             # self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
     
     def forward(self, input, hidden, encoder_outputs, encoder_embedding, input_tensor):
@@ -228,9 +220,6 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         """
         batch_size = hidden.shape[1]
         embedded = self.embedding(input)  # (1, batch_size, hidden)
-
-        hidden = torch.cat((hidden[0],hidden[1]),1).unsqueeze(0)
-        hidden = self.hiddenLayer(hidden) # because was size 2-hidden_size
 
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)

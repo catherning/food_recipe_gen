@@ -381,7 +381,7 @@ class HierarchicalSeq2seq(Seq2seq):
                     decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, encoder_outputs,decoded_words,cur_step,target_tensor,
                     sampling_proba,self.train_dataset.EOS_token)  # can remove encoder_outputs ? not used in decoder
 
-        return decoder_outputs, decoded_words#, decoder_attentions[:di + 1]
+        return decoder_outputs, decoded_words, None # decoder_attentions[:di + 1]
 
 class Seq2seqAtt(Seq2seq):
     def __init__(self, args):
