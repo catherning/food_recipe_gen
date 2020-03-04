@@ -118,7 +118,6 @@ class RecipesDataset(Dataset):
         self.data = data
 
     def filterSinglePair(self,p):
-        length=0
         try: 
             for ingr in p[0]:
                 if ingr.name not in self.vocab_ingrs.word2idx:
@@ -127,15 +126,23 @@ class RecipesDataset(Dataset):
             for ingr in p[0]:
                 if ingr not in self.vocab_ingrs.word2idx:
                     return False
-            
+
+        if not len(p[0])>=self.max_ingr-1:
+            return False
+
+        lengths=[]
         for sent in p[1]:
             for word in sent:
                 # TODO check how steps tokenized ? Put into vocab ???
                 if word not in self.vocab_tokens.word2idx:
                     return False
-            length+=len(sent)
+
+            lengths.append(len(sent))
         
-        return length < self.max_length-1 and len(p[0])<self.max_ingr-1 # -1 because need to add eos to input and target
+        if self.hierarchical:
+            return all(l<self.max_length-1 for l in lengths)
+        else:
+            return sum(lengths) < self.max_length-1  # -1 because need to add eos to input and target
 
     def instr2idx(self, sentence): 
         # if doesn't find, use unk_token kind of useless because filtered before ?
@@ -202,8 +209,15 @@ def flattenSequence(data, lengths):
     # input has already <sos> removed for target, because decoded outputs for prediction doesn't have it.
     # this function will cut the <eos>
     arr = []
-    for i,length in enumerate(lengths):
-        arr.append(data[i,:length])
+    if type(lengths) is torch.Tensor:
+        for i,length in enumerate(lengths):
+            arr.append(data[i,:length])
+    
+    else:
+        for i,l_batch in enumerate(lengths):
+            for j,l in enumerate(l_batch):
+                arr.append(data[j,i,:l])
+
     return torch.cat(arr, dim=0)
 
 def showPlot(points):

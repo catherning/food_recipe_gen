@@ -175,7 +175,7 @@ class Seq2seq(nn.Module):
         #     self.batch_size*self.max_length, -1)
         # aligned_target = target_tensor.view(self.batch_size*self.max_length)
         loss = self.criterion(
-            aligned_outputs, aligned_target)/target_length.shape[0]
+            aligned_outputs, aligned_target)/self.batch_size
 
         if self.training:
             loss.backward()
@@ -209,7 +209,11 @@ class Seq2seq(nn.Module):
                     print_loss_total = 0
                     self.logger.info('Epoch {} {} ({} {}%) loss={}'.format(ep, timeSince(
                         start, iter / self.args.n_iters), iter, int(iter / self.args.n_iters * 100), print_loss_avg))
-                    print(" ".join(decoded_words[0]))
+                    
+                    try:
+                        print(" ".join(decoded_words[0]))
+                    except TypeError:
+                        print([" ".join(sent) for sent in decoded_words[0]])
 
                     torch.save({
                         'epoch': ep,
