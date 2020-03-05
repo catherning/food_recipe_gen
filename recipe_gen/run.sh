@@ -6,4 +6,4 @@ python ./recipe_gen/main.py \
     --max-ingr 10 \
     --max-length 15 \
     --model-name HierarchicalSeq2seq \
-    --topk 6
+    --topk 20

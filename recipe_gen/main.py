@@ -57,7 +57,8 @@ argparser.add_argument('--test-file', type=str, default=DATA_FILES[2],
 # Run settings
 argparser.add_argument('--model-name', type=str, choices=['Seq2seq','Seq2seqAtt',
                        'Seq2seqIngrAtt','Seq2seqIngrPairingAtt','Seq2seqTitlePairing',
-                       'Seq2seqCuisinePairing','Seq2seqTrans','HierarchicalSeq2seq'],
+                       'Seq2seqCuisinePairing','Seq2seqTrans',
+                       'HierarchicalSeq2seq','HierarchicalSeq2seqAtt','HierarchicalSeq2seqIngrAtt'],
                        default="Seq2seqIngrPairingAtt",
                        help='Model name for saving/loading')
 argparser.add_argument('--print-step', type=int, default=50,
@@ -84,6 +85,7 @@ argparser.add_argument('--device', type=int, default=0,
 
 # Train config
 argparser.add_argument('--batch-size', type=int, default=8)
+argparser.add_argument('--samples-max', type=int, default=50000)
 argparser.add_argument('--begin-epoch', type=int, default=1)
 argparser.add_argument('--epoch', type=int, default=100)
 argparser.add_argument('--n-iters', type=int, default=500)
@@ -144,7 +146,11 @@ def main():
     args.logger=LOGGER
     args.defaults=getDefaultArgs(argparser)
 
-    model_class=getattr(importlib.import_module("recipe_gen.seq2seq_model"), args.model_name)
+    try:
+        model_class=getattr(importlib.import_module("recipe_gen.seq2seq_model"), args.model_name)
+    except AttributeError:
+        model_class=getattr(importlib.import_module("recipe_gen.hierarchical_model"), args.model_name)
+
     model = model_class(args)
 
     if args.resume:
@@ -169,7 +175,7 @@ def main():
 
     if args.test:
         # Evaluate on whole test dataset
-        model.evalOutput()
+        # model.evalOutput()
         
         # Evaluate on 2 random samples in test dataset and print results
         model.evaluateRandomly(n=2)
@@ -177,7 +183,11 @@ def main():
         # Evaluate on user input
         _, output_words, attentions = model.evaluateFromText(
             "tomato salad beef lemon".split(),title="mediteranean salad".split())
-        print(' '.join(output_words[0]))
+        try:
+            print(' '.join(output_words[0]))
+        except TypeError:
+            print([" ".join(sent) for sent in output_words[0]])
+
         try:
             plt.matshow(attentions[:, 0, :].numpy())
         except (TypeError, AttributeError):

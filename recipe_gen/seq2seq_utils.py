@@ -52,6 +52,8 @@ class RecipesDataset(Dataset):
         self.max_ingr = args.max_ingr
         self.max_step = args.max_step
         self.model_name =  args.model_name
+        self.samples_max = args.samples_max
+        
 
         with open(os.path.join(args.data_folder,args.vocab_ingr_file),'rb') as f:
             self.vocab_ingrs=pickle.load(f)
@@ -115,7 +117,7 @@ class RecipesDataset(Dataset):
                 if self.filterSinglePair(pair):
                     data.append(self.tensorsFromPair(pair))
 
-        self.data = data
+        self.data = data[:self.samples_max]
 
     def filterSinglePair(self,p):
         try: 
