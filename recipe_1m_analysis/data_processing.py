@@ -348,7 +348,7 @@ def main(args):
     print("Found %d recipes in the dataset." % (len(layer1)))
     replace_dict_ingrs = {'and': ['&', "'n"], '': [
         '%', ',', '.', '#', '[', ']', '!', '?']}
-    replace_dict_instrs = {'and': ['&', "'n"], '': ['#', '[', ']']}
+    replace_dict_instrs = {'and': ['&', "'n"], '': ['#', '[', ']','.']} #Added dot because keep gen dot.
 
     idx2ind = {}
     for i, entry in enumerate(dets):
