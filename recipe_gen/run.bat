@@ -4,6 +4,6 @@ python ./recipe_gen/main.py ^
     --epoch 20 ^
     --n-iters 11500 ^
     --max-ingr 10 ^
-    --max-length 15 ^
+    --max-length 100 ^
     --model-name Seq2seqTitlePairing ^
     --topk 20

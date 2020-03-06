@@ -50,6 +50,9 @@ class Seq2seq(nn.Module):
         self.encoder = EncoderRNN(args, input_size)
         self.decoder = DecoderRNN(args, output_size)
 
+        #TODO: change optim: self.optimizers  = optim.Adam(self.parameters()) 
+        # or Adam((self.encoder.param,self.decoder.param) directly ? 
+        #=> no need for optim_list ?
         self.encoder_optimizer = optim.Adam(
             self.encoder.parameters(), lr=args.learning_rate)
         self.decoder_optimizer = optim.Adam(
@@ -267,6 +270,9 @@ class Seq2seq(nn.Module):
         for i in range(n):
             sample = random.choice(self.test_dataset.data)
             sample["ingr"] = sample["ingr"].unsqueeze(0)
+            sample["title"] = sample["title"].unsqueeze(0)
+            #TODO: check need to unsqueeze for cuisine ?
+
             loss, output_words, _ = self.forward(sample)
             try:
                 output_sentence = ' '.join(output_words[0])
@@ -370,7 +376,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
 
     def forwardDecoderStep(self, decoder_input, decoder_hidden,
                            encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words):
-        decoder_output, decoder_hidden, decoder_attention = self.decoder(
+        decoder_output, decoder_hidden, decoder_attention,_ = self.decoder(
             decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
 
         decoder_attentions = self.addAttention(
@@ -434,7 +440,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         self.optim_list.append(self.title_optimizer)
 
         self.encoder_fusion = nn.Linear(2*args.hidden_size,args.hidden_size)
-        self.fusion_optim = optim.Adam(self.encoder_fusion,lr=args.learning_rate)
+        self.fusion_optim = optim.Adam((self.encoder_fusion.parameters()),lr=args.learning_rate)
         self.optim_list.append(self.fusion_optim)
 
     def forward(self, batch, iter=iter):

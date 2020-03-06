@@ -55,10 +55,11 @@ argparser.add_argument('--test-file', type=str, default=DATA_FILES[2],
                        help='Dataset path')
 
 # Run settings
-argparser.add_argument('--model-name', type=str, choices=['Seq2seq','Seq2seqAtt',
-                       'Seq2seqIngrAtt','Seq2seqIngrPairingAtt','Seq2seqTitlePairing',
-                       'Seq2seqCuisinePairing','Seq2seqTrans',
-                       'HierarchicalSeq2seq','HierarchicalSeq2seqAtt','HierarchicalSeq2seqIngrAtt'],
+argparser.add_argument('--model-name', type=str, choices=[
+                       'Seq2seq','Seq2seqAtt','Seq2seqIngrAtt','Seq2seqIngrPairingAtt',
+                       'Seq2seqTitlePairing','Seq2seqCuisinePairing','Seq2seqTrans',
+                       'HierarchicalSeq2seq','HierarchicalSeq2seqAtt','HierarchicalSeq2seqIngrAtt',
+                       'HierarchicalSeq2seqIngrPairingAtt'],
                        default="Seq2seqIngrPairingAtt",
                        help='Model name for saving/loading')
 argparser.add_argument('--print-step', type=int, default=50,
