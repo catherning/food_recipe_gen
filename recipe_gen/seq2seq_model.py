@@ -267,61 +267,63 @@ class Seq2seq(nn.Module):
 
     def evaluateRandomly(self, n=10):
         self.eval()
-        for i in range(n):
-            sample = random.choice(self.test_dataset.data)
-            sample["ingr"] = sample["ingr"].unsqueeze(0)
-            sample["title"] = sample["title"].unsqueeze(0)
-            #TODO: check need to unsqueeze for cuisine ?
+        with torch.no_grad():
+            for i in range(n):
+                sample = random.choice(self.test_dataset.data)
+                sample["ingr"] = sample["ingr"].unsqueeze(0)
+                sample["title"] = sample["title"].unsqueeze(0)
+                #TODO: check need to unsqueeze for cuisine ?
 
-            _, output_words, _ = self.forward(sample)
-            try:
-                output_sentence = ' '.join(output_words[0])
-            except TypeError:
-                output_sentence= "|".join([' '.join(sent) for sent in output_words[0]])
+                _, output_words, _ = self.forward(sample)
+                try:
+                    output_sentence = ' '.join(output_words[0])
+                except TypeError:
+                    output_sentence= "|".join([' '.join(sent) for sent in output_words[0]])
 
 
-            self.logger.info(
-                "Input: "+" ".join([self.train_dataset.vocab_ingrs.idx2word[ingr.item()][0] for ingr in sample["ingr"][0]]))
-            self.logger.info(
-                "Target: "+str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item()!=0]) for instr in sample["target_instr"]]))
-            self.logger.info("Generated: "+output_sentence)
+                self.logger.info(
+                    "Input: "+" ".join([self.train_dataset.vocab_ingrs.idx2word[ingr.item()][0] for ingr in sample["ingr"][0]]))
+                self.logger.info(
+                    "Target: "+str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item()!=0]) for instr in sample["target_instr"]]))
+                self.logger.info("Generated: "+output_sentence)
 
     def evalProcess(self):
         self.eval()
         start = time.time()
         print_loss_total = 0
+        with torch.no_grad():
+            for iter, batch in enumerate(self.test_dataloader, start=1):
+                loss, _ = self.train_iter(batch, iter)
+                print_loss_total += loss.detach()
 
-        for iter, batch in enumerate(self.test_dataloader, start=1):
-            loss, _ = self.train_iter(batch, iter)
-            print_loss_total += loss.detach()
+                if iter % self.args.print_step == 0:
+                    print("Eval Current loss = {}".format(print_loss_total/iter))
 
-            if iter % self.args.print_step == 0:
-                print("Eval Current loss = {}".format(print_loss_total/iter))
-
-        print_loss_avg = print_loss_total / iter
-        self.logger.info("Eval loss = {}".format(print_loss_avg))
+            print_loss_avg = print_loss_total / iter
+            self.logger.info("Eval loss = {}".format(print_loss_avg))
     
     def evalOutput(self):
         self.eval()
         start = time.time()
         print_loss_total = 0
 
-        for iter, batch in enumerate(self.test_dataloader, start=1):
-            loss, output_words = self.train_iter(batch, iter)
+        with torch.no_grad():
+            for iter, batch in enumerate(self.test_dataloader, start=1):
+                loss, output_words = self.train_iter(batch, iter)
 
-            for i,ex in enumerate(output_words):
-                try:
-                    self.logger.info(batch["id"][i]+" "+' '.join(ex))
-                except TypeError:
-                    self.logger.info(batch["id"][i]+" "+"|".join([' '.join(sent) for sent in ex ]))
+                for i,ex in enumerate(output_words):
+                    try:
+                        self.logger.info(batch["id"][i]+" "+' '.join(ex))
+                    except TypeError:
+                        self.logger.info(batch["id"][i]+" "+"|".join([' '.join(sent) for sent in ex ]))
 
-            print_loss_total += loss.detach()
+                print_loss_total += loss.detach()
 
-            if iter % self.args.print_step == 0:
-                print("Current loss = {}".format(print_loss_total/iter))
+                if iter % self.args.print_step == 0:
+                    print("Current loss = {}".format(print_loss_total/iter))
 
-        print_loss_avg = print_loss_total / iter
-        self.logger.info("Eval loss = {}".format(print_loss_avg))
+            print_loss_avg = print_loss_total / iter
+            self.logger.info("Eval loss = {}".format(print_loss_avg))
 
 
 class Seq2seqAtt(Seq2seq):
