@@ -221,19 +221,18 @@ class Seq2seq(nn.Module):
                         print([" ".join(sent) for sent in decoded_words[0]])
                         print([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in sent if word.item()!=0]) for sent in batch["target_instr"][0]])
 
-
-                    torch.save({
-                        'epoch': ep,
-                        'model_state_dict': self.state_dict(),
-                        'optimizer_state_dict': [optim.state_dict() for optim in self.optim_list],
-                        'loss': loss,
-                        }, os.path.join(self.savepath,"train_model_{}_{}.tar".format(datetime.now().strftime('%m-%d-%H-%M'), iter)))
-
                     if print_loss_avg < best_loss:
                         print("Best model so far, saving it.")
                         torch.save(self.state_dict(), os.path.join(
                             self.savepath, "best_model"))
                         best_loss = print_loss_avg
+            
+            torch.save({
+                        'epoch': ep,
+                        'model_state_dict': self.state_dict(),
+                        'optimizer_state_dict': [optim.state_dict() for optim in self.optim_list],
+                        'loss': loss,
+                        }, os.path.join(self.savepath,"train_model_{}_{}.tar".format(datetime.now().strftime('%m-%d-%H-%M'), ep)))
 
             if ep%(max(5,self.args.epoch//10))==0: #eval ten times or every 5 times
                 self.evalProcess()
@@ -274,7 +273,7 @@ class Seq2seq(nn.Module):
             sample["title"] = sample["title"].unsqueeze(0)
             #TODO: check need to unsqueeze for cuisine ?
 
-            loss, output_words, _ = self.forward(sample)
+            _, output_words, _ = self.forward(sample)
             try:
                 output_sentence = ' '.join(output_words[0])
             except TypeError:
@@ -290,12 +289,11 @@ class Seq2seq(nn.Module):
     def evalProcess(self):
         self.eval()
         start = time.time()
-        plot_losses = []
         print_loss_total = 0
 
         for iter, batch in enumerate(self.test_dataloader, start=1):
             loss, _ = self.train_iter(batch, iter)
-            print_loss_total += loss
+            print_loss_total += loss.detach()
 
             if iter % self.args.print_step == 0:
                 print("Eval Current loss = {}".format(print_loss_total/iter))
@@ -306,7 +304,6 @@ class Seq2seq(nn.Module):
     def evalOutput(self):
         self.eval()
         start = time.time()
-        plot_losses = []
         print_loss_total = 0
 
         for iter, batch in enumerate(self.test_dataloader, start=1):
@@ -318,7 +315,7 @@ class Seq2seq(nn.Module):
                 except TypeError:
                     self.logger.info(batch["id"][i]+" "+"|".join([' '.join(sent) for sent in ex ]))
 
-            print_loss_total += loss
+            print_loss_total += loss.detach()
 
             if iter % self.args.print_step == 0:
                 print("Current loss = {}".format(print_loss_total/iter))
