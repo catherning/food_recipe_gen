@@ -198,15 +198,15 @@ class Seq2seq(nn.Module):
                     optim.zero_grad()
 
                 loss, decoded_words = self.train_iter(batch, iter)
-                loss_val = loss.item()
-                print_loss_total += loss_val
-                plot_loss_total += loss_val
 
                 if iter % self.args.update_step:
                     loss.backward()
 
                     for optim in self.optim_list:
                         optim.step()
+
+                print_loss_total += loss.detach()
+                plot_loss_total += loss.detach()
 
                 if iter % max(self.args.print_step,self.args.n_iters//10) == 0:
                     print_loss_avg = print_loss_total / max(self.args.print_step,self.args.n_iters//10)
