@@ -3,7 +3,7 @@ python ./recipe_gen/main.py ^
     --resume ^
     --load-folder "03-09-15-13\train_model_03-09-20-24_6900.tar" ^
     --batch-size 4 ^
-    --epoch 20 ^
+    --epoch 15 ^
     --n-iters 11500 ^
     --max-ingr 10 ^
     --max-length 100 ^
