@@ -180,7 +180,6 @@ class Seq2seq(nn.Module):
         return loss, decoded_words
 
     def train_process(self):
-        self.train()
         start = time.time()
         plot_losses = []
         print_loss_total = 0
@@ -190,6 +189,7 @@ class Seq2seq(nn.Module):
         lmbda = lambda epoch: 0.95
         scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(optim,lr_lambda=lmbda) for optim in self.optim_list]
         for ep in range(self.args.begin_epoch, self.args.epoch+1):
+            self.train()
             for iter, batch in enumerate(self.train_dataloader, start=1):
                 if iter == self.args.n_iters:
                     break
