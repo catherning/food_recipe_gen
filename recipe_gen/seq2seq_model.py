@@ -164,9 +164,6 @@ class Seq2seq(nn.Module):
         return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
 
     def train_iter(self, batch, iter):
-        for optim in self.optim_list:
-            optim.zero_grad()
-
         target_length = batch["target_length"]
         target_tensor = batch["target_instr"].to(self.device)
 
@@ -180,13 +177,7 @@ class Seq2seq(nn.Module):
         loss = self.criterion(
             aligned_outputs, aligned_target)/self.batch_size
 
-        if self.training:
-            loss.backward()
-
-            for optim in self.optim_list:
-                optim.step()
-
-        return loss.item(), decoded_words
+        return loss, decoded_words
 
     def train_process(self):
         self.train()
@@ -203,9 +194,19 @@ class Seq2seq(nn.Module):
                 if iter == self.args.n_iters:
                     break
 
+                for optim in self.optim_list:
+                    optim.zero_grad()
+
                 loss, decoded_words = self.train_iter(batch, iter)
-                print_loss_total += loss
-                plot_loss_total += loss
+                loss_val = loss.item()
+                print_loss_total += loss_val
+                plot_loss_total += loss_val
+
+                if iter % self.args.update_step:
+                    loss.backward()
+
+                    for optim in self.optim_list:
+                        optim.step()
 
                 if iter % max(self.args.print_step,self.args.n_iters//10) == 0:
                     print_loss_avg = print_loss_total / max(self.args.print_step,self.args.n_iters//10)

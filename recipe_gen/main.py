@@ -86,6 +86,7 @@ argparser.add_argument('--device', type=int, default=0,
 
 # Train config
 argparser.add_argument('--batch-size', type=int, default=8)
+argparser.add_argument('--update-step', type=int, default=8)
 argparser.add_argument('--samples-max', type=int, default=50000)
 argparser.add_argument('--begin-epoch', type=int, default=1)
 argparser.add_argument('--epoch', type=int, default=100)
@@ -170,6 +171,13 @@ def main():
         print("Model loaded.")
     
     model.to(args.device)
+
+    for optim in model.optim_list:
+        for state in optim.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.to(args.device)
+
     if args.train_mode:
         print("Begin training.")
         model.train_process()
