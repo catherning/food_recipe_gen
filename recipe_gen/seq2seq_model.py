@@ -133,7 +133,11 @@ class Seq2seq(nn.Module):
         decoder_attentions: (max_len,batch,max_ingr)
         """
         input_tensor = batch["ingr"].to(self.device)
-        target_tensor = batch["target_instr"].to(self.device)
+        try:
+            target_tensor = batch["target_instr"].to(self.device)  # (batch,max_step,max_length) ?
+        except AttributeError:
+            target_tensor = None
+            
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor)
 
@@ -144,8 +148,8 @@ class Seq2seq(nn.Module):
 
         decoder_hidden = encoder_hidden  # (2, batch, hidden_size)
 
-        sampling_proba = 0 #1-inverse_sigmoid_decay(
-           # self.decay_factor, iter) if self.training else 1
+        sampling_proba = 0 if self.training else 1 #1-inverse_sigmoid_decay(
+           # self.decay_factor, iter) 
 
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
@@ -272,6 +276,7 @@ class Seq2seq(nn.Module):
                 sample = random.choice(self.test_dataset.data)
                 sample["ingr"] = sample["ingr"].unsqueeze(0)
                 sample["title"] = sample["title"].unsqueeze(0)
+                sample["target_instr"] = sample["target_instr"].unsqueeze(0)
                 #TODO: check need to unsqueeze for cuisine ?
 
                 _, output_words, _ = self.forward(sample)
