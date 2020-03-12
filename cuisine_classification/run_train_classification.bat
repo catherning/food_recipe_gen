@@ -1,0 +1,1 @@
+python cuisine_classification/NN_classification.py --clustering --balanced --nb-epochs 200

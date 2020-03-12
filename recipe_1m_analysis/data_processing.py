@@ -304,8 +304,8 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
         # we discard recipes with too many or too few ingredients or instruction words
         if len(labels) < args.minnumingrs \
                 or len(instrs_list) < args.minnuminstrs \
-                or len(instrs_list) >= args.maxnuminstrs \
-                or len(labels) >= args.maxnumingrs \
+                or len(instrs_list) > args.maxnuminstrs \
+                or len(labels) > args.maxnumingrs \
                 or acc_len < args.minnumwords:
             continue
 

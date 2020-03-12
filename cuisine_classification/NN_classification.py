@@ -292,6 +292,7 @@ class Net(nn.Module):
         self.dropout = nn.Dropout(0.2)
         self.layer_1 = nn.Linear(self.vocab_size, embedding_dim1, bias=True)
         self.layer_2 = nn.Linear(embedding_dim1, embedding_dim2, bias=True)
+        
         if embedding_dim3:
             self.layer_3 = nn.Linear(embedding_dim2, embedding_dim3, bias=True)
             self.output_layer = nn.Linear(
