@@ -88,8 +88,13 @@ class HierarchicalSeq2seq(Seq2seq):
 
         decoder_hidden = encoder_hidden  # (2, batch, hidden_size)
 
-        sampling_proba = 0 if self.training else 1 #1-inverse_sigmoid_decay(
-            #self.decay_factor, iter) 
+        if self.args.scheduled_sampling and self.training:
+            sampling_proba = 1-inverse_sigmoid_decay(
+                self.decay_factor, iter)
+        elif not self.args.scheduled_sampling and self.training: 
+            sampling_proba = 0
+        else:
+            sampling_proba = 1
 
         for cur_step in range(self.max_step):
             decoder_output, decoder_hidden, attn_weights, decoded_words = self.decoder(
@@ -163,8 +168,13 @@ class HierarchicalSeq2seqIngrPairingAtt(Seq2seq):
 
         decoder_hidden = encoder_hidden  # (2, batch, hidden_size)
 
-        sampling_proba = 0 # 1-inverse_sigmoid_decay(
-            # self.decay_factor, iter) if self.training else 1
+        if self.args.scheduled_sampling and self.training:
+            sampling_proba = 1-inverse_sigmoid_decay(
+                self.decay_factor, iter)
+        elif not self.args.scheduled_sampling and self.training: 
+            sampling_proba = 0
+        else:
+            sampling_proba = 1
 
         for cur_step in range(self.max_step):
             decoder_output, decoder_hidden, _, decoded_words = self.decoder(

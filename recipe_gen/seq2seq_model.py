@@ -148,8 +148,13 @@ class Seq2seq(nn.Module):
 
         decoder_hidden = encoder_hidden  # (2, batch, hidden_size)
 
-        sampling_proba = 0 if self.training else 1 #1-inverse_sigmoid_decay(
-           # self.decay_factor, iter) 
+        if self.args.scheduled_sampling and self.training:
+            sampling_proba = 1-inverse_sigmoid_decay(
+                self.decay_factor, iter)
+        elif not self.args.scheduled_sampling and self.training: 
+            sampling_proba = 0
+        else:
+            sampling_proba = 1
 
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
@@ -414,8 +419,13 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
 
         decoder_hidden = encoder_hidden
 
-        sampling_proba = 0 #1-inverse_sigmoid_decay(
-           # self.decay_factor, iter) if self.training else 1
+        if self.args.scheduled_sampling and self.training:
+            sampling_proba = 1-inverse_sigmoid_decay(
+                self.decay_factor, iter)
+        elif not self.args.scheduled_sampling and self.training: 
+            sampling_proba = 0
+        else:
+            sampling_proba = 1
 
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
@@ -482,8 +492,13 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         
         decoder_hidden = self.encoder_fusion(decoder_hidden)
 
-        sampling_proba = 0 #1-inverse_sigmoid_decay(
-           # self.decay_factor, iter) if self.training else 1
+        if self.args.scheduled_sampling and self.training:
+            sampling_proba = 1-inverse_sigmoid_decay(
+                self.decay_factor, iter)
+        elif not self.args.scheduled_sampling and self.training: 
+            sampling_proba = 0
+        else:
+            sampling_proba = 1
 
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(
@@ -551,8 +566,13 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
 
         decoder_hidden = self.encoder_fusion(decoder_hidden)
 
-        sampling_proba = 0 #1-inverse_sigmoid_decay(
-           # self.decay_factor, iter) if self.training else 1
+        if self.args.scheduled_sampling and self.training:
+            sampling_proba = 1-inverse_sigmoid_decay(
+                self.decay_factor, iter)
+        elif not self.args.scheduled_sampling and self.training: 
+            sampling_proba = 0
+        else:
+            sampling_proba = 1
 
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(
