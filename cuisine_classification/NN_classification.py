@@ -50,7 +50,7 @@ argparser.register('type', 'bool', str2bool)
 argparser.add_argument('--data-folder', type=str, default="../recipe_datasets/",
                        help='Dataset path')
 argparser.add_argument('--file-type', type=str, default="full", choices=["random", "cluster_centroid", "full"],
-                       help='Type of undersampling. Full is no undersampling')
+                       help='Type of undersampling. Full is no undersampling. If full then need to fuse, not for the others.')
 argparser.add_argument('--saving-path', type=str, default=os.path.join(os.getcwd(), "results"),
                        help='Saving path')
 argparser.add_argument('--load-folder', type=str,
@@ -62,10 +62,12 @@ argparser.add_argument('--classify-file', type=str, default="recipe1m_train.pkl"
                        help='The dataset of ingr to classify (train, test or dev)')
 argparser.add_argument('--save-class-file', type=str, default="recipe1m_train_cuisine.pkl", #XXX: can fuse in one arg, only train, dev, test
                        help='The dataset of ingr to classify')
+argparser.add_argument('--fuse', type='bool', nargs='?',
+                       const=True, default=True,
+                       help='Fuse Yummly & Scirep dataset')
+
 
 # Model settings
-argparser.add_argument('--print-step', type=int, default=50,
-                       help='Display steps')
 argparser.add_argument('--embed-dim1', type=int, default=256,
                        help='Display steps')
 argparser.add_argument('--embed-dim2', type=int, default=64,
@@ -88,6 +90,9 @@ argparser.add_argument('--proba-threshold', type=float, default=0.95,
 argparser.add_argument('--clustering', type='bool', nargs='?',
                        const=True, default=False,
                        help='Does clustering for the vocab')
+
+argparser.add_argument('--print-step', type=int, default=50,
+                       help='Display steps')
 argparser.add_argument('--train-mode', type='bool', nargs='?',
                        const=True, default=True,
                        help='Enable training')
@@ -117,7 +122,7 @@ def createDFrame(file):
         args.data_folder, dataset, file+"_data.pkl"))
     df2["id"] = [len(df)+i for i in range(len(df2))]
     df2 = df2.set_index("id")
-    df = pd.concat([df, df2])
+    df = pd.concat([df, df2],sort=True)
 
     return df
 
@@ -469,7 +474,13 @@ class Net(nn.Module):
 
 
 def main():
-    df = createDFrame(args.file_type)
+    if args.fuse:
+        df = createDFrame(args.file_type)
+    else:
+        dataset = DATASET[1]
+        df = pd.read_pickle(os.path.join(
+            args.data_folder, dataset, args.file_type+"_data.pkl"))
+    
     vocab_ingrs, vocab_cuisine = createVocab(df,clustering = args.clustering)
 
     EMBED_DIM3 = args.embed_dim3

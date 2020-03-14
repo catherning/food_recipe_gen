@@ -74,6 +74,10 @@ class Seq2seq(nn.Module):
                         k, getattr(self.args, k)))
             except AttributeError:
                 continue
+            
+        self.logger.info("{} = {}".format(
+            "load_folder", self.args.load_folder))
+
 
     def addAttention(self, di, decoder_attentions, cur_attention):
         if cur_attention is not None:
