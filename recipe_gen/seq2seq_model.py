@@ -411,7 +411,10 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         """
 
         input_tensor = batch["ingr"].to(self.device)
-        target_tensor = batch["target_instr"].to(self.device)
+        try:
+            target_tensor = batch["target_instr"].to(self.device)
+        except AttributeError:
+            Warning("Evaluation mode: only taking ingredient list as input")
 
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor, pairing=True)
