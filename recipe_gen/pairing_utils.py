@@ -65,6 +65,7 @@ class PairingData:
                     if ingr2 not in self.pairedIngr:
                         self.pairedIngr[ingr2]=self.vocab_ingrs.word2idx[ingr2]
                 except (KeyError,AttributeError):
+                    print(ingr1,ingr2)
                     count_error += 1
                     continue
                 
