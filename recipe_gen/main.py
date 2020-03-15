@@ -167,7 +167,7 @@ def main():
         # loss = checkpoint['loss']
         print("Model loaded for resuming training.")
 
-    if args.load:
+    if args.load and not args.resume:
         model.load_state_dict(torch.load(os.path.join(
             os.getcwd(), "recipe_gen", "results",args.model_name,args.load_folder, "best_model"))) 
             #for consistency, don't add best_model, ask user to add it ?

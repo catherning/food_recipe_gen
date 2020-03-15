@@ -17,7 +17,7 @@ filepath = os.path.join(os.getcwd(),"KitcheNette-master","results","prediction_u
 pickle_path = "./KitcheNette-master/results/pairings.pkl"
 
 class PairingData:
-    def __init__(self, filepaths, pickle_file=pickle_path, min_score=0, top_k=20):
+    def __init__(self, filepaths, pickle_file=pickle_path, min_score=0, top_k=20,trim=True):
         self.min_score = min_score
         self.top_k = top_k
         self.pairedIngr ={}
@@ -30,7 +30,8 @@ class PairingData:
         if len(filepaths)==2:
             self.createPairings(filepaths[1],unknown=False)
         
-        self.trimDict()
+        if trim:
+            self.trimDict()
 
         self.toPickle(pickle_file)
 
