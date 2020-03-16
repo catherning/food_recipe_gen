@@ -50,9 +50,7 @@ def getMainIngr(vocab_ingrs):
     del vocab_main_ingr.word2idx["<"]
     del vocab_main_ingr.idx2word[0]
 
-    list_ingr = list(vocab_main_ingr.word2idx.keys())
-
-    return list_ingr
+    return vocab_main_ingr
 
 
 def generatePairings(list_ingr, save_path,known_dict):
@@ -68,12 +66,13 @@ def generatePairings(list_ingr, save_path,known_dict):
 
 if __name__ == "__main__":
     path = os.path.join(
-        os.getcwd(), "KitcheNette-master", "data")
+        os.getcwd(), "KitcheNette_master", "data")
     known_file =  os.path.join(path,"kitchenette_pairing_scores.csv")
     known_dict = getKnowPairs(known_file)
 
     with open(os.path.join(FOLDER_PATH, DATA_FILES[3]), 'rb') as f:
         vocab_ingrs = pickle.load(f)
 
-    list_ingr = getMainIngr(vocab_ingrs)
+    vocab_main_ingr = getMainIngr(vocab_ingrs)
+    list_ingr = list(vocab_main_ingr.word2idx.keys())
     generatePairings(list_ingr, os.path.join(path,'main_pairing_prediction.csv'),known_dict)

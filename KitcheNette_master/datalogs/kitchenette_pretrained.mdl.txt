@@ -1,4 +1,4 @@
-01/13/2020 09:12:23 PM: [ COMMAND: ./KitcheNette-master/main.py --save-prediction-unknowns True --model-name kitchenette_pretrained.mdl --unknown-path ./KitcheNette-master/data/main_pairing_prediction.csv --embed-path ./KitcheNette-master/data/kitchenette_embeddings.pkl --data-path ./KitcheNette-master/data/kitchenette_dataset.pkl --dist-fn widedeep --checkpoint-dir ./KitcheNette-master/data ]
-01/13/2020 09:12:25 PM: [ Dataset Loaded: ./KitcheNette-master/data/kitchenette_dataset.pkl ]
+01/13/2020 09:12:23 PM: [ COMMAND: ./KitcheNette_master/main.py --save-prediction-unknowns True --model-name kitchenette_pretrained.mdl --unknown-path ./KitcheNette_master/data/main_pairing_prediction.csv --embed-path ./KitcheNette_master/data/kitchenette_embeddings.pkl --data-path ./KitcheNette_master/data/kitchenette_dataset.pkl --dist-fn widedeep --checkpoint-dir ./KitcheNette_master/data ]
+01/13/2020 09:12:25 PM: [ Dataset Loaded: ./KitcheNette_master/data/kitchenette_dataset.pkl ]
 01/13/2020 09:12:25 PM: [ Validation step 1 ]
 01/13/2020 09:12:25 PM: [ Using seed=3, pid=30063 ]

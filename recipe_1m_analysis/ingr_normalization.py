@@ -26,8 +26,8 @@ blacklist = {'of', 'and', '&amp;', 'or', 'some', 'many', 'few', 'couple', 'as', 
 parens = re.compile(r'[(\x97].*[)\x97]')
 illegal_characters = re.compile(r'[‶″Â]')
 cut_list = ['for', 'cut', 'such as']
-replacements = {'yoghurt': 'yogurt', 'olife': 'olive', "'s": '', 'squeeze': 'squeezed',
-                'aubergine': 'eggplant', 'self raising': 'self-raising', 'pitta': 'pita', 'chile': 'chili'}
+replacements = {'yoghurt': 'yogurt', "'s": '', 'squeeze': 'squeezed',
+                'aubergine': 'eggplant', 'self raising': 'self-raising', 'pitta': 'pita', 'chile': 'chili'} # removed , 'olife': 'olive'
 
 unit_conversions = multi_key_dict()
 unit_conversions['pounds', 'pound', 'lbs', 'lb'] = ('g', 453.6)

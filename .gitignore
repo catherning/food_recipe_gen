@@ -121,7 +121,7 @@ dmypy.json
 
 results/
 Untitled.ipynb
-KitcheNette-master/data/*
+KitcheNette_master/data/*
 !main_*
 !*/results/pred*
 recipe_1m_analysis/data/allingrs_count.pkl

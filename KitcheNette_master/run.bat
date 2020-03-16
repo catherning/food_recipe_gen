@@ -1,5 +1,5 @@
 
-cd KitCheNette-master
+cd KitcheNette_master
 python main.py ^
                 --save-prediction-unknowns True ^
                 --model-name "kitchenette_pretrained.mdl" ^

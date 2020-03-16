@@ -12,9 +12,9 @@ from recipe_1m_analysis.utils import Vocabulary
 import recipe_1m_analysis.utils as utils
 from recipe_gen.seq2seq_utils import DATA_FILES, FOLDER_PATH
 
-known_path = os.path.join(os.getcwd(),"KitcheNette-master","data","kitchenette_pairing_scores.csv")
-filepath = os.path.join(os.getcwd(),"KitcheNette-master","results","prediction_unknowns_kitchenette_pretrained.mdl.csv")
-pickle_path = "./KitcheNette-master/results/pairings.pkl"
+known_path = os.path.join(os.getcwd(),"KitcheNette_master","data","kitchenette_pairing_scores.csv")
+filepath = os.path.join(os.getcwd(),"KitcheNette_master","results","prediction_unknowns_kitchenette_pretrained.mdl.csv")
+pickle_path = "./KitcheNette_master/results/pairings.pkl"
 
 class PairingData:
     def __init__(self, filepaths, pickle_file=pickle_path, min_score=0, top_k=20,trim=True):
