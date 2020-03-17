@@ -6,13 +6,17 @@ import os
 sys.path.insert(0, os.getcwd())
 import pickle
 import itertools
+import logging
 from recipe_gen.seq2seq_utils import RecipesDataset, FOLDER_PATH,DATA_FILES
-from recipe_gen.main import args,PAIRING_PATH 
+from recipe_gen.main import args,PAIRING_PATH, init_logging
 # from nlgeval import compute_individual_metrics,compute_metrics
 from nltk.translate.bleu_score import sentence_bleu
 from nltk.translate.meteor_score import single_meteor_score
 
 EVAL_FOLDER = os.path.join(os.getcwd(),"recipe_gen","results","Seq2seqIngrPairingAtt","02-21-18-49")
+LOGGER = logging.getLogger()
+
+init_logging(args)
 
 with open(os.path.join(args.data_folder,args.test_file),'rb') as f:
     ref=pickle.load(f)
@@ -58,9 +62,10 @@ for data in processed.values():
 
 #TODO: get average ingr compatibility, average ingr compat for added ingr
         
-    
-print(bleu/len(processed))
-print(meteor/len(processed))
-print(sum(len(data["ingr"]) for data in processed.values())/len(processed))
-print(r_ingr/len(processed))
-print(t_ingr/len(processed))
+
+LOGGER.info("BLEU = {}".format(bleu/len(processed)))
+LOGGER.info("METEOR = {}".format(meteor/len(processed)))
+LOGGER.info("NB_INGR_INPUT = {}".format(sum(len(data["ingr"]) for data in processed.values())/len(processed)))
+LOGGER.info("INGR_MENTIONED_TARGET = {}".format(r_ingr/len(processed)))
+LOGGER.info("INGR_MENTIONED_GEN = {}".format(r_ingr/len(processed)))
+LOGGER.info("ADD_INGR_MENTIONED_GEN = {}".format(added_ingr/len(processed)))
