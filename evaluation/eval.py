@@ -7,14 +7,22 @@ sys.path.insert(0, os.getcwd())
 import pickle
 import itertools
 import logging
+import argparse
 from recipe_gen.seq2seq_utils import RecipesDataset, FOLDER_PATH,DATA_FILES
-from recipe_gen.main import args,PAIRING_PATH, init_logging
+from recipe_gen.main import argparser,PAIRING_PATH, init_logging, str2bool
 # from nlgeval import compute_individual_metrics,compute_metrics
 from nltk.translate.bleu_score import sentence_bleu
 from nltk.translate.meteor_score import single_meteor_score
 
-EVAL_FOLDER = os.path.join(os.getcwd(),"recipe_gen","results","Seq2seqIngrPairingAtt","02-21-18-49")
 LOGGER = logging.getLogger()
+
+# argparser = argparse.ArgumentParser()
+# argparser.register('type', 'bool', str2bool)
+
+argparser.add_argument('--eval-folder', type=str,
+                       help='Generated recipes path (only the data)')
+
+args = argparser.parse_args()
 
 init_logging(args)
 
@@ -38,6 +46,7 @@ def processOutput(folder_path,gen_ref=False):
                                     "ingr":[ingr.name for ingr in ref[output[0]]["ingredients"]]}
     return processed
   
+EVAL_FOLDER = os.path.join(os.getcwd(),"recipe_gen","results",args.model_name,args.eval_folder)
 
 processed=processOutput(EVAL_FOLDER,True)
 
