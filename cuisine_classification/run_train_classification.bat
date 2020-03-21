@@ -1,10 +1,7 @@
-set bool = True False
-set under_met = full cluster_centroid 
-
-FOR %%balanced IN (%bool%) do(
-    FOR %%clustering IN  (%bool%) do (
-        FOR %%undersampling in (%under_met%) do(
-            python cuisine_classification/NN_classification.py  --embed-dim1 1024  --balanced %%balanced --clustering %%clustering --nb-epochs 300 --fuse False  --file-type %%undersampling --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets" 
+FOR %%b IN (True False) DO (
+    FOR %%c IN  (True False) DO (
+        FOR %%u in (full cluster_centroid ) DO (
+            python cuisine_classification/NN_classification.py  --embed-dim1 1024  --balanced %%b --clustering %%c --nb-epochs 300 --fuse False  --file-type %%u --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets" 
         )
     )
 ) 

@@ -303,9 +303,8 @@ class Net(nn.Module):
         self.device = device
 
         self.dropout = nn.Dropout(0.2)
-        embed_ = embed_ * max_ingr
         self.embedding_layer = nn.Embedding(self.vocab_size,embed_)
-        self.layer_1 = nn.Linear(embed_, embedding_dim1, bias=True)
+        self.layer_1 = nn.Linear(embed_ * max_ingr, embedding_dim1, bias=True)
         self.layer_2 = nn.Linear(embedding_dim1, embedding_dim2, bias=True)
         
         if embedding_dim3:
@@ -394,9 +393,8 @@ class Net(nn.Module):
         with torch.no_grad():
             for data in dataloader:
                 inputs = data[0].to(self.device)
-
                 
-                outputs = self.forward(inputs.float())
+                outputs = self.forward(inputs)
 
                 if threshold:
                     proba = torch.nn.functional.softmax(outputs, dim=1)
