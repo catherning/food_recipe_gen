@@ -68,6 +68,8 @@ argparser.add_argument('--fuse', type='bool', nargs='?',
 
 
 # Model settings
+argparser.add_argument('--embed_', type=int, default=300,
+                       help='Display steps')
 argparser.add_argument('--embed-dim1', type=int, default=256,
                        help='Display steps')
 argparser.add_argument('--embed-dim2', type=int, default=64,
@@ -137,21 +139,23 @@ def createVocab(df, clustering=False):
         counter_ingrs, cluster_ingrs = cleanCounterIngr(counter_ingrs)
 
         vocab_ingrs = utils.Vocabulary()
-        idx = 0
+        vocab_ingrs.add_word("<pad>")
+        vocab_ingrs.add_word("<unk>")
+        idx = 2
         # Add the ingredients to the vocabulary.
         for word, cnt in counter_ingrs.items():
             if cnt >= args.min_ingrs:
                 for ingr in cluster_ingrs[word]:
                     idx = vocab_ingrs.add_word(ingr, idx)
                 idx += 1
-        vocab_ingrs.add_word("<unk>", idx)
 
     else:
         vocab_ingrs = utils.Vocabulary()
+        vocab_ingrs.add_word("<pad>")
+        vocab_ingrs.add_word("<unk>")
         for ingredients in df.loc[:, "ingredients"]:
             for ingr in ingredients:
                 vocab_ingrs.add_word(ingr)
-        vocab_ingrs.add_word("<unk>")
 
     vocab_cuisine = utils.Vocabulary()
     for cuisine in df['cuisine'].value_counts().index:
@@ -163,7 +167,7 @@ def createVocab(df, clustering=False):
 class IngrDataset(Dataset):
     """Recipes dataset for cuisine classification. Only from ingredients for now"""
 
-    def __init__(self, input_, labels, vocab_ingrs, vocab_cuisine, type_label="cuisine"):
+    def __init__(self, input_, labels, vocab_ingrs, vocab_cuisine, max_ingr = 50, type_label="cuisine"):
         """
         Args:
             file (string): Path to the file
@@ -172,6 +176,7 @@ class IngrDataset(Dataset):
         self.vocab_ingrs = vocab_ingrs
         self.vocab_cuisine = vocab_cuisine
         self.input_size = len(vocab_ingrs)
+        self.max_ingr = max_ingr
         self.labels = labels
 
         if type_label == "cuisine":
@@ -206,15 +211,18 @@ class IngrDataset(Dataset):
     def ingr2idx(self, ingr_list):
         # If I didn't do the one-hot encoding by myself and used directly an embedding layer in the net,
         # I would have to pad the input
-        input_ = []
-        for ingr in ingr_list:
+        input_ = [0]*self.max_ingr
+        for i,ingr in enumerate(ingr_list):
             try:
-                input_.append(self.vocab_ingrs.word2idx[ingr])
+                input_[i]=self.vocab_ingrs.word2idx[ingr]
             except KeyError:
-                input_.append(self.vocab_ingrs.word2idx["<unk>"])
-        input_ = torch.LongTensor(input_)
-        onehot_enc = F.one_hot(input_.to(torch.int64), self.input_size)
-        output = torch.sum(onehot_enc, 0)
+                input_[i]=self.vocab_ingrs.word2idx["<unk>"]
+            except IndexError:
+                break
+            
+        output = torch.LongTensor(input_)
+        #onehot_enc = F.one_hot(input_.to(torch.int64), self.input_size)
+        #output = torch.sum(onehot_enc, 0)
 
         # Removing samples where you don't know more than 2 of the ingr doesn't help the model much ?
         # if output[self.vocab_ingrs.word2idx["<unk>"]]>3:
@@ -285,7 +293,7 @@ def createDataLoaders(df, vocab_ingrs, vocab_cuisine, balanced=False):
 
 
 class Net(nn.Module):
-    def __init__(self, vocab_ingrs, vocab_cuisine, embedding_dim1, embedding_dim2, embedding_dim3=None, device=0, weights_classes=None):
+    def __init__(self, vocab_ingrs, vocab_cuisine, embedding_dim1, embedding_dim2, embed_= 200, embedding_dim3=None, max_ingr=50,device=0, weights_classes=None):
         super(Net, self).__init__()
         self.vocab_size = len(vocab_ingrs)
         self.num_classes = num_classes = len(vocab_cuisine)
@@ -295,7 +303,9 @@ class Net(nn.Module):
         self.device = device
 
         self.dropout = nn.Dropout(0.2)
-        self.layer_1 = nn.Linear(self.vocab_size, embedding_dim1, bias=True)
+        embed_ = embed_ * max_ingr
+        self.embedding_layer = nn.Embedding(self.vocab_size,embed_)
+        self.layer_1 = nn.Linear(embed_, embedding_dim1, bias=True)
         self.layer_2 = nn.Linear(embedding_dim1, embedding_dim2, bias=True)
         
         if embedding_dim3:
@@ -314,7 +324,9 @@ class Net(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
 
     def forward(self, x):
-        out = F.relu(self.layer_1(x))
+        embedded = self.embedding_layer(x)
+        embedded = embedded.view(embedded.shape[0], -1)
+        out = F.relu(self.layer_1(embedded))
         out = F.relu(self.layer_2(self.dropout(out)))
         if self.embedding_dim3:
             out = F.relu(self.layer_3(self.dropout(out)))
@@ -339,7 +351,7 @@ class Net(nn.Module):
                 self.optimizer.zero_grad()
 
                 # forward + backward + optimize
-                outputs = self.forward(inputs.float())
+                outputs = self.forward(inputs)
                 loss = self.criterion(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
@@ -480,7 +492,7 @@ def main():
     EMBED_DIM3 = args.embed_dim3
     train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(
         df, vocab_ingrs, vocab_cuisine, args.balanced)
-    net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2,
+    net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2, args.embed_,
               device=args.device, weights_classes=weights_classes).to(args.device)
 
     if args.load:
