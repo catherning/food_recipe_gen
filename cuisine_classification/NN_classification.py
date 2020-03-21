@@ -427,18 +427,12 @@ class Net(nn.Module):
 
     def saveResults(self, results_folder, loss, epoch, epoch_accuracy, epoch_test_accuracy, dev_accuracy, dev_accuracy_threshold):
         results_file = os.path.join(results_folder, "results.csv")
-        if os.path.isfile(results_file):
-            with open(results_file, "w", newline='') as f:
-                writer = csv.writer(f, delimiter=';')
-                writer.writerow(["file", "balanced", "epoch", "train_accuracy",
-                                 "test_accuracy", "dev_accuracy", "threshold", "dev_accuracy_threshold"])
-                writer.writerow([args.file_type, args.balanced, args.nb_epochs, epoch_accuracy[-1],
-                                 epoch_test_accuracy[-1], dev_accuracy, args.proba_threshold, dev_accuracy_threshold])
-        else:
-            with open(results_file, "a", newline='') as f:
-                writer = csv.writer(f, delimiter=';')
-                writer.writerow([args.file_type, args.balanced, args.nb_epochs, epoch_accuracy[-1],
-                                 epoch_test_accuracy[-1], dev_accuracy, args.proba_threshold, dev_accuracy_threshold])
+        with open(results_file, "w", newline='') as f:
+            writer = csv.writer(f, delimiter=';')
+            writer.writerow(["file", "balanced", "epoch", "train_accuracy",
+                                "test_accuracy", "dev_accuracy", "threshold", "dev_accuracy_threshold"])
+            writer.writerow([args.file_type, args.balanced, args.nb_epochs, epoch_accuracy[-1],
+                                epoch_test_accuracy[-1], dev_accuracy, args.proba_threshold, dev_accuracy_threshold])
 
         torch.save(self.state_dict(), os.path.join(
             results_folder, "model_logweights"))
