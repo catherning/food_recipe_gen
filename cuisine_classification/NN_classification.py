@@ -416,10 +416,14 @@ class Net(nn.Module):
         if dataset_type == "classify":
             return predictions
         else:
-            accuracy = 100 * correct / total
-            print('Accuracy of the network on the {} dataset: {:.3f}% for {} samples with threshold {}'.format(
-                dataset_type, accuracy, total, threshold))
-            return accuracy
+            try:
+                accuracy = 100 * correct / total
+                print('Accuracy of the network on the {} dataset: {:.3f}% for {} samples with threshold {}'.format(
+                    dataset_type, accuracy, total, threshold))
+                return accuracy
+            except ZeroDivisionError:
+                return 0
+            
 
     def plotAccuracy(self, results_folder, epoch_accuracy, epoch_test_accuracy):
         fig = plt.figure()
