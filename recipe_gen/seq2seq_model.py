@@ -228,14 +228,14 @@ class Seq2seq(nn.Module):
                         start, iter / self.args.n_iters), iter, int(iter / self.args.n_iters * 100), print_loss_avg))
                     
                     try:
-                        print(" ".join(decoded_words[0]))
-                        print(" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()]  for word in batch["target_instr"][0] if word.item()!=0]))
+                        self.logger.info("Generated =  "+" ".join(decoded_words[0]))
+                        self.logger.info("Target =  " +" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()]  for word in batch["target_instr"][0] if word.item()!=0]))
                     except TypeError:
-                        print([" ".join(sent) for sent in decoded_words[0]])
-                        print([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in sent if word.item()!=0]) for sent in batch["target_instr"][0]])
+                        self.logger.info([" ".join(sent) for sent in decoded_words[0]])
+                        self.logger.info([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in sent if word.item()!=0]) for sent in batch["target_instr"][0]])
 
                     if print_loss_avg < best_loss:
-                        print("Best model so far, saving it.")
+                        self.logger.info("Best model so far, saving it.")
                         torch.save(self.state_dict(), os.path.join(
                             self.savepath, "best_model"))
                         best_loss = print_loss_avg
