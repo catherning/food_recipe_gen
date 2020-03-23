@@ -108,7 +108,7 @@ argparser.add_argument('--max-step', type=int, default=10) #for hierarchical, th
 
 argparser.add_argument('--seed', type=int, default=3)
 
-args = argparser.parse_args()
+
 
 def init_logging(args):
     LOGGER.setLevel(logging.INFO)
@@ -140,16 +140,18 @@ def init_seed(seed=None):
     return seed
 
 def getDefaultArgs(argparser):
+    args = argparser.parse_args()
     all_defaults = {}
     for key in vars(args):
         all_defaults[key] = argparser.get_default(key)
-    return all_defaults
+    args.defaults = all_defaults
+    return args
 
 def main():
+    args = getDefaultArgs(argparser)
     init_logging(args)
     args.seed=init_seed(args.seed)
     args.logger=LOGGER
-    args.defaults=getDefaultArgs(argparser)
 
     try:
         model_class=getattr(importlib.import_module("recipe_gen.seq2seq_model"), args.model_name)

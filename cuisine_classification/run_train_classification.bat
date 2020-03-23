@@ -1,1 +1,1 @@
-python cuisine_classification/NN_classification.py --nb-epochs 300 --fuse False --balanced --clustering --file-type "cluster_centroid" --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets" 
+python cuisine_classification/NN_classification.py --nb-epochs 300 --fuse False --clustering --file-type "random" --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets" 
