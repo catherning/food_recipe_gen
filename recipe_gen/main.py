@@ -1,15 +1,18 @@
-from recipe_gen.pairing_utils import PairingData
-from recipe_gen.seq2seq_utils import *
-from recipe_1m_analysis.utils import Vocabulary
+import argparse
+import importlib
+import logging
 import os
+import pathlib
 import pickle
 import sys
-import argparse
-import logging
 from datetime import datetime
-import pathlib
-import importlib
+
 sys.path.insert(0, os.getcwd())
+
+from recipe_1m_analysis.utils import Vocabulary
+from recipe_gen.pairing_utils import PairingData
+from recipe_gen.seq2seq_utils import *
+
 
 LOGGER = logging.getLogger()
 PAIRING_PATH = os.path.join(
