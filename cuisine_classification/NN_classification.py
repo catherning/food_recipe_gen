@@ -254,6 +254,7 @@ class IngrDataset(Dataset):
         return self.data[idx]
 
     def processId(self):
+        # XXX: necessary ? id for classification for recipe1M..
         self.data = [None]*len(self.labels)
         for idx, (ingrs, label) in enumerate(zip(self.input_, self.labels)):
             self.data[idx] = (torch.LongTensor(self.ingr2idx(ingrs)), label)
@@ -266,20 +267,26 @@ class IngrDataset(Dataset):
                               self.vocab_cuisine.word2idx[label[1]["cuisine"]])
 
     def ingr2idx(self, ingr_list):
-        # If I didn't do the one-hot encoding by myself and used directly an embedding layer in the net,
-        # I would have to pad the input
-        input_ = [0]*self.max_ingr
-        for i,ingr in enumerate(ingr_list):
-            try:
-                input_[i]=self.vocab_ingrs.word2idx[ingr]
-            except KeyError:
-                input_[i]=self.vocab_ingrs.word2idx["<unk>"]
-            except IndexError:
-                break
+        if self.args.embedding_layer:
+            input_ = [0]*self.max_ingr
+            for i,ingr in enumerate(ingr_list):
+                try:
+                    input_[i]=self.vocab_ingrs.word2idx[ingr]
+                except KeyError:
+                    input_[i]=self.vocab_ingrs.word2idx["<unk>"]
+                except IndexError:
+                    break
             
-        output = torch.LongTensor(input_)
-        
-        if not self.args.embedding_layer:
+            output = torch.LongTensor(input_)
+            
+        else:
+            input_ = []
+            try:
+                input_.append(self.vocab_ingrs.word2idx[ingr])
+            except KeyError:
+                input_.append(self.vocab_ingrs.word2idx["<unk>"])
+            
+            output = torch.LongTensor(input_)
             onehot_enc = F.one_hot(output.to(torch.int64), self.input_size) # FIXME: Long then int64 useful ?
             output = torch.sum(onehot_enc, 0).float()
 
@@ -362,8 +369,12 @@ class Net(nn.Module):
         self.device = device
 
         self.dropout = nn.Dropout(0.2)
-        self.embedding_layer = nn.Embedding(self.vocab_size,embed_)
-        self.layer_1 = nn.Linear(embed_ * max_ingr, embedding_dim1, bias=True)
+        if self.args.embbeding_layer:
+            self.embedding_layer = nn.Embedding(self.vocab_size,embed_)
+            self.layer_1 = nn.Linear(embed_ * max_ingr, embedding_dim1, bias=True)
+        else:
+            self.layer_1 = nn.Linear(self.vocab_size, embedding_dim1, bias=True)            
+        
         self.layer_2 = nn.Linear(embedding_dim1, embedding_dim2, bias=True)
 
         if embedding_dim3:
@@ -382,9 +393,11 @@ class Net(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
 
     def forward(self, x):
-        embedded = self.embedding_layer(x)
-        embedded = embedded.view(embedded.shape[0], -1)
-        out = F.relu(self.layer_1(embedded))
+        if self.args.embedding_layer:
+            x = self.embedding_layer(x)
+            x = x.view(x.shape[0], -1)
+  
+        out = F.relu(self.layer_1(x))
         out = F.relu(self.layer_2(self.dropout(out)))
         if self.embedding_dim3:
             out = F.relu(self.layer_3(self.dropout(out)))
