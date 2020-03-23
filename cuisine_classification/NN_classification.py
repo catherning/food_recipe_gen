@@ -163,46 +163,49 @@ def createDFrame(args):
 
 
 def createVocab(args, df):
-    if args.clustering:
-        counter_ingrs = Counter()
-        # counter_ingrs.update([normalize_ingredient(ingr).name for ingr in itertools.chain.from_iterable(df.loc[:, "ingredients"]) if normalize_ingredient(ingr) is not None])
-        # just try counter_ingrs.update(df.loc[:,"ingredients"])
-        for ingredients in df.loc[:, "ingredients"]:
-            ingr_list = []
-            for ingr in ingredients:
-                try:
-                    ingr_list.append(normalize_ingredient(ingr).name)
-                except AttributeError:
-                    continue
+    counter_ingrs = Counter()
+    # counter_ingrs.update([normalize_ingredient(ingr).name for ingr in itertools.chain.from_iterable(df.loc[:, "ingredients"]) if normalize_ingredient(ingr) is not None])
+    # just try counter_ingrs.update(df.loc[:,"ingredients"])
+    for ingredients in df.loc[:, "ingredients"]:
+        ingr_list = []
+        for ingr in ingredients:
+            try:
+                ingr_list.append(normalize_ingredient(ingr).name)
+            except AttributeError:
+                continue
 
-            counter_ingrs.update(ingr_list)
+        counter_ingrs.update(ingr_list)
+        
+    if args.clustering:
         counter_ingrs, cluster_ingrs = cleanCounterIngr(counter_ingrs)
 
         vocab_ingrs = utils.Vocabulary()
-        idx = 0
         # Add the ingredients to the vocabulary.
+        vocab_ingrs.add_word("<unk>")
+        idx=1
         for word, cnt in counter_ingrs.items():
             if cnt >= args.min_ingrs:
                 for ingr in cluster_ingrs[word]:
                     idx = vocab_ingrs.add_word(ingr, idx)
                 idx += 1
-        vocab_ingrs.add_word("<unk>", idx)
-
+                
     else:
         # TODO: add min_ingrs limit
         vocab_ingrs = utils.Vocabulary()
-        for ingredients in df.loc[:, "ingredients"]:
-            for ingr in ingredients:
-                try:
-                    vocab_ingrs.add_word(normalize_ingredient(ingr).name)
-                except AttributeError:
-                    continue
-
         vocab_ingrs.add_word("<unk>")
+        for ingr, cnt in counter_ingrs.items():
+            if cnt >= args.min_ingrs:
+                vocab_ingrs.add_word(ingr)
 
+    with open(os.path.join(args.saving_path,os.pardir, "vocab_ingr_"+ args.file_type + args.clustering*'_clust'+".pkl"), "wb") as f:
+        pickle.dump(vocab_ingrs, f)
+            
     vocab_cuisine = utils.Vocabulary()
     for cuisine in df['cuisine'].value_counts().index:
         vocab_cuisine.add_word(cuisine)
+    
+    with open(os.path.join(args.saving_path,os.pardir, "vocab_cuisine.pkl"), "wb") as f:
+        pickle.dump(vocab_cuisine, f)
 
     return vocab_ingrs, vocab_cuisine
 
@@ -525,12 +528,23 @@ def main():
         df = pd.read_pickle(os.path.join(
             args.data_folder, dataset, args.file_type+"_data.pkl"))
 
-    vocab_ingrs, vocab_cuisine = createVocab(args, df)
+    vocab_path = os.path.join(args.saving_path,os.pardir, "vocab_ingr_"+ args.file_type + args.clustering*'_clust'+".pkl")
+    try:
+        with open(vocab_path, "rb") as f:
+            vocab_ingrs = pickle.load(f)
+        
+        with open(os.path.join(vocab_path,os.pardir,"vocab_cuisine.pkl", "rb")) as f:
+            vocab_cuisine = pickle.load(f)
+        LOGGER.info("Vocab loaded")
+        
+    except IOError:
+        LOGGER.info("Create vocab")
+        vocab_ingrs, vocab_cuisine = createVocab(args, df)
 
     EMBED_DIM3 = args.embed_dim3
     train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(args,
                                                                                df, vocab_ingrs, vocab_cuisine)
-    net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2,
+    net = Net(args,vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2,
               device=args.device, weights_classes=weights_classes).to(args.device)
     # TODO: just give args instead of embed dim
 
