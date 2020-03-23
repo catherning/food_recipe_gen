@@ -73,7 +73,7 @@ argparser.add_argument('--fuse', type='bool', nargs='?',
 
 
 # Model settings
-argparser.add_argument('--embedding_layer', type='bool', nargs='?',
+argparser.add_argument('--embedding-layer', type='bool', nargs='?',
                        const=True, default=False,
                        help='Enable training')
 argparser.add_argument('--embed_', type=int, default=300,
@@ -312,7 +312,7 @@ def make_weights_for_balanced_classes(samples, vocab_cuisine):
     for i in range(nclasses):
         # divide by max count[i] ? Or just different scale, order is same
         weight_per_class[i] = math.log(N/float(count[i]))
-        LOGGER.info(vocab_cuisine.idx2word[i], weight_per_class[i])
+        LOGGER.info("{} = {}".format(vocab_cuisine.idx2word[i], weight_per_class[i]))
     weight = [0] * N
 
     for idx, val in enumerate(samples):
@@ -333,9 +333,9 @@ def createDataLoaders(args, df, vocab_ingrs, vocab_cuisine):
     y_dev = y_dev.reset_index()
     y_test = y_test.reset_index()
 
-    train_dataset = IngrDataset(X_train, y_train, vocab_ingrs, vocab_cuisine)
-    dev_dataset = IngrDataset(X_dev, y_dev, vocab_ingrs, vocab_cuisine)
-    test_dataset = IngrDataset(X_test, y_test, vocab_ingrs, vocab_cuisine)
+    train_dataset = IngrDataset(args,X_train, y_train, vocab_ingrs, vocab_cuisine)
+    dev_dataset = IngrDataset(args,X_dev, y_dev, vocab_ingrs, vocab_cuisine)
+    test_dataset = IngrDataset(args,X_test, y_test, vocab_ingrs, vocab_cuisine)
 
     if args.balanced:
         # Weighted random sampling, with stratified split for the train and test dataset. But loss doesn't decrease (need to see more epochs ?)
@@ -369,7 +369,7 @@ class Net(nn.Module):
         self.device = device
 
         self.dropout = nn.Dropout(0.2)
-        if self.args.embbeding_layer:
+        if self.args.embedding_layer:
             self.embedding_layer = nn.Embedding(self.vocab_size,embed_)
             self.layer_1 = nn.Linear(embed_ * max_ingr, embedding_dim1, bias=True)
         else:
@@ -537,7 +537,7 @@ class Net(nn.Module):
         data_keys = list(data.keys())
         split_size = 50000
         for i in range(len(data_ingrs)//split_size):
-            dataset = IngrDataset(data_ingrs[i*split_size:(i+1)*split_size], data_keys[i*split_size:(i+1)*split_size],
+            dataset = IngrDataset(self.args,data_ingrs[i*split_size:(i+1)*split_size], data_keys[i*split_size:(i+1)*split_size],
                                   self.vocab_ingrs, self.vocab_cuisine, type_label="id")
             print("Iter {} : Recipe1m loaded".format(i))
             dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
@@ -570,7 +570,7 @@ def main():
         with open(vocab_path, "rb") as f:
             vocab_ingrs = pickle.load(f)
         
-        with open(os.path.join(vocab_path,os.pardir,"vocab_cuisine.pkl", "rb")) as f:
+        with open(os.path.join(vocab_path,os.pardir,"vocab_cuisine.pkl"), "rb") as f:
             vocab_cuisine = pickle.load(f)
         LOGGER.info("Vocab loaded")
         
