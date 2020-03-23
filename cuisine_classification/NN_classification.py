@@ -24,6 +24,7 @@ from torch.utils.data import DataLoader, Dataset, Sampler
 sys.path.insert(0, os.path.join(os.getcwd()))
 import recipe_1m_analysis.utils as utils
 from recipe_1m_analysis.data_processing import cleanCounterIngr
+from recipe_1m_analysis.ingr_normalization import normalize_ingredient
 
 
 
@@ -130,10 +131,17 @@ def createDFrame(file):
 def createVocab(df, clustering=False):
     if clustering:
         counter_ingrs = Counter()
-        counter_ingrs.update(itertools.chain.from_iterable(df.loc[:, "ingredients"]))
+        # counter_ingrs.update([normalize_ingredient(ingr).name for ingr in itertools.chain.from_iterable(df.loc[:, "ingredients"]) if normalize_ingredient(ingr) is not None])
         # just try counter_ingrs.update(df.loc[:,"ingredients"])
-        # for ingredients in df.loc[:,"ingredients"]:
-        #     counter_ingrs.update([ingr for ingr in ingredients])
+        for ingredients in df.loc[:,"ingredients"]:
+            ingr_list = []
+            for ingr in ingredients:
+                try:
+                    ingr_list.append(normalize_ingredient(ingr).name)
+                except AttributeError:
+                    continue
+                
+            counter_ingrs.update(ingr_list)
         counter_ingrs, cluster_ingrs = cleanCounterIngr(counter_ingrs)
 
         vocab_ingrs = utils.Vocabulary()
@@ -150,7 +158,11 @@ def createVocab(df, clustering=False):
         vocab_ingrs = utils.Vocabulary()
         for ingredients in df.loc[:, "ingredients"]:
             for ingr in ingredients:
-                vocab_ingrs.add_word(ingr)
+                try:
+                    vocab_ingrs.add_word(normalize_ingredient(ingr).name)
+                except AttributeError:
+                    continue
+                
         vocab_ingrs.add_word("<unk>")
 
     vocab_cuisine = utils.Vocabulary()
@@ -233,6 +245,7 @@ def make_weights_for_balanced_classes(samples, vocab_cuisine):
     for a, el in samples.value_counts().items():
         count[vocab_cuisine.word2idx[a]] = el
 
+    print("Classes weight")
     # XXX to still sample the others, add log ? so goes back to N, not max(count)
     for i in range(nclasses):
         # divide by max count[i] ? Or just different scale, order is same
@@ -244,6 +257,7 @@ def make_weights_for_balanced_classes(samples, vocab_cuisine):
         weight[idx] = weight_per_class[vocab_cuisine.word2idx[val]]
 
     return torch.Tensor(weight_per_class), torch.DoubleTensor(weight)
+
 
 
 def createDataLoaders(df, vocab_ingrs, vocab_cuisine, balanced=False):

@@ -18,16 +18,21 @@ units = re.compile(
 number = re.compile(r'((\d+)?\.\d+|(\d+(/\d+)?-)?\d+(/\d+)?)')
 # TODO: add "whole" to blacklist ?????
 # added cloth, to blacklist
-blacklist = {'of', 'and', '&amp;', 'or', 'some', 'many', 'few', 'couple', 'as', 'needed', 'plus', 'more', 'to', 'serve',
+blacklist = {'','-',';','c.','.','of', 'and', '&amp;', 'or', 'some', 'many', 'few', 'couple', 'as', 'needed', 'plus', 'more', 'to', 'serve',
              'taste', 'x', 'in', 'cook', 'with', 'at', 'room', 'temperature', 'only', 'cover', 'length',
              'into', 'if', 'then', 'out', 'preferably', 'well', 'good', 'better', 'best', 'about', 'all-purpose', 'all',
              'purpose', 'recipe', 'ingredient', ')', '(', 'thick-', 'very', 'eating', 'lengthwise', 'each',
-             'cloth','glue','glycerin','erythritol'}
+             'cloth','glue','glycerin','erythritol'}#,
+
+states ={'sliced','stock','chopped','cooked','dry','fresh','grated','ground','halved','large','minced','optional','organic',
+                'powder','skinned','trimmed','warmed','white'} # TODO: add attribute to Ingredient for state ? useful ????
+
 parens = re.compile(r'[(\x97].*[)\x97]')
 illegal_characters = re.compile(r'[‶″Â]')
 cut_list = ['for', 'cut', 'such as']
 replacements = {'yoghurt': 'yogurt', "'s": '', 'squeeze': 'squeezed',
-                'aubergine': 'eggplant', 'self raising': 'self-raising', 'pitta': 'pita', 'chile': 'chili'} # removed , 'olife': 'olive'
+                'aubergine': 'eggplant', 'self raising': 'self-raising', 'pitta': 'pita', 'chile': 'chili','chilli':'chili',
+                'tomate':'tomato','zucker':'sugar'} # removed , 'olife': 'olive'
 
 unit_conversions = multi_key_dict()
 unit_conversions['pounds', 'pound', 'lbs', 'lb'] = ('g', 453.6)
@@ -112,7 +117,7 @@ def normalize_ingredient(raw_name):
         raw_name = raw_name.replace(replacement, replacements[replacement])
     
     # Splits the full raw name in parts, and look at the type of each current one by one
-    parts = raw_name.split("_")
+    parts = raw_name.split("_")   
     parts.reverse()  # because pop(0) is terrible
     while parts:
         current = parts.pop()
@@ -176,8 +181,11 @@ def normalize_ingredient(raw_name):
         unit, multiplier = unit_conversions[unit]
         if num is not None:
             num *= multiplier
-            
-    if name:
+    
+    if name in states:
+        return None
+    
+    elif name:
         return Ingredient(
             name=name,
             amount=(num if num != 0 else None, unit, orig_num, orig_unit),
@@ -188,4 +196,4 @@ def normalize_ingredient(raw_name):
         return None
 
 if __name__=="__main__":
-    print(normalize_ingredient("cut_green_beans"))
+    print(normalize_ingredient("2 cups cooked plain rice, or Mexican Green Rice, page ____"))
