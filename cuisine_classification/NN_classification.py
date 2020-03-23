@@ -1,3 +1,17 @@
+from recipe_gen.main import getDefaultArgs
+from recipe_1m_analysis.ingr_normalization import normalize_ingredient
+from recipe_1m_analysis.data_processing import cleanCounterIngr
+import recipe_1m_analysis.utils as utils
+from torch.utils.data import DataLoader, Dataset, Sampler
+from sklearn.model_selection import train_test_split
+from sklearn import metrics
+import torch.optim as optim
+import torch.nn.functional as F
+import torch.nn as nn
+import torch
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 import argparse
 import csv
 import math
@@ -12,22 +26,8 @@ from datetime import datetime
 
 import matplotlib
 matplotlib.use("agg")
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from sklearn import metrics
-from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader, Dataset, Sampler
 
 sys.path.insert(0, os.path.join(os.getcwd()))
-import recipe_1m_analysis.utils as utils
-from recipe_1m_analysis.data_processing import cleanCounterIngr
-from recipe_1m_analysis.ingr_normalization import normalize_ingredient
-from recipe_gen.main import getDefaultArgs
 
 
 # ## Data preprocessing
@@ -55,7 +55,7 @@ argparser.add_argument('--data-folder', type=str, default="../recipe_datasets/",
                        help='Dataset path')
 argparser.add_argument('--file-type', type=str, default="full", choices=["random", "cluster_centroid", "full"],
                        help='Type of undersampling. Full is no undersampling. If full then need to fuse, not for the others.')
-argparser.add_argument('--saving-path', type=str, default=os.path.join(os.getcwd(), "cuisine_classification","results"),
+argparser.add_argument('--saving-path', type=str, default=os.path.join(os.getcwd(), "cuisine_classification", "results"),
                        help='Saving path')
 argparser.add_argument('--load-folder', type=str,
                        help='Loading best model in folder load-path')
@@ -120,17 +120,18 @@ def init_logging(args):
     LOGGER.addHandler(console)
 
     # Create save folder
-    args.saving_path = saving_path = os.path.join(args.saving_path,"{}{}_{}{}".format(
-            datetime.now().strftime('%m-%d-%H-%M'), args.balanced*'_bal', args.file_type,args.clustering*'_clust'))
+    args.saving_path = saving_path = os.path.join(args.saving_path, "{}{}_{}{}".format(
+        datetime.now().strftime('%m-%d-%H-%M'), args.balanced*'_bal', args.file_type, args.clustering*'_clust'))
 
     if not os.path.isdir(saving_path):
         pathlib.Path(saving_path).mkdir(parents=True, exist_ok=True)
-        print('...created '+ saving_path)
+        print('...created ' + saving_path)
 
-    logfile = logging.FileHandler(os.path.join(saving_path,'log.txt'), 'w')
+    logfile = logging.FileHandler(os.path.join(saving_path, 'log.txt'), 'w')
 
     logfile.setFormatter(fmt)
     LOGGER.addHandler(logfile)
+
 
 def logParam(args):
     for k, v in args.defaults.items():
@@ -140,6 +141,7 @@ def logParam(args):
                     k, getattr(args, k)))
         except AttributeError:
             continue
+
 
 def createDFrame(args):
     dataset = DATASET[1]
@@ -152,7 +154,7 @@ def createDFrame(args):
         args.data_folder, dataset, args.file_type+"_data.pkl"))
     df2["id"] = [len(df)+i for i in range(len(df2))]
     df2 = df2.set_index("id")
-    df = pd.concat([df, df2],sort=True)
+    df = pd.concat([df, df2], sort=True)
 
     return df
 
@@ -162,14 +164,14 @@ def createVocab(args, df):
         counter_ingrs = Counter()
         # counter_ingrs.update([normalize_ingredient(ingr).name for ingr in itertools.chain.from_iterable(df.loc[:, "ingredients"]) if normalize_ingredient(ingr) is not None])
         # just try counter_ingrs.update(df.loc[:,"ingredients"])
-        for ingredients in df.loc[:,"ingredients"]:
+        for ingredients in df.loc[:, "ingredients"]:
             ingr_list = []
             for ingr in ingredients:
                 try:
                     ingr_list.append(normalize_ingredient(ingr).name)
                 except AttributeError:
                     continue
-                
+
             counter_ingrs.update(ingr_list)
         counter_ingrs, cluster_ingrs = cleanCounterIngr(counter_ingrs)
 
@@ -184,7 +186,7 @@ def createVocab(args, df):
         vocab_ingrs.add_word("<unk>", idx)
 
     else:
-        #TODO: add min_ingrs limit
+        # TODO: add min_ingrs limit
         vocab_ingrs = utils.Vocabulary()
         for ingredients in df.loc[:, "ingredients"]:
             for ingr in ingredients:
@@ -192,7 +194,7 @@ def createVocab(args, df):
                     vocab_ingrs.add_word(normalize_ingredient(ingr).name)
                 except AttributeError:
                     continue
-                
+
         vocab_ingrs.add_word("<unk>")
 
     vocab_cuisine = utils.Vocabulary()
@@ -288,9 +290,7 @@ def make_weights_for_balanced_classes(samples, vocab_cuisine):
 
     return torch.Tensor(weight_per_class), torch.DoubleTensor(weight)
 
-
-
-def createDataLoaders(args,df, vocab_ingrs, vocab_cuisine):
+def createDataLoaders(args, df, vocab_ingrs, vocab_cuisine):
     X_train, X_dev, y_train, y_dev = train_test_split(
         df["ingredients"], df["cuisine"], test_size=0.2, random_state=42, stratify=df["cuisine"])
     X_dev, X_test, y_dev, y_test = train_test_split(
@@ -328,7 +328,7 @@ def createDataLoaders(args,df, vocab_ingrs, vocab_cuisine):
 
 
 class Net(nn.Module):
-    def __init__(self, args,vocab_ingrs, vocab_cuisine, embedding_dim1, embedding_dim2, embedding_dim3=None, device=0, weights_classes=None):
+    def __init__(self, args, vocab_ingrs, vocab_cuisine, embedding_dim1, embedding_dim2, embedding_dim3=None, device=0, weights_classes=None):
         super(Net, self).__init__()
         self.args = args
         self.vocab_size = len(vocab_ingrs)
@@ -341,7 +341,7 @@ class Net(nn.Module):
         self.dropout = nn.Dropout(0.2)
         self.layer_1 = nn.Linear(self.vocab_size, embedding_dim1, bias=True)
         self.layer_2 = nn.Linear(embedding_dim1, embedding_dim2, bias=True)
-        
+
         if embedding_dim3:
             self.layer_3 = nn.Linear(embedding_dim2, embedding_dim3, bias=True)
             self.output_layer = nn.Linear(
@@ -427,7 +427,6 @@ class Net(nn.Module):
             for data in dataloader:
                 inputs = data[0].to(self.device)
 
-                
                 outputs = self.forward(inputs.float())
 
                 if threshold:
@@ -437,14 +436,14 @@ class Net(nn.Module):
                         continue
                 else:
                     _, predicted = torch.max(outputs.data, 1)
-                
+
                 try:
                     labels = data[1].to(self.device)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
                 except AttributeError:
                     pass
-                    
+
                 predictions[data[1][0]] = predicted[0].item()
 
         if dataset_type == "classify":
@@ -474,9 +473,9 @@ class Net(nn.Module):
         with open(results_file, "w", newline='') as f:
             writer = csv.writer(f, delimiter=';')
             writer.writerow(["file", "balanced", "epoch", "train_accuracy",
-                                "test_accuracy", "dev_accuracy", "threshold", "dev_accuracy_threshold"])
+                             "test_accuracy", "dev_accuracy", "threshold", "dev_accuracy_threshold"])
             writer.writerow([self.args.file_type, self.args.balanced, self.args.nb_epochs, epoch_accuracy[-1],
-                                epoch_test_accuracy[-1], dev_accuracy, self.args.proba_threshold, dev_accuracy_threshold])
+                             epoch_test_accuracy[-1], dev_accuracy, self.args.proba_threshold, dev_accuracy_threshold])
 
         torch.save(self.state_dict(), os.path.join(
             results_folder, "model_logweights"))
@@ -492,11 +491,11 @@ class Net(nn.Module):
         with open(os.path.join(self.args.classify_folder, "recipe1m_"+self.args.classify_file+".pkl"), "rb") as f:
             data = pickle.load(f)
         data_ingrs = [v["ingredients"] for v in data.values()]
-        data_keys =  list(data.keys())
+        data_keys = list(data.keys())
         split_size = 50000
         for i in range(len(data_ingrs)//split_size):
             dataset = IngrDataset(data_ingrs[i*split_size:(i+1)*split_size], data_keys[i*split_size:(i+1)*split_size],
-                                self.vocab_ingrs, self.vocab_cuisine, type_label="id")
+                                  self.vocab_ingrs, self.vocab_cuisine, type_label="id")
             print("Iter {} : Recipe1m loaded".format(i))
             dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
             print("Classifying...")
@@ -515,22 +514,22 @@ def main():
     args = getDefaultArgs(argparser)
     init_logging(args)
     logParam(args)
-    
+
     if args.fuse:
         df = createDFrame(args.file_type)
     else:
         dataset = DATASET[1]
         df = pd.read_pickle(os.path.join(
             args.data_folder, dataset, args.file_type+"_data.pkl"))
-    
-    vocab_ingrs, vocab_cuisine = createVocab(args,df)
+
+    vocab_ingrs, vocab_cuisine = createVocab(args, df)
 
     EMBED_DIM3 = args.embed_dim3
     train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(args,
-        df, vocab_ingrs, vocab_cuisine)
+                                                                               df, vocab_ingrs, vocab_cuisine)
     net = Net(vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2,
               device=args.device, weights_classes=weights_classes).to(args.device)
-    #TODO: just give args instead of embed dim
+    # TODO: just give args instead of embed dim
 
     if args.load:
         if args.train_mode:
@@ -540,13 +539,14 @@ def main():
 
         args.load_folder = os.path.join(
             os.getcwd(), "cuisine_classification", "results", args.load_folder, model)
-        net.load_state_dict(torch.load(args.load_folder))#,map_location='cuda:0'))
+        # ,map_location='cuda:0'))
+        net.load_state_dict(torch.load(args.load_folder))
         print("Network loaded.")
 
     if args.train_mode:
         loss, epoch_accuracy, epoch_test_accuracy = net.train_process(
             train_loader, dev_loader, args.saving_path)
-        
+
         args.load_folder = os.path.join(args.saving_path, "best_model")
         net.load_state_dict(torch.load(args.load_folder))
         print("Best network reloaded.")
