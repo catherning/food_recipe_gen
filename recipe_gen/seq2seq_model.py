@@ -50,9 +50,9 @@ class Seq2seq(nn.Module):
         self.encoder = EncoderRNN(args, input_size)
         self.decoder = DecoderRNN(args, output_size)
 
-        #TODO: change optim: self.optimizers  = optim.Adam(self.parameters()) 
-        # or Adam((self.encoder.param,self.decoder.param) directly ? 
-        #=> no need for optim_list ?
+        # TODO: change optim: self.optimizers  = optim.Adam(self.parameters())
+        # or Adam((self.encoder.param,self.decoder.param) directly ?
+        # => no need for optim_list ?
         self.encoder_optimizer = optim.Adam(
             self.encoder.parameters(), lr=args.learning_rate)
         self.decoder_optimizer = optim.Adam(
@@ -69,15 +69,11 @@ class Seq2seq(nn.Module):
     def paramLogging(self):
         for k, v in self.args.defaults.items():
             try:
-                if getattr(self.args, k) != v and v is not None:
+                if v is None or getattr(self.args, k) != v:
                     self.logger.info("{} = {}".format(
                         k, getattr(self.args, k)))
             except AttributeError:
                 continue
-            
-        self.logger.info("{} = {}".format(
-            "load_folder", self.args.load_folder))
-
 
     def addAttention(self, di, decoder_attentions, cur_attention):
         if cur_attention is not None:
@@ -138,10 +134,11 @@ class Seq2seq(nn.Module):
         """
         input_tensor = batch["ingr"].to(self.device)
         try:
-            target_tensor = batch["target_instr"].to(self.device)  # (batch,max_step,max_length) ?
+            target_tensor = batch["target_instr"].to(
+                self.device)  # (batch,max_step,max_length) ?
         except AttributeError:
             target_tensor = None
-            
+
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor)
 
@@ -155,14 +152,14 @@ class Seq2seq(nn.Module):
         if self.args.scheduled_sampling and self.training:
             sampling_proba = 1-inverse_sigmoid_decay(
                 self.decay_factor, iter)
-        elif not self.args.scheduled_sampling and self.training: 
+        elif not self.args.scheduled_sampling and self.training:
             sampling_proba = 0
         else:
             sampling_proba = 1
 
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
-                                                               encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words)
+                                                                               encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words)
 
             if random.random() < sampling_proba:
                 idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
@@ -181,8 +178,8 @@ class Seq2seq(nn.Module):
         target_tensor = batch["target_instr"].to(self.device)
 
         decoded_outputs, decoded_words, _ = self.forward(batch, iter=iter)
-        #TODO: change flattenSeq if hierarchical
-        aligned_outputs = flattenSequence(decoded_outputs, target_length) 
+        # TODO: change flattenSeq if hierarchical
+        aligned_outputs = flattenSequence(decoded_outputs, target_length)
         aligned_target = flattenSequence(target_tensor, target_length)
         # aligned_outputs = decoded_outputs.view(
         #     self.batch_size*self.max_length, -1)
@@ -199,8 +196,9 @@ class Seq2seq(nn.Module):
         plot_loss_total = 0
         best_loss = math.inf
 
-        lmbda = lambda epoch: 0.95
-        scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(optim,lr_lambda=lmbda) for optim in self.optim_list]
+        def lmbda(epoch): return 0.95
+        scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(
+            optim, lr_lambda=lmbda) for optim in self.optim_list]
         for ep in range(self.args.begin_epoch, self.args.epoch+1):
             self.train()
             for iter, batch in enumerate(self.train_dataloader, start=1):
@@ -221,35 +219,40 @@ class Seq2seq(nn.Module):
                 print_loss_total += loss.detach()
                 plot_loss_total += loss.detach()
 
-                if iter % max(self.args.print_step,self.args.n_iters//10) == 0:
-                    print_loss_avg = print_loss_total / max(self.args.print_step,self.args.n_iters//10)
+                if iter % max(self.args.print_step, self.args.n_iters//10) == 0:
+                    print_loss_avg = print_loss_total / \
+                        max(self.args.print_step, self.args.n_iters//10)
                     print_loss_total = 0
                     self.logger.info('Epoch {} {} ({} {}%) loss={}'.format(ep, timeSince(
                         start, iter / self.args.n_iters), iter, int(iter / self.args.n_iters * 100), print_loss_avg))
-                    
+
                     try:
-                        print(" ".join(decoded_words[0]))
-                        print(" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()]  for word in batch["target_instr"][0] if word.item()!=0]))
+                        self.logger.info(
+                            "Generated =  "+" ".join(decoded_words[0]))
+                        self.logger.info("Target =  " + " ".join([self.train_dataset.vocab_tokens.idx2word[word.item(
+                        )] for word in batch["target_instr"][0] if word.item() != 0]))
                     except TypeError:
-                        print([" ".join(sent) for sent in decoded_words[0]])
-                        print([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in sent if word.item()!=0]) for sent in batch["target_instr"][0]])
+                        self.logger.info([" ".join(sent)
+                                          for sent in decoded_words[0]])
+                        self.logger.info([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item(
+                        )] for word in sent if word.item() != 0]) for sent in batch["target_instr"][0]])
 
                     if print_loss_avg < best_loss:
-                        print("Best model so far, saving it.")
+                        self.logger.info("Best model so far, saving it.")
                         torch.save(self.state_dict(), os.path.join(
                             self.savepath, "best_model"))
                         best_loss = print_loss_avg
-            
-            torch.save({
-                        'epoch': ep,
-                        'model_state_dict': self.state_dict(),
-                        'optimizer_state_dict': [optim.state_dict() for optim in self.optim_list],
-                        'loss': loss,
-                        }, os.path.join(self.savepath,"train_model_{}_{}.tar".format(datetime.now().strftime('%m-%d-%H-%M'), ep)))
 
-            if ep%(max(5,self.args.epoch//10))==0: #eval ten times or every 5 times
+            torch.save({
+                'epoch': ep,
+                'model_state_dict': self.state_dict(),
+                'optimizer_state_dict': [optim.state_dict() for optim in self.optim_list],
+                'loss': loss,
+            }, os.path.join(self.savepath, "train_model_{}_{}.tar".format(datetime.now().strftime('%m-%d-%H-%M'), ep)))
+
+            if ep % (max(5, self.args.epoch//10)) == 0:  # eval ten times or every 5 times
                 self.evalProcess()
-            
+
             for scheduler in scheduler_list:
                 scheduler.step()
 
@@ -286,19 +289,19 @@ class Seq2seq(nn.Module):
                 sample["ingr"] = sample["ingr"].unsqueeze(0)
                 sample["title"] = sample["title"].unsqueeze(0)
                 sample["target_instr"] = sample["target_instr"].unsqueeze(0)
-                #TODO: check need to unsqueeze for cuisine ?
+                # TODO: check need to unsqueeze for cuisine ?
 
                 _, output_words, _ = self.forward(sample)
                 try:
                     output_sentence = ' '.join(output_words[0])
                 except TypeError:
-                    output_sentence= "|".join([' '.join(sent) for sent in output_words[0]])
-
+                    output_sentence = "|".join(
+                        [' '.join(sent) for sent in output_words[0]])
 
                 self.logger.info(
                     "Input: "+" ".join([self.train_dataset.vocab_ingrs.idx2word[ingr.item()][0] for ingr in sample["ingr"][0]]))
                 self.logger.info(
-                    "Target: "+str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item()!=0]) for instr in sample["target_instr"]]))
+                    "Target: "+str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"]]))
                 self.logger.info("Generated: "+output_sentence)
 
     def evalProcess(self):
@@ -311,11 +314,12 @@ class Seq2seq(nn.Module):
                 print_loss_total += loss.detach()
 
                 if iter % self.args.print_step == 0:
-                    print("Eval Current loss = {}".format(print_loss_total/iter))
+                    print("Eval Current loss = {}".format(
+                        print_loss_total/iter))
 
             print_loss_avg = print_loss_total / iter
             self.logger.info("Eval loss = {}".format(print_loss_avg))
-    
+
     def evalOutput(self):
         self.eval()
         start = time.time()
@@ -325,11 +329,12 @@ class Seq2seq(nn.Module):
             for iter, batch in enumerate(self.test_dataloader, start=1):
                 loss, output_words = self.train_iter(batch, iter)
 
-                for i,ex in enumerate(output_words):
+                for i, ex in enumerate(output_words):
                     try:
                         self.logger.info(batch["id"][i]+" "+' '.join(ex))
                     except TypeError:
-                        self.logger.info(batch["id"][i]+" "+"|".join([' '.join(sent) for sent in ex ]))
+                        self.logger.info(
+                            batch["id"][i]+" "+"|".join([' '.join(sent) for sent in ex]))
 
                 print_loss_total += loss.detach()
 
@@ -360,9 +365,10 @@ class Seq2seqTrans(Seq2seq):
     def __init__(self, args):
         super().__init__(args)
 
-        self.decoderLayer = nn.TransformerDecoderLayer(d_model=args.hidden_size, nhead=8)
+        self.decoderLayer = nn.TransformerDecoderLayer(
+            d_model=args.hidden_size, nhead=8)
         self.decoder = nn.TransformerDecoder(self.decoderLayer, 4)
-        
+
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
         self.optim_list[1] = self.decoder_optimizer
@@ -376,7 +382,7 @@ class Seq2seqIngrAtt(Seq2seqAtt):
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
         self.optim_list[1] = self.decoder_optimizer
-        
+
 
 class Seq2seqIngrPairingAtt(Seq2seqAtt):
     def __init__(self, args):
@@ -390,7 +396,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
 
     def forwardDecoderStep(self, decoder_input, decoder_hidden,
                            encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words):
-        decoder_output, decoder_hidden, decoder_attention,_ = self.decoder(
+        decoder_output, decoder_hidden, decoder_attention, _ = self.decoder(
             decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
 
         decoder_attentions = self.addAttention(
@@ -429,14 +435,14 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         if self.args.scheduled_sampling and self.training:
             sampling_proba = 1-inverse_sigmoid_decay(
                 self.decay_factor, iter)
-        elif not self.args.scheduled_sampling and self.training: 
+        elif not self.args.scheduled_sampling and self.training:
             sampling_proba = 0
         else:
             sampling_proba = 1
 
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
-                                                               encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
+                                                                               encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
             if random.random() < sampling_proba:
                 idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
@@ -461,8 +467,9 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
             self.title_encoder.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.title_optimizer)
 
-        self.encoder_fusion = nn.Linear(2*args.hidden_size,args.hidden_size)
-        self.fusion_optim = optim.Adam((self.encoder_fusion.parameters()),lr=args.learning_rate)
+        self.encoder_fusion = nn.Linear(2*args.hidden_size, args.hidden_size)
+        self.fusion_optim = optim.Adam(
+            (self.encoder_fusion.parameters()), lr=args.learning_rate)
         self.optim_list.append(self.fusion_optim)
 
     def forward(self, batch, iter=iter):
@@ -496,13 +503,13 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
 
         decoder_hidden = torch.cat(
             (encoder_hidden, title_encoder_hidden), dim=2)
-        
+
         decoder_hidden = self.encoder_fusion(decoder_hidden)
 
         if self.args.scheduled_sampling and self.training:
             sampling_proba = 1-inverse_sigmoid_decay(
                 self.decay_factor, iter)
-        elif not self.args.scheduled_sampling and self.training: 
+        elif not self.args.scheduled_sampling and self.training:
             sampling_proba = 0
         else:
             sampling_proba = 1
@@ -534,8 +541,9 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
             self.cuisine_encoder.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.cuisine_optimizer)
 
-        self.encoder_fusion = nn.Linear(2*args.hidden_size,args.hidden_size)
-        self.fusion_optim = optim.Adam(self.encoder_fusion,lr=args.learning_rate)
+        self.encoder_fusion = nn.Linear(2*args.hidden_size, args.hidden_size)
+        self.fusion_optim = optim.Adam(
+            self.encoder_fusion, lr=args.learning_rate)
         self.optim_list.append(self.fusion_optim)
 
     def forward(self, batch, iter=iter):
@@ -576,7 +584,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         if self.args.scheduled_sampling and self.training:
             sampling_proba = 1-inverse_sigmoid_decay(
                 self.decay_factor, iter)
-        elif not self.args.scheduled_sampling and self.training: 
+        elif not self.args.scheduled_sampling and self.training:
             sampling_proba = 0
         else:
             sampling_proba = 1

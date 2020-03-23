@@ -29,7 +29,7 @@ class Vocabulary(object):
                 else:
                     self.idx2word[idx] = [word]
 
-                return idx
+            return idx
 
     def delete_word(self,word):
         # to delete if can't unpickle because of that
