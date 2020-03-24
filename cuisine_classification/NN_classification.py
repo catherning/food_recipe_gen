@@ -56,7 +56,7 @@ argparser.register('type', 'bool', str2bool)
 # Directories
 argparser.add_argument('--data-folder', type=str, default="../recipe_datasets/",
                        help='Dataset path')
-argparser.add_argument('--file-type', type=str, default="full", choices=["random", "cluster_centroid", "full"],
+argparser.add_argument('--file-type', type=str, default="full", choices=["random", "cluster_centroid", "cluster_centroid10000","full"],
                        help='Type of undersampling. Full is no undersampling. If full then need to fuse, not for the others.')
 argparser.add_argument('--saving-path', type=str, default=os.path.join(os.getcwd(), "cuisine_classification", "results"),
                        help='Saving path')
