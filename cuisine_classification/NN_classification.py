@@ -273,7 +273,10 @@ class IngrDataset(Dataset):
                 try:
                     input_[i]=self.vocab_ingrs.word2idx[ingr]
                 except KeyError:
-                    input_[i]=self.vocab_ingrs.word2idx["<unk>"]
+                    try:
+                        input_[i]=self.vocab_ingrs.word2idx["<unk>"]
+                    except IndexError:
+                        break
                 except IndexError:
                     break
             
