@@ -1,1 +1,1 @@
-python cuisine_classification/NN_classification.py --train-mode "false" --classify  --load --load-folder "nn_01-16-18-47_full_dropout" --test "false" --device 0
+python cuisine_classification/NN_classification.py --train-mode "false" --fuse False --test "false" --classify  --load --load-folder "03-21-17-39_full"  --device 0 --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets"

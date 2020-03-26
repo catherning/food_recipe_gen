@@ -291,7 +291,7 @@ class IngrDataset(Dataset):
                     input_.append(self.vocab_ingrs.word2idx["<unk>"])
             
             output = torch.LongTensor(input_)
-            onehot_enc = F.one_hot(output.to(torch.int64), self.input_size) # FIXME: Long then int64 useful ?
+            onehot_enc = F.one_hot(output, self.input_size)
             output = torch.sum(onehot_enc, 0).float()
 
         # Removing samples where you don't know more than 2 of the ingr doesn't help the model much ?
@@ -537,7 +537,7 @@ class Net(nn.Module):
     def classifyFromIngr(self):
         with open(os.path.join(self.args.classify_folder, "recipe1m_"+self.args.classify_file+".pkl"), "rb") as f:
             data = pickle.load(f)
-        data_ingrs = [v["ingredients"] for v in data.values()]
+        data_ingrs = [[ingr.name for ingr in v["ingredients"]] for v in data.values()]
         data_keys = list(data.keys())
         split_size = 50000
         for i in range(len(data_ingrs)//split_size):
