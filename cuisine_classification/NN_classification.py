@@ -284,10 +284,11 @@ class IngrDataset(Dataset):
             
         else:
             input_ = []
-            try:
-                input_.append(self.vocab_ingrs.word2idx[ingr])
-            except KeyError:
-                input_.append(self.vocab_ingrs.word2idx["<unk>"])
+            for i,ingr in enumerate(ingr_list):
+                try:
+                    input_.append(self.vocab_ingrs.word2idx[ingr])
+                except KeyError:
+                    input_.append(self.vocab_ingrs.word2idx["<unk>"])
             
             output = torch.LongTensor(input_)
             onehot_enc = F.one_hot(output.to(torch.int64), self.input_size) # FIXME: Long then int64 useful ?
