@@ -1,1 +1,1 @@
-python cuisine_classification/NN_classification.py --device ${1-0} --clustering --balanced --nb-epochs 200
+python cuisine_classification/NN_classification.py --device ${1-0} --proba-threshold 0.95 --clustering --balanced --nb-epochs 200

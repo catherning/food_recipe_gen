@@ -1,1 +1,1 @@
-python cuisine_classification/NN_classification.py --train-mode "false" --fuse False --test "false" --classify  --load --load-folder "03-21-17-39_full"  --device 0 --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets"
+python cuisine_classification/NN_classification.py --proba-threshold 0.95 --train-mode "false" --test "false" --classify  --load --load-folder "03-26-20-50_full"  --device 0 --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets\cuisine_classification"

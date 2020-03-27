@@ -36,9 +36,6 @@ matplotlib.use("agg")
 # ## Data preprocessing
 LOGGER = logging.getLogger()
 
-DATASET = ["scirep-cuisines-detail", "Yummly28"]
-
-
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -67,10 +64,6 @@ argparser.add_argument('--classify-folder', type=str, default=os.path.join(os.ge
                        help='The folder where classify-file is.')
 argparser.add_argument('--classify-file', type=str, default="train", choices=["train", "test", "dev"],
                        help='The dataset of ingr to classify (train, test or dev)')
-argparser.add_argument('--fuse', type='bool', nargs='?',
-                       const=True, default=False,
-                       help='Fuse Yummly & Scirep dataset')
-
 
 # Model settings
 argparser.add_argument('--embedding-layer', type='bool', nargs='?',
@@ -97,7 +90,7 @@ argparser.add_argument('--max-ingrs', type=int, default=50,
                        help='Display steps')
 argparser.add_argument('--nb-epochs', type=int, default=300,
                        help='Display steps')
-argparser.add_argument('--proba-threshold', type=float, default=0.95,
+argparser.add_argument('--proba-threshold', type=float,
                        help='Threshold proba for test and inference')
 argparser.add_argument('--clustering', type='bool', nargs='?',
                        const=True, default=False,
@@ -153,22 +146,6 @@ def logParam(args):
             continue
 
 
-def createDFrame(args):
-    dataset = DATASET[1]
-    df = pd.read_pickle(os.path.join(
-        args.data_folder, dataset, args.file_type+"_data.pkl"))
-    df = df.set_index("id")
-
-    dataset = DATASET[0]
-    df2 = pd.read_pickle(os.path.join(
-        args.data_folder, dataset, args.file_type+"_data.pkl"))
-    df2["id"] = [len(df)+i for i in range(len(df2))]
-    df2 = df2.set_index("id")
-    df = pd.concat([df, df2], sort=True)
-
-    return df
-
-
 def createVocab(args, df):
     counter_ingrs = Counter()
     # counter_ingrs.update([normalize_ingredient(ingr).name for ingr in itertools.chain.from_iterable(df.loc[:, "ingredients"]) if normalize_ingredient(ingr) is not None])
@@ -207,12 +184,12 @@ def createVocab(args, df):
             if cnt >= args.min_ingrs:
                 vocab_ingrs.add_word(ingr)
 
-    with open(os.path.join(args.saving_path,os.pardir, "vocab_ingr_"+ args.file_type + args.clustering*'_clust'+".pkl"), "wb") as f:
-        pickle.dump(vocab_ingrs, f)
-            
     vocab_cuisine = utils.Vocabulary()
     for cuisine in df['cuisine'].value_counts().index:
         vocab_cuisine.add_word(cuisine)
+            
+    with open(os.path.join(args.saving_path,os.pardir, "vocab_ingr_"+ args.file_type + args.clustering*'_clust'+".pkl"), "wb") as f:
+        pickle.dump(vocab_ingrs, f)
     
     with open(os.path.join(args.saving_path,os.pardir, "vocab_cuisine.pkl"), "wb") as f:
         pickle.dump(vocab_cuisine, f)
@@ -257,7 +234,7 @@ class IngrDataset(Dataset):
         # XXX: necessary ? id for classification for recipe1M..
         self.data = [None]*len(self.labels)
         for idx, (ingrs, label) in enumerate(zip(self.input_, self.labels)):
-            self.data[idx] = (torch.LongTensor(self.ingr2idx(ingrs)), label)
+            self.data[idx] = (self.ingr2idx(ingrs), label)
 
     def processCuisine(self):
         self.data = {}
@@ -540,19 +517,20 @@ class Net(nn.Module):
         data_ingrs = [[ingr.name for ingr in v["ingredients"]] for v in data.values()]
         data_keys = list(data.keys())
         split_size = 50000
-        for i in range(len(data_ingrs)//split_size):
+        for i in range(len(data_ingrs)//split_size+1):
             dataset = IngrDataset(self.args,data_ingrs[i*split_size:(i+1)*split_size], data_keys[i*split_size:(i+1)*split_size],
                                   self.vocab_ingrs, self.vocab_cuisine, type_label="id")
             print("Iter {} : Recipe1m loaded".format(i))
             dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
             print("Classifying...")
             # , threshold=self.args.proba_threshold)
-            predictions = self.test(dataloader, dataset_type="classify")
+            prob = self.args.proba_threshold
+            predictions = self.test(dataloader, dataset_type="classify",threshold=self.args.proba_threshold)
 
             for idx, prediction in predictions.items():
-                data[idx]["cuisine"] = prediction
+                data[idx]["cuisine"] = self.vocab_cuisine.idx2word[prediction]
 
-        with open(os.path.join(self.args.classify_folder, "recipe1m_"+self.args.classify_file+"_cuisine.pkl"), "wb") as f:
+        with open(os.path.join(self.args.classify_folder, "recipe1m_{}_cuisine_nn{}.pkl".format(self.args.classify_file,str(prob)*bool(prob))), "wb") as f:
             pickle.dump(data, f)
         print("Saving predictions.")
 
@@ -562,12 +540,9 @@ def main():
     init_logging(args)
     logParam(args)
 
-    if args.fuse:
-        df = createDFrame(args.file_type)
-    else:
-        dataset = DATASET[1]
-        df = pd.read_pickle(os.path.join(
-            args.data_folder, dataset, args.file_type+"_data.pkl"))
+
+    df = pd.read_pickle(os.path.join(
+        args.data_folder, args.file_type+"_data.pkl"))
 
     vocab_path = os.path.join(args.saving_path,os.pardir, "vocab_ingr_"+ args.file_type + args.clustering*'_clust'+".pkl")
     try:
