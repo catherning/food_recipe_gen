@@ -126,3 +126,4 @@ Untitled.ipynb
 recipe_1m_analysis/data/allingrs_count.pkl
 recipe_1m_analysis/data/allwords_count.pkl
 recipe_gen/Scripts
+*.joblib

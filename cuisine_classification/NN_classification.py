@@ -530,9 +530,10 @@ class Net(nn.Module):
             for idx, prediction in predictions.items():
                 data[idx]["cuisine"] = self.vocab_cuisine.idx2word[prediction]
 
-        with open(os.path.join(self.args.classify_folder, "recipe1m_{}_cuisine_nn{}.pkl".format(self.args.classify_file,str(prob)*bool(prob))), "wb") as f:
+        saving_file = os.path.join(self.args.classify_folder, "recipe1m_{}_cuisine_nn{}.pkl".format(self.args.classify_file,str(prob)*bool(prob)))
+        with open(saving_file, "wb") as f:
             pickle.dump(data, f)
-        print("Saving predictions.")
+        LOGGER.info("Saving predictions to "+saving_file)
 
 
 def main():
