@@ -62,7 +62,7 @@ class Seq2seq(nn.Module):
         # Training param
         self.decay_factor = args.decay_factor
         self.learning_rate = args.learning_rate
-        self.criterion = nn.NLLLoss(reduction="sum")
+        self.criterion = nn.CrossEntropyLoss(reduction="sum")
 
         self.paramLogging()
 
@@ -82,15 +82,60 @@ class Seq2seq(nn.Module):
 
     def samplek(self, decoder_output, decoded_words):
         # TODO: change for hierarchical
-        topv, topi = decoder_output.topk(self.args.topk)
-        distrib = torch.distributions.categorical.Categorical(logits=topv)
+        
         chosen_id = torch.zeros(
             decoder_output.shape[0], dtype=torch.long, device=self.device)
-        for batch_id, idx in enumerate(distrib.sample()):
-            chosen_id[batch_id] = topi[batch_id, idx]
-            decoded_words[batch_id].append(
-                self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
+        decoder_output = decoder_output/self.args.temperature
+        
+        if self.args.nucleus_sampling:
+            topv = self.top_p_filtering(decoder_output,self.args.topp)
+            distrib = torch.distributions.categorical.Categorical(logits=topv)
+            for batch_id, idx in enumerate(distrib.sample()):
+                chosen_id[batch_id] = idx
+                decoded_words[batch_id].append(
+                    self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
+            
+        else:
+            topv, topi = decoder_output.topk(self.args.topk)        
+            distrib = torch.distributions.categorical.Categorical(logits=topv)
+
+            for batch_id, idx in enumerate(distrib.sample()):
+                chosen_id[batch_id] = topi[batch_id, idx]   
+                decoded_words[batch_id].append(
+                    self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
+            
         return chosen_id
+    
+    def top_p_filtering(self, logits, top_p=0.0, filter_value=-float('Inf')):
+        """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
+            Args:
+                logits: logits distribution shape (vocabulary size)
+                top_k >0: keep only top k tokens with highest probability (top-k filtering).
+                top_p >0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
+                    Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
+        """
+        
+        # if top_k > 0:
+        #     # Remove all tokens with a probability less than the last token of the top-k
+        #     indices_to_remove = logits < torch.topk(logits, top_k)[0][:, -1, None]
+        # if top_p > 0.0:
+        
+        sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+
+        # Remove tokens with cumulative probability above the threshold
+        sorted_indices_to_remove = cumulative_probs > top_p
+        # Shift the indices to the right to keep also the first token above the threshold
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+        sorted_indices_to_remove[..., 0] = 0
+
+        # indices_to_remove = sorted_indices[sorted_indices_to_remove]
+        indices_to_remove = torch.zeros_like(logits, dtype=torch.bool).scatter_(
+            dim=-1, index=sorted_indices, src=sorted_indices_to_remove )
+            
+        logits[indices_to_remove] = filter_value
+            
+        return logits
 
     def initForward(self, input_tensor, pairing=False):
         # XXX: should be able not to reassign if do view with correct hidden size instead
@@ -177,11 +222,11 @@ class Seq2seq(nn.Module):
         target_length = batch["target_length"]
         target_tensor = batch["target_instr"].to(self.device)
 
-        decoded_outputs, decoded_words, _ = self.forward(batch, iter=iter)
+        decoder_outputs, decoded_words, _ = self.forward(batch, iter=iter)
         # TODO: change flattenSeq if hierarchical
-        aligned_outputs = flattenSequence(decoded_outputs, target_length)
+        aligned_outputs = flattenSequence(decoder_outputs, target_length)
         aligned_target = flattenSequence(target_tensor, target_length)
-        # aligned_outputs = decoded_outputs.view(
+        # aligned_outputs = decoder_outputs.view(
         #     self.batch_size*self.max_length, -1)
         # aligned_target = target_tensor.view(self.batch_size*self.max_length)
         loss = self.criterion(

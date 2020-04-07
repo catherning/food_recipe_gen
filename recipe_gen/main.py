@@ -101,10 +101,15 @@ argparser.add_argument('--learning-rate', type=float, default=0.001)
 argparser.add_argument('--decay_factor', type=float, default=500.,
                        help='Speed of increasing the probability of sampling from model. Default: 500.')
 argparser.add_argument('--dropout', type=float, default=0.1)
+argparser.add_argument('--temperature', type=float, default=0.7)
 argparser.add_argument('--topk', type=int, default=3)
+argparser.add_argument('--topp', type=float, default=0.9)
 argparser.add_argument('--scheduled-sampling', type='bool', nargs='?',
                        const=True, default=True,
                        help='Uses scheduled-sampling')
+argparser.add_argument('--nucleus-sampling', type='bool', nargs='?',
+                       const=True, default=True,
+                       help='Uses nucleus sampling')
 
 # Model config
 argparser.add_argument('--hidden-size', type=int, default=128)
