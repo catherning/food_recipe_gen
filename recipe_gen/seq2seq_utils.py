@@ -5,7 +5,6 @@ import sys
 import argparse
 import time
 sys.path.append(os.getcwd())
-sys.path.append(os.path.join(os.getcwd(),"recipe_1m_analysis"))
 
 import matplotlib
 matplotlib.use("agg")
