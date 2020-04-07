@@ -8,4 +8,4 @@ python ./recipe_gen/main.py \
     --max-ingr 10 \
     --max-length 100 \
     --model-name Seq2seq\
-    --topk 20
+    --topk 10
