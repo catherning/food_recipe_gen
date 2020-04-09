@@ -200,7 +200,7 @@ def main():
         try:
             model.load_state_dict(torch.load(path))
         except RuntimeError:
-            model.load_state_dict(torch.load(path),map_location='cuda:0')
+            model.load_state_dict(torch.load(path,map_location='cuda:0'))
             
         print("Model loaded.")
 
