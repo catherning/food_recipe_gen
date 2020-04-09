@@ -1,4 +1,4 @@
-python ./recipe_gen/main.py \
+python ./evaluation/eval.py \
     --device ${1-0} \
     --load-folder "04-07-17-53" \
     --batch-size 4 \

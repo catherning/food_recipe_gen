@@ -1,52 +1,29 @@
 #!/usr/bin/env python
 # coding: utf-8
-
 import argparse
 import logging
 import itertools
 import pickle
 import sys
 import os
+import torch
 
 from nltk.translate.meteor_score import single_meteor_score
 from nltk.translate.bleu_score import sentence_bleu
 
 sys.path.insert(0, os.getcwd())
 
-from recipe_gen.main import argparser, PAIRING_PATH, init_logging, str2bool
-from recipe_gen.main import main as main_gen
 from recipe_gen.seq2seq_utils import RecipesDataset, FOLDER_PATH, DATA_FILES
+from recipe_gen.main import argparser, PAIRING_PATH, init_logging, str2bool, main as main_gen
+
 # from nlgeval import compute_individual_metrics,compute_metrics
 
-#args.model_name
+# args.model_name
 argparser.add_argument('--eval-folder', type=str,
                        help='Generated recipes path (only the data)')
 
-def processOutput(folder_path, ref, gen_ref=False):
-    processed = {}
-    # XXX: try to optimize code ?
-    if gen_ref:
-        with open(os.path.join(folder_path, "log.txt")) as f:
-            for line in f:
-                output = line.split("[")[1].split()
-                # improve, an arg name could have len 10 like the ex id
-                if len(output[0]) != 10 or output[0] == "train_mode":
-                    continue
-                # TODO: check if punction with/without space is oks
-                # TODO: opt => direct can calculate the metrics instead of looping again
-                processed[output[0]] = {"ref": list(itertools.chain.from_iterable(ref[output[0]]["tokenized"])),
-                                        "gen": output[1:-1],
-                                        "ingr": [ingr.name for ingr in ref[output[0]]["ingredients"]]}
-    return processed
 
-def runEval(args):
-
-    args = main_gen()
-    args.eval_folder = os.path.split(args.save_folder)[-1]
-
-def main(args, LOGGER):
-    if args.eval_folder is None:
-        runEval(args)
+def processOutput(args):
 
     with open(os.path.join(args.data_folder, args.test_file), 'rb') as f:
         ref = pickle.load(f)
@@ -54,7 +31,42 @@ def main(args, LOGGER):
     EVAL_FOLDER = os.path.join(
         os.getcwd(), "recipe_gen", "results", args.model_name, args.eval_folder)
 
-    processed = processOutput(EVAL_FOLDER, ref, True)
+    processed = {}
+    # XXX: try to optimize code ?
+    if os.path.isfile(os.path.join(EVAL_FOLDER, "recipes_eval.txt")):
+        with open(os.path.join(EVAL_FOLDER, "recipes_eval.txt"), 'rb') as f:
+            processed = pickle.load(f)
+
+    else:
+        with open(os.path.join(EVAL_FOLDER, "log.txt")) as f:
+            for line in f:
+                output = line.split("[")[1].split()
+                # improve, an arg name could have len 10 like the ex id
+                if output[0] in args.__dict__:
+                    continue
+                # TODO: check if punction with/without space is oks
+                # TODO: opt => direct can calculate the metrics instead of looping again
+                processed[output[0]] = {"ref": list(itertools.chain.from_iterable(ref[output[0]]["tokenized"])),
+                                        "gen": output[1:-1],
+                                        "ingr": [ingr.name for ingr in ref[output[0]]["ingredients"]]}
+
+        with open(os.path.join(EVAL_FOLDER, "recipes_eval.txt"), 'wb') as f:
+            pickle.dump(processed, f)
+
+    return processed
+
+
+def runEval(args):
+
+    args_ = main_gen()
+    args.eval_folder = os.path.split(args_.save_folder)[-1]
+
+
+def main(args, LOGGER):
+    if args.eval_folder is None:
+        runEval(args)
+
+    processed = processOutput(args)
 
     bleu = {i: 0 for i in range(1, 5)}
     bleu_w = {1: (1, 0, 0, 0),
