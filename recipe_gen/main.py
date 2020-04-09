@@ -195,9 +195,13 @@ def main():
         print("Model loaded for resuming training.")
 
     if args.load:
-        model.load_state_dict(torch.load(os.path.join(
-            os.getcwd(), "recipe_gen", "results", args.model_name, args.load_folder, "best_model")))
-
+        path = os.path.join(
+                os.getcwd(), "recipe_gen", "results", args.model_name, args.load_folder, "best_model")
+        try:
+            model.load_state_dict(torch.load(path))
+        except RuntimeError:
+            model.load_state_dict(torch.load(path),map_location='cuda:0')
+            
         print("Model loaded.")
 
     model.to(args.device)
