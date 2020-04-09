@@ -113,9 +113,13 @@ def main(args, LOGGER):
         try:
             LOGGER.info("BLEU{} = {}".format(k,v/len(processed)))
         except ZeroDivisionError:
-            LOGGER.info("BLEU{} = {}".format(k, 0.0))
+            LOGGER.info("BLEU{} = {}".format(k, 0))
             
-    LOGGER.info("METEOR = {}".format(meteor/len(processed)))
+    try:
+        LOGGER.info("METEOR = {}".format(meteor/len(processed)))
+    except:
+        LOGGER.info("METEOR = {}".format(0))
+        
     LOGGER.info("NB_INGR_INPUT = {}".format(
         sum(len(data["ingr"]) for data in processed.values())/len(processed)))
     LOGGER.info("INGR_MENTIONED_TARGET = {}".format(target_ingr/len(processed)))
