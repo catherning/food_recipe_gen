@@ -49,7 +49,8 @@ def processOutput(args):
                 try:
                     processed[output[0]] = {"ref": list(itertools.chain.from_iterable(ref[output[0]]["tokenized"])),
                                             "gen": output[1:-1],
-                                            "ingr": [ingr.name for ingr in ref[output[0]]["ingredients"]]}
+                                            "ingr": [ingr.name for ingr in ref[output[0]]["ingredients"]],
+                                            "ref_step":len(ref[output[0]]["instructions"])}
                 except KeyError:
                     processed["loss"]= output[3]
                     break
@@ -74,6 +75,8 @@ def main(args, LOGGER):
         vocab_ingrs = pickle.load(f)
 
     processed = processOutput(args)
+    NB_RECIPES = len(processed)
+    
     LOGGER.info("loss = {}".format(processed["loss"]))
     del processed["loss"]
 
@@ -89,6 +92,8 @@ def main(args, LOGGER):
     target_ingr = 0
     gen_ingr = 0
     added_ingr = 0
+    gen_step = 0
+    target_step = 0
     for data in processed.values():
         for k, v in bleu.items():
             v += sentence_bleu(data["ref"], data["gen"], weights=bleu_w[k])
@@ -107,25 +112,33 @@ def main(args, LOGGER):
                     gen_ingr += 1
                 else:
                     added_ingr += 1
-                
+                    
+        target_step += data["ref_step"]
+        gen_step += data["gen"].count("<eos>")
+
+    
+    # Average for all recipes
     # TODO: get average ingr compatibility, average ingr compat for added ingr
     for k,v in bleu.items():
         try:
-            LOGGER.info("BLEU{} = {}".format(k,v/len(processed)))
+            LOGGER.info("BLEU{} = {}".format(k,v/NB_RECIPES))
         except ZeroDivisionError:
             LOGGER.info("BLEU{} = {}".format(k, 0))
             
     try:
-        LOGGER.info("METEOR = {}".format(meteor/len(processed)))
+        LOGGER.info("METEOR = {}".format(meteor/NB_RECIPES))
     except:
         LOGGER.info("METEOR = {}".format(0))
         
     LOGGER.info("NB_INGR_INPUT = {}".format(
-        sum(len(data["ingr"]) for data in processed.values())/len(processed)))
-    LOGGER.info("INGR_MENTIONED_TARGET = {}".format(target_ingr/len(processed)))
-    LOGGER.info("INGR_MENTIONED_GEN = {}".format(gen_ingr/len(processed)))
+        sum(len(data["ingr"]) for data in processed.values())/NB_RECIPES))
+    LOGGER.info("INGR_MENTIONED_TARGET = {}".format(target_ingr/NB_RECIPES))
+    LOGGER.info("INGR_MENTIONED_GEN = {}".format(gen_ingr/NB_RECIPES))
     LOGGER.info("ADD_INGR_MENTIONED_GEN = {}".format(
-        added_ingr/len(processed)))
+        added_ingr/NB_RECIPES))
+    
+    LOGGER.info("STEP_TARGET = {}".format(target_step/NB_RECIPES))
+    LOGGER.info("STEP_GEN = {}".format(gen_step/NB_RECIPES))
 
 
 if __name__ == "__main__":
