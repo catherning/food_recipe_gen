@@ -150,7 +150,7 @@ def init_seed(seed=None):
     if seed is None:
         seed = int(round(time.time() * 1000)) % 10000
 
-    LOGGER.info("Using seed={}, pid={}".format(seed, os.getpid()))
+    LOGGER.info("seed = {}, pid = {}".format(seed, os.getpid()))
     np.random.seed(seed)
     torch.manual_seed(seed)
 

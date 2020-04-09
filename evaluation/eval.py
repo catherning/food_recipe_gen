@@ -46,9 +46,13 @@ def processOutput(args):
                     continue
                 # TODO: check if punction with/without space is oks
                 # TODO: opt => direct can calculate the metrics instead of looping again
-                processed[output[0]] = {"ref": list(itertools.chain.from_iterable(ref[output[0]]["tokenized"])),
-                                        "gen": output[1:-1],
-                                        "ingr": [ingr.name for ingr in ref[output[0]]["ingredients"]]}
+                try:
+                    processed[output[0]] = {"ref": list(itertools.chain.from_iterable(ref[output[0]]["tokenized"])),
+                                            "gen": output[1:-1],
+                                            "ingr": [ingr.name for ingr in ref[output[0]]["ingredients"]]}
+                except KeyError:
+                    processed["loss"]= output[3]
+                    break
 
         with open(os.path.join(EVAL_FOLDER, "recipes_eval.txt"), 'wb') as f:
             pickle.dump(processed, f)
@@ -67,6 +71,8 @@ def main(args, LOGGER):
         runEval(args)
 
     processed = processOutput(args)
+    LOGGER.info("loss = {}".format(processed["loss"]))
+    del processed["loss"]
 
     bleu = {i: 0 for i in range(1, 5)}
     bleu_w = {1: (1, 0, 0, 0),
@@ -100,8 +106,8 @@ def main(args, LOGGER):
                 r_ingr += 1
 
     # TODO: get average ingr compatibility, average ingr compat for added ingr
-
-    LOGGER.info("BLEU = {}".format(bleu/len(processed)))
+    for k,v in bleu.items():
+        LOGGER.info("BLEU{} = {}".format(k,v/len(processed)))
     LOGGER.info("METEOR = {}".format(meteor/len(processed)))
     LOGGER.info("NB_INGR_INPUT = {}".format(
         sum(len(data["ingr"]) for data in processed.values())/len(processed)))
