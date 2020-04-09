@@ -69,6 +69,9 @@ def runEval(args):
 def main(args, LOGGER):
     if args.eval_folder is None:
         runEval(args)
+        
+    with open(os.path.join(FOLDER_PATH, DATA_FILES[3]), 'rb') as f:
+        vocab_ingrs = pickle.load(f)
 
     processed = processOutput(args)
     LOGGER.info("loss = {}".format(processed["loss"]))
@@ -83,8 +86,8 @@ def main(args, LOGGER):
     meteor = 0
     rouge = 0
     # TODO: calc ROUGE
-    t_ingr = 0
-    r_ingr = 0
+    target_ingr = 0
+    gen_ingr = 0
     added_ingr = 0
     for data in processed.values():
         for k, v in bleu.items():
@@ -95,22 +98,28 @@ def main(args, LOGGER):
 
         for ingr in data["ingr"]:
             # ingr from the input that are mentioned
-            if ingr in data["gen"]:
-                t_ingr += 1
-            else:
-                # ingr added not from input
-                added_ingr += 1
             if ingr in data["ref"]:
-                r_ingr += 1
-
+                target_ingr += 1
+                
+        for w in data["gen"]:
+            if w in vocab_ingrs.word2idx:
+                if w in data["ingr"]:
+                    gen_ingr += 1
+                else:
+                    added_ingr += 1
+                
     # TODO: get average ingr compatibility, average ingr compat for added ingr
     for k,v in bleu.items():
-        LOGGER.info("BLEU{} = {}".format(k,v/len(processed)))
+        try:
+            LOGGER.info("BLEU{} = {}".format(k,v/len(processed)))
+        except ZeroDivisionError:
+            LOGGER.info("BLEU{} = {}".format(k, 0.0))
+            
     LOGGER.info("METEOR = {}".format(meteor/len(processed)))
     LOGGER.info("NB_INGR_INPUT = {}".format(
         sum(len(data["ingr"]) for data in processed.values())/len(processed)))
-    LOGGER.info("INGR_MENTIONED_TARGET = {}".format(r_ingr/len(processed)))
-    LOGGER.info("INGR_MENTIONED_GEN = {}".format(r_ingr/len(processed)))
+    LOGGER.info("INGR_MENTIONED_TARGET = {}".format(target_ingr/len(processed)))
+    LOGGER.info("INGR_MENTIONED_GEN = {}".format(gen_ingr/len(processed)))
     LOGGER.info("ADD_INGR_MENTIONED_GEN = {}".format(
         added_ingr/len(processed)))
 
