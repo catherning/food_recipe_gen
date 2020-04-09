@@ -1,23 +1,24 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from recipe_gen.main import argparser, PAIRING_PATH, init_logging, str2bool
-from recipe_gen.seq2seq_utils import RecipesDataset, FOLDER_PATH, DATA_FILES
-from nltk.translate.meteor_score import single_meteor_score
-from nltk.translate.bleu_score import sentence_bleu
 import argparse
 import logging
 import itertools
 import pickle
 import sys
 import os
+
+from nltk.translate.meteor_score import single_meteor_score
+from nltk.translate.bleu_score import sentence_bleu
+
 sys.path.insert(0, os.getcwd())
+
+from recipe_gen.main import argparser, PAIRING_PATH, init_logging, str2bool
+from recipe_gen.main import main as main_gen
+from recipe_gen.seq2seq_utils import RecipesDataset, FOLDER_PATH, DATA_FILES
 # from nlgeval import compute_individual_metrics,compute_metrics
 
-
-# argparser = argparse.ArgumentParser()
-# argparser.register('type', 'bool', str2bool)
-
+#args.model_name
 argparser.add_argument('--eval-folder', type=str,
                        help='Generated recipes path (only the data)')
 
@@ -38,8 +39,14 @@ def processOutput(folder_path, ref, gen_ref=False):
                                         "ingr": [ingr.name for ingr in ref[output[0]]["ingredients"]]}
     return processed
 
+def runEval(args):
+
+    args = main_gen()
+    args.eval_folder = os.path.split(args.save_folder)[-1]
 
 def main(args, LOGGER):
+    if args.eval_folder is None:
+        runEval(args)
 
     with open(os.path.join(args.data_folder, args.test_file), 'rb') as f:
         ref = pickle.load(f)

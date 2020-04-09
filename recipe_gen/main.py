@@ -182,8 +182,11 @@ def main():
     model = model_class(args)
 
     if args.resume:
-        checkpoint = torch.load(os.path.join(
-            os.getcwd(), "recipe_gen", "results", args.model_name, args.load_folder))
+        path = os.path.join(
+            os.getcwd(), "recipe_gen", "results", args.model_name,args.load_folder)
+        newest_file = max(filter(lambda f: f[0]=="t",os.listdir(path)), key=lambda f: os.path.getmtime(os.path.join(path,f)))
+        
+        checkpoint = torch.load(os.path.join(path, newest_file))
         model.load_state_dict(checkpoint['model_state_dict'])
         [optim.load_state_dict(checkpoint['optimizer_state_dict'][i])
          for i, optim in enumerate(model.optim_list)]
@@ -191,10 +194,10 @@ def main():
         # loss = checkpoint['loss']
         print("Model loaded for resuming training.")
 
-    if args.load and not args.resume:
+    if args.load:
         model.load_state_dict(torch.load(os.path.join(
             os.getcwd(), "recipe_gen", "results", args.model_name, args.load_folder, "best_model")))
-        # for consistency, don't add best_model, ask user to add it ?
+
         print("Model loaded.")
 
     model.to(args.device)
@@ -228,6 +231,8 @@ def main():
             plt.matshow(attentions[:, 0, :].numpy())
         except (TypeError, AttributeError):
             print("No attention to show.")
+            
+    return args
 
 
 if __name__ == "__main__":
