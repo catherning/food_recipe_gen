@@ -87,8 +87,6 @@ def main(args, LOGGER):
     r_ingr = 0
     added_ingr = 0
     for data in processed.values():
-        # Do more bleu scores
-        bleu += sentence_bleu(data["ref"], data["gen"], weights=(0.5, 0.5))
         for k, v in bleu.items():
             v += sentence_bleu(data["ref"], data["gen"], weights=bleu_w[k])
 
