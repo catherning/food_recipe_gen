@@ -82,9 +82,10 @@ class PairingData:
         returns [(frozenset({16, 2}), 0.01891073), (frozenset({129, 2}), 0.0022993684)]
         """
         try:
-            return  [(ingr,score) for ingr,score in self.pairing_scores[ingr_id.item()].items()]
+            return list(self.pairing_scores[ingr_id.item()].keys()), list(self.pairing_scores[ingr_id.item()].values())
         except KeyError:
-            return []
+            return [],[]
+        
 
     def __len__(self):
         return len(self.pairing_scores)

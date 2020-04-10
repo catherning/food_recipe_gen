@@ -10,6 +10,7 @@ import time
 import numpy as np
 from datetime import datetime
 import matplotlib as plt
+import cProfile
 
 sys.path.insert(0, os.getcwd())
 
@@ -239,4 +240,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if sys.modules['__main__'].__file__ == cProfile.__file__:
+        import recipe_gen.main  # Imports you again (does *not* use cache or execute as __main__)
+        globals().update(vars(recipe_gen.main))  # Replaces current contents with newly imported stuff
+        sys.modules['__main__'] = recipe_gen.main  # Ensures pickle lookups on __main__ find matching version
+    main() 
