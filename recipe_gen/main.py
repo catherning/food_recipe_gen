@@ -18,7 +18,6 @@ from recipe_gen.pairing_utils import PairingData
 from recipe_gen.seq2seq_utils import FOLDER_PATH,DATA_FILES
 
 
-LOGGER = logging.getLogger()
 PAIRING_PATH = os.path.join(
     os.getcwd(), "KitcheNette_master", "results", "pairings.pkl")
 SAVING_PATH = os.path.join(os.getcwd(), "recipe_gen", "results")
@@ -126,12 +125,12 @@ argparser.add_argument('--seed', type=int, default=3)
 
 
 def init_logging(args):
-    LOGGER.setLevel(logging.INFO)
+    args.logger.setLevel(logging.INFO)
     fmt = logging.Formatter('%(asctime)s: [ %(message)s ]',
                             '%m/%d/%Y %I:%M:%S %p')
     console = logging.StreamHandler()
     console.setFormatter(fmt)
-    LOGGER.addHandler(console)
+    args.logger.addHandler(console)
 
     # Create save folder
     args.saving_path = saving_path = os.path.join(
@@ -143,18 +142,18 @@ def init_logging(args):
     logfile = logging.FileHandler(os.path.join(saving_path, 'log.txt'), 'w')
 
     logfile.setFormatter(fmt)
-    LOGGER.addHandler(logfile)
+    args.logger.addHandler(logfile)
+    args.logger.handlers = args.logger.handlers[:2]
 
 
-def init_seed(seed=None):
-    if seed is None:
-        seed = int(round(time.time() * 1000)) % 10000
+def init_seed(args):
+    if args.seed is None:
+        args.seed = int(round(time.time() * 1000)) % 10000
 
-    LOGGER.info("seed = {}, pid = {}".format(seed, os.getpid()))
-    np.random.seed(seed)
-    torch.manual_seed(seed)
+    args.logger.info("seed = {}, pid = {}".format(args.seed, os.getpid()))
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
-    return seed
 
 
 def getDefaultArgs(argparser):
@@ -168,9 +167,9 @@ def getDefaultArgs(argparser):
 
 def main():
     args = getDefaultArgs(argparser)
+    args.logger = LOGGER = logging.getLogger()
     init_logging(args)
-    args.seed = init_seed(args.seed)
-    args.logger = LOGGER
+    init_seed(args)
 
     try:
         model_class = getattr(importlib.import_module(

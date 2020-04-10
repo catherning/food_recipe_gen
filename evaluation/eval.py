@@ -34,7 +34,7 @@ def processOutput(args):
     processed = {}
     # XXX: try to optimize code ?
     if os.path.isfile(os.path.join(EVAL_FOLDER, "recipes_eval.txt")):
-        with open(os.path.join(EVAL_FOLDER, "recipes_eval.txt"), 'rb') as f:
+        with open(os.path.join(EVAL_FOLDER, "recipes_eval.pkl"), 'rb') as f:
             processed = pickle.load(f)
 
     else:
@@ -55,7 +55,7 @@ def processOutput(args):
                     processed["loss"]= output[3]
                     break
 
-        with open(os.path.join(EVAL_FOLDER, "recipes_eval.txt"), 'wb') as f:
+        with open(os.path.join(EVAL_FOLDER, "recipes_eval.pkl"), 'wb') as f:
             pickle.dump(processed, f)
 
     return processed
@@ -64,10 +64,11 @@ def processOutput(args):
 def runEval(args):
 
     args_ = main_gen()
-    args.eval_folder = os.path.split(args_.save_folder)[-1]
+    args.eval_folder = os.path.split(args_.saving_path)[-1]
 
 
-def main(args, LOGGER):
+def main(args):
+    LOGGER = args.logger
     if args.eval_folder is None:
         runEval(args)
         
@@ -142,7 +143,7 @@ def main(args, LOGGER):
 
 
 if __name__ == "__main__":
-    LOGGER = logging.getLogger()
     args = argparser.parse_args()
+    args.logger = logging.getLogger()
     init_logging(args)
-    main(args, LOGGER)
+    main(args)
