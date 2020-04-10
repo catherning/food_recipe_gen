@@ -7,7 +7,6 @@ from torch import optim
 from recipe_gen.seq2seq_utils import MAX_INGR, MAX_LENGTH
 from recipe_gen.pairing_utils import PairingData
 
-
 class EncoderRNN(nn.Module):
     def __init__(self, args, input_size):
         super(EncoderRNN, self).__init__()
@@ -250,23 +249,14 @@ class PairingAtt(Attention):
         output: (1,batch,2*hidden)
         attn_scores: (batch,top_k) 
         """
-
-        compatible_ingr = [self.pairings.bestPairingsFromIngr(
-            ingr) for ingr in ingr_id]
-
         batch_size = embedded.shape[1]
         scores = torch.zeros(batch_size, self.pairings.top_k)
         comp_ingr_id = torch.ones(
             batch_size, self.pairings.top_k, dtype=torch.long,device=embedded.device)*self.unk_token
-        for i, batch in enumerate(compatible_ingr):
-            # if len(batch) > 0: # necessary ?
-            comp_ingr = []
-            for j,pair in enumerate(batch):
-                scores[i, j] = pair[1]
-                comp_ingr.append(pair[0])
 
-            comp_ingr = torch.LongTensor(comp_ingr)
-            comp_ingr_id[i, :comp_ingr.shape[0]] = comp_ingr
+        for i,(comp_ingr, score_list) in enumerate(map(self.pairings.bestPairingsFromIngr, ingr_id)):
+            comp_ingr_id[i, :len(comp_ingr)] = torch.LongTensor(comp_ingr)
+            scores[i:len(score_list)]=torch.FloatTensor(score_list)            
 
         comp_emb = encoder_embedding(comp_ingr_id)
 
@@ -274,7 +264,6 @@ class PairingAtt(Attention):
         for i in range(self.pairings.top_k):
             attn_weights[:, i] = self.attn(
                 torch.cat((comp_emb[:, i], hidden[0]), 1)
-                
                 ).view(batch_size)
         attn_weights = F.softmax(torch.tanh(attn_weights), dim=1)
 
