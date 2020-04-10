@@ -243,7 +243,7 @@ class PairingAtt(Attention):
             self.pairings = pickle.load(f)
             
         self.unk_token = unk_token
-        self.attn = nn.Linear(self.hidden_size * 2, 1)
+        self.key_layer = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         # self.attn = nn.Linear(self.hidden_size * 2, self.pairings.top_k)
 
     def forward(self, embedded, hidden, ingr_id, encoder_embedding):
@@ -257,7 +257,7 @@ class PairingAtt(Attention):
         attn_scores: (batch,top_k) 
         """
         batch_size = embedded.shape[1]
-        scores = torch.zeros(batch_size, self.pairings.top_k)
+        scores = torch.zeros(batch_size, self.pairings.top_k).to(embedded.device)
         comp_ingr_id = torch.ones(
             batch_size, self.pairings.top_k, dtype=torch.long,device=embedded.device)*self.unk_token
 
@@ -267,38 +267,12 @@ class PairingAtt(Attention):
 
         comp_emb = encoder_embedding(comp_ingr_id)
 
-        attn_weights = torch.zeros(batch_size, self.pairings.top_k)
-        
-        # import time
-
-        # self.attn = nn.Linear(self.hidden_size * 2, 1).to(0)
-        # startTime = time.time()
-        # for k in range(1000):
-        for i in range(self.pairings.top_k):
-            attn_weights[:, i] = self.attn(
-                torch.cat((comp_emb[:, i], hidden[0]), 1)
-                ).view(batch_size)
-        attn_weights = F.softmax(torch.tanh(attn_weights), dim=1)
-        
-        # print(time.time() - startTime)
-        
-        # self.attn = nn.Linear(self.hidden_size * 2, self.pairings.top_k).to(0)
-        # startTime = time.time()
-        # for k in range(1000):
-        #     hidden_repeat = hidden[0].unsqueeze(1).expand(-1,self.pairings.top_k,-1)
-        #     attn_weights = self.attn(
-        #             torch.cat((comp_emb, hidden_repeat), 2)
-        #             ).view(batch_size)
-        #     attn_weights = F.softmax(torch.tanh(attn_weights), dim=1)
         hidden_repeat = hidden[0].unsqueeze(1).expand(-1,self.pairings.top_k,-1)
         query = self.query_layer(hidden_repeat)
-        key = self.key_layer(comp_emb.view(batch_size,self.max_ingr,self.hidden_size *2))
+        key = self.key_layer(comp_emb)
 
-        scores = self.attn(torch.tanh(query + key))
-        attn_weights = F.softmax(scores.squeeze(2).unsqueeze(1), dim=-1)
-        # context = torch.bmm(alphas, value)
-        # print(time.time() - startTime)
-
+        scores_att = self.attn(torch.tanh(query + key))
+        attn_weights = F.softmax(scores_att.squeeze(2), dim=-1)
         
         # XXX: renormalize after multiplication ?
         # TODO: try with emphazing unknown pairings
