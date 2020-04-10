@@ -167,11 +167,13 @@ class Attention(nn.Module):
         self.dropout_p = args.dropout
         self.max_ingr = args.max_ingr
         self.max_length = args.max_length
-        self.hidden_size = args.hidden_size
+        self.hidden_size = hidden_size = args.hidden_size
 
         self.dropout = nn.Dropout(self.dropout_p)
-        self.attn = nn.Linear(self.hidden_size * 2, self.max_ingr)
-        self.attn_combine = nn.Linear(self.hidden_size * 3, self.hidden_size)
+        self.key_layer = nn.Linear(2 * hidden_size, hidden_size, bias=False)
+        self.query_layer = nn.Linear(hidden_size, hidden_size, bias=False)
+        self.attn = nn.Linear(hidden_size, 1, bias= False)
+        self.attn_combine = nn.Linear(hidden_size * 3, hidden_size)
 
     def forward(self, embedded, hidden, encoder_outputs):
         """From pytorch seq2seq tuto
@@ -208,7 +210,6 @@ class Attention(nn.Module):
 class IngrAtt(Attention):
     def __init__(self, args):
         super().__init__(args)
-        self.attn = nn.Linear(self.hidden_size * 3, self.max_ingr)
 
     def forward(self, embedded, hidden, encoder_outputs):
         """Def from user pref paper
@@ -217,15 +218,20 @@ class IngrAtt(Attention):
         V: encoder_outputs
         """
         batch_size = embedded.shape[1]
-        attn_weights = F.softmax(torch.tanh(self.attn(
-                        torch.cat((encoder_outputs[-1], hidden[0]), 1)
-                        )),dim=1)
+        hidden_repeat = hidden[0].unsqueeze(1).expand(-1,self.max_ingr,-1)
         
-        # attn_weights view: (batch,1,max_ingr)
-        # encoder_outputs view: (batch,max_ingr,hidden_size)
+        query = self.query_layer(hidden_repeat)
+        key = self.key_layer(encoder_outputs.view(batch_size,self.max_ingr,self.hidden_size *2))
+
+        scores = self.attn(torch.tanh(query + key))
+        attn_weights = F.softmax(scores.squeeze(2), dim=-1)
+        # context = torch.bmm(alphas, value)
+        
         attn_applied = torch.bmm(attn_weights.view(batch_size, 1, self.max_ingr),
                                  encoder_outputs.view(batch_size, self.max_ingr, 2*self.hidden_size))
         output = torch.cat((embedded[0], attn_applied[:, 0]), 1).unsqueeze(0)
+        # attn_weights view: (batch,1,max_ingr)
+        # encoder_outputs view: (batch,max_ingr,hidden_size)
 
         return output, attn_weights
 
@@ -238,6 +244,7 @@ class PairingAtt(Attention):
             
         self.unk_token = unk_token
         self.attn = nn.Linear(self.hidden_size * 2, 1)
+        # self.attn = nn.Linear(self.hidden_size * 2, self.pairings.top_k)
 
     def forward(self, embedded, hidden, ingr_id, encoder_embedding):
         """
@@ -256,17 +263,43 @@ class PairingAtt(Attention):
 
         for i,(comp_ingr, score_list) in enumerate(map(self.pairings.bestPairingsFromIngr, ingr_id)):
             comp_ingr_id[i, :len(comp_ingr)] = torch.LongTensor(comp_ingr)
-            scores[i:len(score_list)]=torch.FloatTensor(score_list)            
+            scores[i, :len(score_list)]=torch.FloatTensor(score_list)            
 
         comp_emb = encoder_embedding(comp_ingr_id)
 
         attn_weights = torch.zeros(batch_size, self.pairings.top_k)
+        
+        # import time
+
+        # self.attn = nn.Linear(self.hidden_size * 2, 1).to(0)
+        # startTime = time.time()
+        # for k in range(1000):
         for i in range(self.pairings.top_k):
             attn_weights[:, i] = self.attn(
                 torch.cat((comp_emb[:, i], hidden[0]), 1)
                 ).view(batch_size)
         attn_weights = F.softmax(torch.tanh(attn_weights), dim=1)
+        
+        # print(time.time() - startTime)
+        
+        # self.attn = nn.Linear(self.hidden_size * 2, self.pairings.top_k).to(0)
+        # startTime = time.time()
+        # for k in range(1000):
+        #     hidden_repeat = hidden[0].unsqueeze(1).expand(-1,self.pairings.top_k,-1)
+        #     attn_weights = self.attn(
+        #             torch.cat((comp_emb, hidden_repeat), 2)
+        #             ).view(batch_size)
+        #     attn_weights = F.softmax(torch.tanh(attn_weights), dim=1)
+        hidden_repeat = hidden[0].unsqueeze(1).expand(-1,self.pairings.top_k,-1)
+        query = self.query_layer(hidden_repeat)
+        key = self.key_layer(comp_emb.view(batch_size,self.max_ingr,self.hidden_size *2))
 
+        scores = self.attn(torch.tanh(query + key))
+        attn_weights = F.softmax(scores.squeeze(2).unsqueeze(1), dim=-1)
+        # context = torch.bmm(alphas, value)
+        # print(time.time() - startTime)
+
+        
         # XXX: renormalize after multiplication ?
         # TODO: try with emphazing unknown pairings
         attn_scores = (attn_weights * scores).to(comp_emb.device)

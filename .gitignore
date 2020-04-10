@@ -129,3 +129,4 @@ recipe_gen/Scripts
 *.joblib
 pandas/
 *.joblib
+profiles/

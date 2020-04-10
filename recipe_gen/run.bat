@@ -1,11 +1,12 @@
-python ./recipe_gen/main.py ^
+python -m cProfile -o "profilePairingAtt.txt"  ./recipe_gen/main.py ^
     --device 0 ^
     --batch-size 4 ^
-    --epoch 15 ^
-    --n-iters 11500 ^
+    --epoch 1 ^
+    --n-iters 100 ^
     --max-ingr 10 ^
     --max-length 100 ^
-    --model-name Seq2seq
+    --model-name Seq2seqIngrPairingAtt ^
+    --test False
 rem    --topk 10 
 rem    --samples-max 1000
 rem    --resume ^
