@@ -15,6 +15,8 @@ sys.path.insert(0, os.getcwd())
 
 from recipe_gen.seq2seq_utils import RecipesDataset, FOLDER_PATH, DATA_FILES
 from recipe_gen.main import argparser, PAIRING_PATH, init_logging, str2bool, main as main_gen
+from recipe_gen.pairing_utils import PairingData
+
 
 # from nlgeval import compute_individual_metrics,compute_metrics
 
