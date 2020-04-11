@@ -1,5 +1,5 @@
-FOR %%m IN (Seq2seqIngrPairingAtt) DO (
-    python -m cProfile -o ./recipe_gen/profiles/prof%%mNewNucleus.txt  ./recipe_gen/main.py ^
+FOR %%m IN (Seq2seq) DO (
+    python -m cProfile -o ./recipe_gen/profiles/prof%%mRevertNucleus.txt  ./recipe_gen/main.py ^
         --device 0 ^
         --batch-size 4 ^
         --epoch 1 ^
