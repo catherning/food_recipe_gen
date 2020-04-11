@@ -1,2 +1,2 @@
-python cuisine_classification/NN_classification.py --clustering --train-mode "false" --test "false" --classify  --load --load-folder "03-28-02-42_full_clust"  --device 0 --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets\cuisine_classification"
+python cuisine_classification/NN_classification.py --clustering --train-mode "false" --test "false" --classify  --load --load-folder "03-28-02-42_full_clust"  --device 0 --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets\cuisine_classification" --classify-file "val"
 rem --proba-threshold 0.95 

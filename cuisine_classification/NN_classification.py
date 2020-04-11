@@ -62,7 +62,7 @@ argparser.add_argument('--load-folder', type=str,
 # TODO: change classify file to each file when running
 argparser.add_argument('--classify-folder', type=str, default=os.path.join(os.getcwd(), "recipe_1m_analysis", "data"),
                        help='The folder where classify-file is.')
-argparser.add_argument('--classify-file', type=str, default="train", choices=["train", "test", "dev"],
+argparser.add_argument('--classify-file', type=str, default="train", choices=["train", "test", "val"],
                        help='The dataset of ingr to classify (train, test or dev)')
 
 # Model settings
