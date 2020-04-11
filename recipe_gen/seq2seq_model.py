@@ -88,21 +88,16 @@ class Seq2seq(nn.Module):
         decoder_output = decoder_output/self.args.temperature
         
         if self.args.nucleus_sampling:
-            topv = self.top_p_filtering(decoder_output,self.args.topp)
-            distrib = torch.distributions.categorical.Categorical(logits=topv)
-            for batch_id, idx in enumerate(distrib.sample()):
-                chosen_id[batch_id] = idx
-                decoded_words[batch_id].append(
-                    self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
-            
+            topv, topi = self.top_p_filtering(decoder_output,self.args.topp)
         else:
             topv, topi = decoder_output.topk(self.args.topk)        
-            distrib = torch.distributions.categorical.Categorical(logits=topv)
+        
+        distrib = torch.distributions.categorical.Categorical(logits=topv)
 
-            for batch_id, idx in enumerate(distrib.sample()):
-                chosen_id[batch_id] = topi[batch_id, idx]   
-                decoded_words[batch_id].append(
-                    self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
+        for batch_id, idx in enumerate(distrib.sample()):
+            chosen_id[batch_id] = topi[batch_id, idx]   
+            decoded_words[batch_id].append(
+                self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
             
         return chosen_id
     
@@ -110,32 +105,26 @@ class Seq2seq(nn.Module):
         """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
             Args:
                 logits: logits distribution shape (vocabulary size)
-                top_k >0: keep only top k tokens with highest probability (top-k filtering).
                 top_p >0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
                     Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
         """
-        
-        # if top_k > 0:
-        #     # Remove all tokens with a probability less than the last token of the top-k
-        #     indices_to_remove = logits < torch.topk(logits, top_k)[0][:, -1, None]
-        # if top_p > 0.0:
-        
+
         sorted_logits, sorted_indices = torch.sort(logits, descending=True)
         cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-
+            
         # Remove tokens with cumulative probability above the threshold
         sorted_indices_to_remove = cumulative_probs > top_p
-        # Shift the indices to the right to keep also the first token above the threshold
-        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-        sorted_indices_to_remove[..., 0] = 0
+        max_arg = torch.max((sorted_indices_to_remove== False).sum(dim=1))
+        sorted_indices_to_remove = torch.cat((torch.BoolTensor([0]*logits.shape[0]).to(0).unsqueeze(1),sorted_indices_to_remove[:,:max_arg]),
+                                            dim=-1)
+        
+        # Trim the sorted logits, that way there's less logits to change to filter_value.
+        sorted_logits = sorted_logits[:, :max_arg+1]
+        sorted_indices = sorted_indices[:, :max_arg+1]
 
-        # indices_to_remove = sorted_indices[sorted_indices_to_remove]
-        indices_to_remove = torch.zeros_like(logits, dtype=torch.bool).scatter_(
-            dim=-1, index=sorted_indices, src=sorted_indices_to_remove )
+        sorted_logits[sorted_indices_to_remove] = filter_value
             
-        logits[indices_to_remove] = filter_value
-            
-        return logits
+        return sorted_logits,sorted_indices
 
     def initForward(self, input_tensor, pairing=False):
         # XXX: should be able not to reassign if do view with correct hidden size instead
