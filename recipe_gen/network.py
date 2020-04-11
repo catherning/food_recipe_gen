@@ -144,10 +144,8 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
 
         # Selecting the focused ingredient from input then attend on compatible ingredients
         ingr_arg = torch.argmax(attn_weights, 1)
-        ingr_id = torch.LongTensor(batch_size)
-        for i, id in enumerate(ingr_arg):
-            ingr_id[i] = input_tensor[i, id]
-
+        ingr_id = input_tensor[torch.arange(batch_size),ingr_arg]
+            
         out, attn_weights = self.pairAttention(
             embedded, hidden, ingr_id, encoder_embedding)
         if out is None:
@@ -160,14 +158,19 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         output = self.out(output[0])
         return output, hidden, attn_weights, None
 
-
-class Attention(nn.Module):
+class BaseAttention(nn.Module):
     def __init__(self, args):
         super().__init__()
-        self.dropout_p = args.dropout
         self.max_ingr = args.max_ingr
         self.max_length = args.max_length
-        self.hidden_size = hidden_size = args.hidden_size
+        self.hidden_size = args.hidden_size
+
+
+class Attention(BaseAttention):
+    def __init__(self, args):
+        super().__init__(args)
+        hidden_size = self.hidden_size
+        self.dropout_p = args.dropout
         self.attn = nn.Linear(2*hidden_size, self.max_ingr)
         self.dropout = nn.Dropout(self.dropout_p)
 
@@ -205,7 +208,7 @@ class Attention(nn.Module):
         return output, attn_weights
 
 
-class IngrAtt(Attention):
+class IngrAtt(BaseAttention):
     def __init__(self, args):
         super().__init__(args)
         hidden_size = self.hidden_size
