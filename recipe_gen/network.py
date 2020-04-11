@@ -168,11 +168,9 @@ class Attention(nn.Module):
         self.max_ingr = args.max_ingr
         self.max_length = args.max_length
         self.hidden_size = hidden_size = args.hidden_size
-
+        self.attn = nn.Linear(2*hidden_size, self.max_ingr)
         self.dropout = nn.Dropout(self.dropout_p)
-        self.key_layer = nn.Linear(2 * hidden_size, hidden_size, bias=False)
-        self.query_layer = nn.Linear(hidden_size, hidden_size, bias=False)
-        self.attn = nn.Linear(hidden_size, 1, bias= False)
+
         self.attn_combine = nn.Linear(hidden_size * 3, hidden_size)
 
     def forward(self, embedded, hidden, encoder_outputs):
@@ -210,6 +208,10 @@ class Attention(nn.Module):
 class IngrAtt(Attention):
     def __init__(self, args):
         super().__init__(args)
+        hidden_size = self.hidden_size
+        self.key_layer = nn.Linear(2 * hidden_size, hidden_size, bias=False)
+        self.query_layer = nn.Linear(hidden_size, hidden_size, bias=False)
+        self.attn = nn.Linear(hidden_size, 1, bias= False)
 
     def forward(self, embedded, hidden, encoder_outputs):
         """Def from user pref paper
@@ -236,7 +238,7 @@ class IngrAtt(Attention):
         return output, attn_weights
 
 
-class PairingAtt(Attention):
+class PairingAtt(IngrAtt):
     def __init__(self, args, unk_token=3):
         super().__init__(args)
         with open(args.pairing_path, 'rb') as f:
@@ -244,7 +246,6 @@ class PairingAtt(Attention):
             
         self.unk_token = unk_token
         self.key_layer = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
-        # self.attn = nn.Linear(self.hidden_size * 2, self.pairings.top_k)
 
     def forward(self, embedded, hidden, ingr_id, encoder_embedding):
         """
