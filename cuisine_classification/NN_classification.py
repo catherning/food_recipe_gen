@@ -11,6 +11,7 @@ from collections import Counter
 from datetime import datetime
 
 import matplotlib
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -29,7 +30,6 @@ from recipe_1m_analysis.data_processing import cleanCounterIngr
 from recipe_1m_analysis.ingr_normalization import normalize_ingredient
 from recipe_gen.main import getDefaultArgs
 
-matplotlib.use("agg")
 
 
 
@@ -550,7 +550,7 @@ def main():
         with open(vocab_path, "rb") as f:
             vocab_ingrs = pickle.load(f)
         
-        with open(os.path.join(vocab_path,os.pardir,"vocab_cuisine.pkl"), "rb") as f:
+        with open(os.path.join(os.path.dirname(vocab_path),"vocab_cuisine.pkl"), "rb") as f:
             vocab_cuisine = pickle.load(f)
         LOGGER.info("Vocab loaded")
         
