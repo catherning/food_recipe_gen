@@ -14,7 +14,7 @@ from nltk.translate.bleu_score import sentence_bleu
 sys.path.insert(0, os.getcwd())
 
 from recipe_gen.seq2seq_utils import RecipesDataset, FOLDER_PATH, DATA_FILES
-from recipe_gen.main import argparser, PAIRING_PATH, init_logging, str2bool, main as main_gen
+from recipe_gen.main import argparser, PAIRING_PATH, init_logging, str2bool, main as main_gen, getDefaultArgs
 from recipe_gen.pairing_utils import PairingData
 
 
@@ -23,6 +23,15 @@ from recipe_gen.pairing_utils import PairingData
 # args.model_name
 argparser.add_argument('--eval-folder', type=str,
                        help='Generated recipes path (only the data)')
+
+def paramLogging(args):
+    for k, v in args.defaults.items():
+        try:
+            if v is None or getattr(args, k) != v:
+                args.logger.info("{} = {}".format(
+                    k, getattr(args, k)))
+        except AttributeError:
+            continue
 
 
 def processOutput(args):
@@ -62,6 +71,30 @@ def processOutput(args):
 
     return processed
 
+def loadPairing():
+    FOLDER_PATH = "F:\\user\\Google Drive\\Catherning Folder\\THU\\Thesis\\Work\\Recipe datasets\\cuisine_classification"
+    FILES = ["cleaned_data.pkl","full_data.pkl"]
+
+    known_path = os.path.join(os.getcwd(),"KitcheNette_master","data","kitchenette_pairing_scores.csv")
+    unk_path = os.path.join(os.getcwd(),"KitcheNette_master","results","prediction_unknowns_kitchenette_pretrained.mdl.csv")
+    pairing_pickle = os.path.join(os.getcwd(),"KitcheNette_master","results","full_pairings.pkl")
+        
+    return PairingData([unk_path,known_path], pickle_file=pairing_pickle, min_score=-1,trim=False)
+
+def recipeScore(ingr_list,pairing):
+    # TODO: get average ingr compatibility, average ingr compat for added ingr
+    nb = 0
+    score = 0
+    for i,ingr1 in enumerate(ingr_list):
+        for ingr2 in ingr_list[i+1:]:
+            try:
+                score += pairing.pairing_scores[pairing.pairedIngr[ingr1]][pairing.pairedIngr[ingr2]]
+                nb+=1
+                
+            except KeyError:
+                pass
+    return score/nb
+    
 
 def runEval(args):
 
@@ -71,6 +104,7 @@ def runEval(args):
 
 def main(args):
     LOGGER = args.logger
+    paramLogging(args)
     if args.eval_folder is None:
         runEval(args)
         
@@ -82,6 +116,8 @@ def main(args):
     
     LOGGER.info("loss = {}".format(processed["loss"]))
     del processed["loss"]
+    
+    pairing = loadPairing()
 
     bleu = {i: 0 for i in range(1, 5)}
     bleu_w = {1: (1, 0, 0, 0),
@@ -97,6 +133,9 @@ def main(args):
     added_ingr = 0
     gen_step = 0
     target_step = 0
+    gen_score = 0
+    gen_mentioned_score = 0
+    target_score = 0
     for data in processed.values():
         for k, v in bleu.items():
             v += sentence_bleu(data["ref"], data["gen"], weights=bleu_w[k])
@@ -108,20 +147,28 @@ def main(args):
             # ingr from the input that are mentioned
             if ingr in data["ref"]:
                 target_ingr += 1
-                
+        
+        
+        mentioned = {}
         for w in data["gen"]:
-            if w in vocab_ingrs.word2idx:
+            if w in vocab_ingrs.word2idx and w not in mentioned:
+                mentioned.add(w)
                 if w in data["ingr"]:
                     gen_ingr += 1
                 else:
                     added_ingr += 1
                     
+        # Recipe score using KitcheNette pairings
+        gen_score += recipeScore(list(mentioned)+data["ingr"],pairing)
+        gen_mentioned_score += recipeScore(list(mentioned),pairing)
+        target_score += recipeScore(data["ingr"],pairing)
+                    
         target_step += data["ref_step"]
         gen_step += data["gen"].count("<eos>")
 
+    # TODO: analysis by cuisine
     
     # Average for all recipes
-    # TODO: get average ingr compatibility, average ingr compat for added ingr
     for k,v in bleu.items():
         try:
             LOGGER.info("BLEU{} = {}".format(k,v/NB_RECIPES))
@@ -142,10 +189,12 @@ def main(args):
     
     LOGGER.info("STEP_TARGET = {}".format(target_step/NB_RECIPES))
     LOGGER.info("STEP_GEN = {}".format(gen_step/NB_RECIPES))
+    LOGGER.info("GEN_SCORE = {}".format(gen_score/NB_RECIPES))
+    LOGGER.info("TARGET_SCORE = {}".format(target_score/NB_RECIPES))
 
 
 if __name__ == "__main__":
-    args = argparser.parse_args()
+    args = getDefaultArgs(argparser)
     args.logger = logging.getLogger()
     init_logging(args)
     main(args)

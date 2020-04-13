@@ -1,11 +1,11 @@
 python ./evaluation/eval.py ^
         --device 0 ^
-        --load-folder "04-08-04-52" ^
+        --eval-folder "04-10-00-55" ^
         --batch-size 4 ^
         --test ^
         --load ^
         --train-mode False ^
         --max-ingr 10 ^
         --max-length 100 ^
-        --model-name Seq2seq ^
+        --model-name Seq2seqIngrAtt ^
         --test-file "recipe1m_train.pkl"
