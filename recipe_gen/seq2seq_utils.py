@@ -98,7 +98,6 @@ class RecipesDataset(Dataset):
             count_e = 0
             for idx,recipe in self.data.items():
                 try:
-                    recipe["cuisine"]
                     pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"],idx]
                     if self.filterSinglePair(pair):
                         _dict = self.tensorsFromPair(pair)
