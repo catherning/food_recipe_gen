@@ -580,15 +580,23 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
 class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
     def __init__(self, args):
         super().__init__(args)
-        self.cuisine_encoder = EncoderRNN(
-            args, len(self.train_dataset.vocab_cuisine))
+        self.hidden_size = args.hidden_size
+
+
+        self.cuis_embedding = nn.Embedding(len(self.train_dataset.vocab_cuisine), self.hidden_size)
+        self.cuisine_encoder = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(p=args.dropout)
+        )
+        
         self.cuisine_optimizer = optim.Adam(
             self.cuisine_encoder.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.cuisine_optimizer)
 
         self.encoder_fusion = nn.Linear(2*args.hidden_size, args.hidden_size)
         self.fusion_optim = optim.Adam(
-            self.encoder_fusion, lr=args.learning_rate)
+            self.encoder_fusion.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.fusion_optim)
 
     def forward(self, batch, iter=iter):
@@ -611,18 +619,17 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
             Warning("Evaluation mode: only taking ingredient list as input")
 
         # XXX: if only change, that, can just rename both title and cuisine to a fusion
-        title_tensor = batch["cuisine"].to(self.device)
+        cuisine_tensor = batch["cuisine"].to(self.device)
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
         # encoder_outputs (max_ingr,hidden_size, batch)
         # encoder_hidden (1,hidden_size, batch)
-
-        title_encoder_outputs, title_encoder_hidden = self.title_encoder.forward_all(
-            title_tensor)
+        cuis_emb = self.cuis_embedding(cuisine_tensor)
+        cuisine_encoding = self.cuisine_encoder(cuis_emb)
 
         decoder_hidden = torch.cat(
-            (encoder_hidden, title_encoder_hidden), dim=2)
+            (encoder_hidden, cuisine_encoding.view(1,cuisine_tensor.shape[0],self.hidden_size)), dim=2)
 
         decoder_hidden = self.encoder_fusion(decoder_hidden)
 

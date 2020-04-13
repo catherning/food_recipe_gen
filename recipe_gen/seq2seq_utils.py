@@ -94,7 +94,7 @@ class RecipesDataset(Dataset):
 
     def process_data(self):
         data = []
-        if self.model_name ==" Seq2seqCuisinePairing":
+        if self.model_name == "Seq2seqCuisinePairing":
             count_e = 0
             for idx,recipe in self.data.items():
                 try:
@@ -102,7 +102,7 @@ class RecipesDataset(Dataset):
                     pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"],idx]
                     if self.filterSinglePair(pair):
                         _dict = self.tensorsFromPair(pair)
-                        _dict["cuisine"]=recipe["cuisine"]
+                        _dict["cuisine"]=torch.LongTensor([self.vocab_cuisine.word2idx[recipe["cuisine"]]])
                         del _dict["title"]
                         data.append(_dict)
                 except AttributeError:
