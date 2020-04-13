@@ -44,11 +44,11 @@ def processOutput(args):
 
     processed = {}
     # XXX: try to optimize code ?
-    if os.path.isfile(os.path.join(EVAL_FOLDER, "recipes_eval.txt")):
-        with open(os.path.join(EVAL_FOLDER, "recipes_eval.pkl"), 'rb') as f:
+    try:
+        with open(os.path.join(EVAL_FOLDER, "recipes_eval.txt"), 'rb') as f:
             processed = pickle.load(f)
 
-    else:
+    except FileNotFoundError:
         with open(os.path.join(EVAL_FOLDER, "log.txt")) as f:
             for line in f:
                 output = line.split("[")[1].split()
