@@ -24,6 +24,7 @@ from recipe_gen.pairing_utils import PairingData
 argparser.add_argument('--eval-folder', type=str,
                        help='Generated recipes path (only the data)')
 
+
 def paramLogging(args):
     for k, v in args.defaults.items():
         try:
@@ -71,15 +72,21 @@ def processOutput(args):
 
     return processed
 
-def loadPairing():
-    FOLDER_PATH = "F:\\user\\Google Drive\\Catherning Folder\\THU\\Thesis\\Work\\Recipe datasets\\cuisine_classification"
-    FILES = ["cleaned_data.pkl","full_data.pkl"]
+def loadPairing():   
+    try:
+        with open(os.path.join(os.path.dirname(args.pairing_path),"full_pairing.pkl"), 'rb') as f:
+            pairing = pickle.load(f)
+        print("Pairings loaded")
+    except FileNotFoundError:
+        FOLDER_PATH = "F:\\user\\Google Drive\\Catherning Folder\\THU\\Thesis\\Work\\Recipe datasets\\cuisine_classification"
+        FILES = ["cleaned_data.pkl","full_data.pkl"]
 
-    known_path = os.path.join(os.getcwd(),"KitcheNette_master","data","kitchenette_pairing_scores.csv")
-    unk_path = os.path.join(os.getcwd(),"KitcheNette_master","results","prediction_unknowns_kitchenette_pretrained.mdl.csv")
-    pairing_pickle = os.path.join(os.getcwd(),"KitcheNette_master","results","full_pairings.pkl")
-        
-    return PairingData([unk_path,known_path], pickle_file=pairing_pickle, min_score=-1,trim=False)
+        known_path = os.path.join(os.getcwd(),"KitcheNette_master","data","kitchenette_pairing_scores.csv")
+        unk_path = os.path.join(os.getcwd(),"KitcheNette_master","results","prediction_unknowns_kitchenette_pretrained.mdl.csv")
+        pairing_pickle = os.path.join(os.getcwd(),"KitcheNette_master","results","full_pairings.pkl")
+        pairing = PairingData([unk_path,known_path], pickle_file=pairing_pickle, min_score=-1,trim=False)
+        pairing.toPickle(os.path.join(os.path.dirname(args.pairing_path),"full_pairing.pkl"))
+    return pairing
 
 def recipeScore(ingr_list,pairing):
     # TODO: get average ingr compatibility, average ingr compat for added ingr
@@ -93,7 +100,10 @@ def recipeScore(ingr_list,pairing):
                 
             except KeyError:
                 pass
-    return score/nb
+    try:
+        return score/nb
+    except ZeroDivisionError:
+        return 0  
     
 
 def runEval(args):
@@ -113,6 +123,7 @@ def main(args):
 
     processed = processOutput(args)
     NB_RECIPES = len(processed)
+    print("{} recipes".format(NB_RECIPES))
     
     LOGGER.info("loss = {}".format(processed["loss"]))
     del processed["loss"]
@@ -149,7 +160,7 @@ def main(args):
                 target_ingr += 1
         
         
-        mentioned = {}
+        mentioned = set()
         for w in data["gen"]:
             if w in vocab_ingrs.word2idx and w not in mentioned:
                 mentioned.add(w)
