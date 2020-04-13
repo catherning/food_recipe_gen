@@ -45,7 +45,7 @@ def processOutput(args):
     processed = {}
     # XXX: try to optimize code ?
     try:
-        with open(os.path.join(EVAL_FOLDER, "recipes_eval.txt"), 'rb') as f:
+        with open(os.path.join(EVAL_FOLDER, "recipes_eval.pkl"), 'rb') as f:
             processed = pickle.load(f)
 
     except FileNotFoundError:

@@ -282,11 +282,6 @@ class Seq2seq(nn.Module):
                         self.logger.info([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item(
                         )] for word in sent if word.item() != 0]) for sent in batch["target_instr"][0]])
 
-                    if print_loss_avg < best_loss:
-                        self.logger.info("Best model so far, saving it.")
-                        torch.save(self.state_dict(), os.path.join(
-                            self.savepath, "best_model"))
-                        best_loss = print_loss_avg
 
             torch.save({
                 'epoch': ep,
@@ -295,8 +290,12 @@ class Seq2seq(nn.Module):
                 'loss': loss,
             }, os.path.join(self.savepath, "train_model_{}_{}.tar".format(datetime.now().strftime('%m-%d-%H-%M'), ep)))
 
-            if ep % (max(5, self.args.epoch//10)) == 0:  # eval ten times or every 5 times
-                self.evalProcess()
+            val_loss = self.evalProcess()
+            if val_loss < best_loss:
+                self.logger.info("Best model so far, saving it.")
+                torch.save(self.state_dict(), os.path.join(
+                    self.savepath, "best_model"))
+                best_loss = val_loss
 
             for scheduler in scheduler_list:
                 scheduler.step()
@@ -358,12 +357,13 @@ class Seq2seq(nn.Module):
                 loss, _ = self.train_iter(batch, iter)
                 print_loss_total += loss.detach()
 
-                if iter % self.args.print_step == 0:
+                if iter %  max(self.args.print_step, self.args.n_iters//10) == 0:
                     print("Eval Current loss = {}".format(
                         print_loss_total/iter))
 
             print_loss_avg = print_loss_total / iter
             self.logger.info("Eval loss = {}".format(print_loss_avg))
+        return print_loss_avg
 
     def evalOutput(self):
         self.eval()
