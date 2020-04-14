@@ -16,12 +16,10 @@ init_seed(args)
 
 def loadModel(model,mod):
     checkpoint = torch.load(os.path.join(path, mod))
+    del checkpoint['model_state_dict']["decoder.attention.attn_combine.weight"]
+    del checkpoint['model_state_dict']["decoder.attention.attn_combine.bias"]
     model.load_state_dict(checkpoint['model_state_dict'])
-    [optim.load_state_dict(checkpoint['optimizer_state_dict'][i])
-        for i, optim in enumerate(model.optim_list)]
-    args.begin_epoch = checkpoint['epoch']
     model.to(args.device)
-    # loss = checkpoint['loss']
     print("Model loaded {}".format(mod))
 
 

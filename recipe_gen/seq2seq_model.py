@@ -331,7 +331,10 @@ class Seq2seq(nn.Module):
             for i in range(n):
                 sample = random.choice(self.test_dataset.data)
                 sample["ingr"] = sample["ingr"].unsqueeze(0)
-                sample["title"] = sample["title"].unsqueeze(0)
+                try:
+                    sample["title"] = sample["title"].unsqueeze(0)
+                except KeyError:
+                    sample["cuisine"] = sample["cuisine"].unsqueeze(0)
                 sample["target_instr"] = sample["target_instr"].unsqueeze(0)
                 # TODO: check need to unsqueeze for cuisine ?
 
