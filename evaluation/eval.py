@@ -85,7 +85,6 @@ def loadPairing():
         unk_path = os.path.join(os.getcwd(),"KitcheNette_master","results","prediction_unknowns_kitchenette_pretrained.mdl.csv")
         pairing_pickle = os.path.join(os.getcwd(),"KitcheNette_master","results","full_pairings.pkl")
         pairing = PairingData([unk_path,known_path], pickle_file=pairing_pickle, min_score=-1,trim=False)
-        pairing.toPickle(os.path.join(os.path.dirname(args.pairing_path),"full_pairing.pkl"))
     return pairing
 
 def recipeScore(ingr_list,pairing):
@@ -122,7 +121,7 @@ def main(args):
         vocab_ingrs = pickle.load(f)
 
     processed = processOutput(args)
-    NB_RECIPES = len(processed)
+    NB_RECIPES = len(processed)-1
     print("{} recipes".format(NB_RECIPES))
     
     LOGGER.info("loss = {}".format(processed["loss"]))
