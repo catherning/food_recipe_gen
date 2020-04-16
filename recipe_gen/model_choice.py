@@ -8,6 +8,7 @@ import argparse
 sys.path.insert(0,os.getcwd())
 
 from recipe_gen.main import argparser, getDefaultArgs, init_logging, init_seed
+from recipe_gen.pairing_utils import PairingData
 
 args = getDefaultArgs(argparser)
 args.logger = LOGGER = logging.getLogger()
@@ -16,8 +17,11 @@ init_seed(args)
 
 def loadModel(model,mod):
     checkpoint = torch.load(os.path.join(path, mod))
-    del checkpoint['model_state_dict']["decoder.attention.attn_combine.weight"]
-    del checkpoint['model_state_dict']["decoder.attention.attn_combine.bias"]
+    try:
+      del checkpoint['model_state_dict']["decoder.attention.attn_combine.weight"]
+      del checkpoint['model_state_dict']["decoder.attention.attn_combine.bias"]
+    except KeyError:
+      pass
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(args.device)
     print("Model loaded {}".format(mod))

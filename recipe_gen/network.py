@@ -102,6 +102,7 @@ class AttnDecoderRNN(DecoderRNN):
         embedded = self.embedding(input).view(1, self.batch_size, -1)
         # embedded (1,batch,2*hidden)
 
+        # TODO: in trained model, check if max(attn_weight) is always at same arg...
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
 
@@ -143,10 +144,11 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
             embedded, hidden, encoder_outputs)
 
         # Selecting the focused ingredient from input then attend on compatible ingredients
+        #TODO: if keep being always the same, sample from weights ?, or give sth else than encoder_outputs ? encoder_hidden ?
         ingr_arg = torch.argmax(attn_weights, 1)
         ingr_id = input_tensor[torch.arange(batch_size),ingr_arg]
             
-        out, attn_weights = self.pairAttention(
+        out, attn_weights, comp_ingr = self.pairAttention(
             embedded, hidden, ingr_id, encoder_embedding)
         if out is None:
             output = self.lin(output)
@@ -156,7 +158,7 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         output, hidden = self.gru(output, hidden)
 
         output = self.out(output[0])
-        return output, hidden, attn_weights, None
+        return output, hidden, attn_weights, comp_ingr
 
 class BaseAttention(nn.Module):
     def __init__(self, args):
@@ -285,7 +287,7 @@ class PairingAtt(IngrAtt):
         # TODO: try with still doing the attention, but without the scores if there's no compatible ingr ?
         # or too broad to add ingr afterwards ?
         if scores.sum() == 0:
-            return None, attn_scores
+            return None, attn_weights,comp_ingr_id
 
         # attn_scores view: (batch,1,top_k)
         # comb_emb (batch,top_k,hidden_size)
@@ -294,4 +296,4 @@ class PairingAtt(IngrAtt):
 
         output = torch.cat((embedded[0], attn_applied[:, 0]), 1).unsqueeze(0)
 
-        return output, attn_scores
+        return output, attn_scores, comp_ingr_id

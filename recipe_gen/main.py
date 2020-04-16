@@ -200,7 +200,8 @@ def main():
         try:
             model.load_state_dict(torch.load(path))
         except RuntimeError:
-            model.load_state_dict(torch.load(path,map_location='cuda:0'))
+            loaded = torch.load(path,map_location='cuda:0')
+            model.load_state_dict(loaded)
             
         print("Model loaded.")
 
@@ -224,15 +225,18 @@ def main():
         model.evaluateRandomly(n=2)
 
         # Evaluate on user input
-        _, output_words, attentions = model.evaluateFromText(
-            "tomato salad beef lemon".split(), title="mediteranean salad".split())
+        sample = {"ingr":"tomato salad beef lemon".split(),
+                  "title":"mediteranean salad".split(),
+                  "cuisine":"Asian"}
+        _, output_words, _,_ = model.evaluateFromText(sample)
+        
         try:
             print(' '.join(output_words[0]))
         except TypeError:
             print([" ".join(sent) for sent in output_words[0]])
 
         try:
-            plt.matshow(attentions[:, 0, :].numpy())
+            model.evaluateAndShowAttention(sample)
         except (TypeError, AttributeError):
             print("No attention to show.")
             

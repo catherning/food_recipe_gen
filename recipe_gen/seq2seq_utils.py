@@ -228,26 +228,34 @@ def showPlot(points):
     ax.yaxis.set_major_locator(loc)
     plt.plot(points)
 
+def showSentAttention(input_sentence, output_words, attentions,path,name=None):
+    b_id =0
+    for i,sent in enumerate(" ".join(output_words).replace('<eos> ', ', ').split(" , ")):
+        showAttention(input_sentence,sent,attentions[b_id:b_id+len(sent)],path,name="{}_{}".format(name,i))
+        b_id = len(sent)
 
+def showPairingAttention(comp_ingr, output_words, attentions,path,name=None):
+    for i,w in enumerate(output_words):
+        showAttention(comp_ingr[i],w,attentions[i].unsqueeze(0),path,name="{}_{}".format(name,i))
 
-def showAttention(input_sentence, output_words, attentions):
+def showAttention(input_sentence, output_words, attentions,path,name=None):
     # Set up figure with colorbar
-    fig = plt.figure()
+    fig = plt.figure(figsize=(15,15))
     ax = fig.add_subplot(111)
     cax = ax.matshow(attentions.numpy(), cmap='bone')
     fig.colorbar(cax)
 
     # Set up axes
-    ax.set_xticklabels([''] + input_sentence.split(' ') +
-                       ['<EOS>'], rotation=90)
-    ax.set_yticklabels([''] + output_words)
+    ax.set_xticklabels(input_sentence.split(' '), rotation=90)
+    ax.set_yticklabels([''] + output_words.split(' '))
 
     # Show label at every tick
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
 
-    plt.show()
-
+    # plt.show()
+    plt.savefig(os.path.join(path,'attention_{}.png'.format(name)))
+    plt.close(fig)
 
 def asMinutes(s):
     m = math.floor(s / 60)
