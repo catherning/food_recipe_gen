@@ -347,6 +347,7 @@ class Seq2seq(nn.Module):
                 # TODO: check need to unsqueeze for cuisine ?
 
                 _, output_words, attentions,comp_ingr_id = self.forward(sample)
+                comp_ingr_id = comp_ingr_id[:,0]
                 attentions = attentions[:,0]
                 try:
                     output_sentence = ' '.join(output_words[0])
@@ -636,6 +637,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         decoder_attentions: (max_len,batch,max_ingr)
         """
         input_tensor = batch["ingr"].to(self.device)
+        batch_size = input_tensor.shape[0]
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor, pairing=True)
 
@@ -655,7 +657,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         cuisine_encoding = self.cuisine_encoder(cuis_emb)
 
         decoder_hidden = torch.cat(
-            (encoder_hidden, cuisine_encoding.view(1,cuisine_tensor.shape[0],self.hidden_size)), dim=2)
+            (encoder_hidden, cuisine_encoding.view(1,batch_size,self.hidden_size)), dim=2)
 
         decoder_hidden = self.encoder_fusion(decoder_hidden)
 
@@ -667,7 +669,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         else:
             sampling_proba = 1
 
-        comp_ingrs = torch.zeros(self.max_length,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
+        comp_ingrs = torch.zeros(self.max_length,batch_size,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi,comp_ingr  = self.forwardDecoderStep(
                 decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
