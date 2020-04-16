@@ -469,7 +469,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
             di, decoder_attentions, decoder_attention)
         decoder_outputs[:, di] = decoder_output
         topi = self.samplek(decoder_output, decoded_words)
-        return decoder_attentions, decoder_hidden, topi,comp_ingr
+        return decoder_attentions, decoder_hidden, topi, comp_ingr
 
     def forward(self, batch, iter=iter):
         """
@@ -583,7 +583,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
 
         comp_ingrs = torch.zeros(self.max_length,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
         for di in range(self.max_length):
-            decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(
+            decoder_attentions, decoder_hidden, topi,comp_ingr = self.forwardDecoderStep(
                 decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
             comp_ingrs[di]=comp_ingr
             
@@ -667,7 +667,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
 
         comp_ingrs = torch.zeros(self.max_length,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
         for di in range(self.max_length):
-            decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(
+            decoder_attentions, decoder_hidden, topi,comp_ingr  = self.forwardDecoderStep(
                 decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
 
             comp_ingrs[di]=comp_ingr
