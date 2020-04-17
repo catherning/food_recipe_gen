@@ -340,7 +340,6 @@ class Seq2seq(nn.Module):
         with torch.no_grad():
             for i in range(n):
                 sample = random.choice(self.test_dataset.data)
-                sample["ingr"] = sample["ingr"].unsqueeze(0)
                 for k in ["ingr","target_instr","title"]+["cuisine"]*("cuisine" in sample):
                     sample[k] = sample[k].unsqueeze(0)
                 
@@ -348,7 +347,6 @@ class Seq2seq(nn.Module):
     
     def evalSample(self,sample):
         _, output_words, attentions,comp_ingr_id = self.forward(sample)
-        comp_ingr_id = comp_ingr_id[:,0]
         attentions = attentions[:,0]
         try:
             output_sentence = ' '.join(output_words[0])
@@ -363,9 +361,10 @@ class Seq2seq(nn.Module):
             "Target: "+str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"]]))
         self.logger.info("Generated: "+output_sentence)
         try:
+            comp_ingr_id = comp_ingr_id[:,0]
             comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
             showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-        except AttributeError:
+        except (AttributeError,TypeError):
             showSentAttention(or_sent, output_words[0], attentions,self.savepath,name=sample["id"][:3])
     
     def evalFromId(self,id):

@@ -221,7 +221,7 @@ def main():
 
     if args.test:
         # Evaluate on whole test dataset
-        model.evalOutput()
+        #model.evalOutput()
 
         # Evaluate on 2 random samples in test dataset and print results
         model.evaluateRandomly(n=2)
