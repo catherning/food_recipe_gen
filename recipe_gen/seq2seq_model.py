@@ -323,7 +323,7 @@ class Seq2seq(nn.Module):
                 title_tensor = None
             
             try:
-                cuis_tensor = torch.LongTensor([self.vocab_cuisine.word2idx[sample["cuisine"]]])
+                cuis_tensor = torch.LongTensor([self.train_dataset.vocab_cuisine.word2idx[sample["cuisine"]]])
             except (KeyError,AttributeError):
                 cuis_tensor = None
 
@@ -362,7 +362,7 @@ class Seq2seq(nn.Module):
                     "Target: "+str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"]]))
                 self.logger.info("Generated: "+output_sentence)
                 try:
-                    comp_ingr = [' '.join([self.vocab_main_ingr.idx2word[ingr.item()][0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
+                    comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
                     showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
                 except AttributeError:
                     showSentAttention(or_sent, output_words[0], attentions,self.savepath,name=sample["id"][:3])
@@ -420,10 +420,15 @@ class Seq2seqAtt(Seq2seq):
         self.optim_list[1] = self.decoder_optimizer
 
     def evaluateAndShowAttention(self, sample):
-        _, output_words, attentions = self.evaluateFromText(sample)
+        _, output_words, attentions, comp_ingr_id = self.evaluateFromText(sample)
         self.logger.info('input = ' + sample["ingr"])
         self.logger.info('output = ' + ' '.join(output_words))
         showAttention(sample["ingr"], output_words, attentions)
+        try:
+            comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
+            showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+        except AttributeError:
+            showSentAttention(sample["ingr"], output_words[0], attentions,self.savepath,name=sample["id"][:3])
 
 
 class Seq2seqTrans(Seq2seq):
