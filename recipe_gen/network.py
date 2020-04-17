@@ -41,6 +41,7 @@ class EncoderRNN(nn.Module):
         encoder_outputs: (max_ingr,batch,hidden*2)
         encoder_hidden: (2,batch,hidden)
         """
+        #TODO: check, after permute, EOS n'est plus à la fin!?
         input_tensor=input_tensor[:,torch.randperm(input_tensor.size()[1])]
         self.batch_size = len(input_tensor)
         encoder_hidden = self.initHidden().to(self.device)

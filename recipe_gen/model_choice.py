@@ -24,7 +24,7 @@ def loadModel(model,mod):
       pass
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(args.device)
-    print("Model loaded {}".format(mod))
+    LOGGER.info("Model loaded {}".format(mod))
 
 
 try:
@@ -39,7 +39,7 @@ model = model_class(args)
 
 path = os.path.join(
     os.getcwd(), "recipe_gen", "results", args.model_name,args.load_folder)
-model_list = filter(lambda f: f[0]=="t",os.listdir(path))
+model_list = sorted(filter(lambda f: f[0]=="t",os.listdir(path)), key=os.path.getmtime)
     
 best_loss = math.inf          
 for mod in model_list:
