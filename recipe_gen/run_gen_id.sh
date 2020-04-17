@@ -8,6 +8,7 @@ do
         --batch-size 4 \
         --test False \
         --train-mode False \
+        --load \
         --max-ingr 10 \
         --max-length 100 \
         --sample-id a8ca14112c \
@@ -22,6 +23,7 @@ done
         --batch-size 4 \
         --test False \
         --train-mode False \
+        --load \
         --max-ingr 10 \
         --max-length 100 \
         --sample-id a8ca14112c \

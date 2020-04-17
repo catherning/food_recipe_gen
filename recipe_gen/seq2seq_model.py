@@ -335,17 +335,9 @@ class Seq2seq(nn.Module):
                      "cuisine":cuis_tensor}
             return self.forward(batch)
 
-    def evaluateRandomly(self, n=10):
-        self.eval()
-        with torch.no_grad():
-            for i in range(n):
-                sample = random.choice(self.test_dataset.data)
-                for k in ["ingr","target_instr","title"]+["cuisine"]*("cuisine" in sample):
-                    sample[k] = sample[k].unsqueeze(0)
-                
-                self.evalSample(sample)
-    
     def evalSample(self,sample):
+        for k in ["ingr","target_instr"]+["title"]*("title" in sample)+["cuisine"]*("cuisine" in sample):
+            sample[k] = sample[k].unsqueeze(0)
         _, output_words, attentions,comp_ingr_id = self.forward(sample)
         attentions = attentions[:,0]
         try:
@@ -366,15 +358,19 @@ class Seq2seq(nn.Module):
             showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
         except (AttributeError,TypeError):
             showSentAttention(or_sent, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+            
+    def evaluateRandomly(self, n=10):
+        self.eval()
+        with torch.no_grad():
+            for i in range(n):
+                sample = random.choice(self.test_dataset.data)
+                self.evalSample(sample)
     
     def evalFromId(self,id):
         self.eval()
         with torch.no_grad():
             idx = self.test_dataset.id2index.index(id)
-            sample = self.test_dataset.data[idx]
-            for k in ["ingr","target_instr","title"]+["cuisine"]*("cuisine" in sample):
-                sample[k] = sample[k].unsqueeze(0)
-            
+            sample = self.test_dataset.data[idx]            
             self.evalSample(sample)
                 
     def evalProcess(self):
