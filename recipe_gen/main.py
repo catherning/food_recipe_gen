@@ -63,6 +63,8 @@ argparser.add_argument('--train-file', type=str, default=DATA_FILES[5],
                        help='Dataset path')
 argparser.add_argument('--test-file', type=str, default=DATA_FILES[2],
                        help='Dataset path')
+argparser.add_argument('--sample-id', type=str,
+                       help='Sample id of the recipe to generate')
 
 # Run settings
 argparser.add_argument('--model-name', type=str, choices=[
@@ -229,6 +231,7 @@ def main():
                   "title":"mediteranean salad".split(),
                   "cuisine":"Asian"}
         _, output_words, _,_ = model.evaluateFromText(sample)
+    
         
         try:
             print(' '.join(output_words[0]))
@@ -239,6 +242,9 @@ def main():
             model.evaluateAndShowAttention(sample)
         except (TypeError, AttributeError):
             print("No attention to show.")
+    
+    if args.sample_id:
+        model.evalFromId(args.sample_id)
             
     return args
 

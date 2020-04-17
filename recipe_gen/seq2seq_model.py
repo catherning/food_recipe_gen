@@ -11,6 +11,7 @@ import time
 import unicodedata
 from datetime import datetime
 from functools import reduce
+from operator import itemgetter
 from io import open
 
 import torch
@@ -41,6 +42,7 @@ class Seq2seq(nn.Module):
         self.test_dataloader = torch.utils.data.DataLoader(self.test_dataset,
                                                            batch_size=args.batch_size, shuffle=False,
                                                            num_workers=0)
+        self.test_dataset.id2index = list(map(itemgetter('id'), self.test_dataset.data))
 
         self.batch_size = args.batch_size
         self.device = args.device
@@ -217,7 +219,7 @@ class Seq2seq(nn.Module):
             else:
                 decoder_input = target_tensor[:, di].view(1, -1)
 
-        return decoder_outputs, decoded_words, decoder_attentions[:di + 1]
+        return decoder_outputs, decoded_words, decoder_attentions[:di + 1],None
 
     def train_iter(self, batch, iter):
         target_length = batch["target_length"]
@@ -339,35 +341,43 @@ class Seq2seq(nn.Module):
             for i in range(n):
                 sample = random.choice(self.test_dataset.data)
                 sample["ingr"] = sample["ingr"].unsqueeze(0)
-                try:
-                    sample["title"] = sample["title"].unsqueeze(0)
-                except KeyError:
-                    sample["cuisine"] = sample["cuisine"].unsqueeze(0)
-                sample["target_instr"] = sample["target_instr"].unsqueeze(0)
-                # TODO: check need to unsqueeze for cuisine ?
+                for k in ["ingr","target_instr","title"]+["cuisine"]*("cuisine" in sample):
+                    sample[k] = sample[k].unsqueeze(0)
+                
+                self.evalSample(sample)
+    
+    def evalSample(self,sample):
+        _, output_words, attentions,comp_ingr_id = self.forward(sample)
+        comp_ingr_id = comp_ingr_id[:,0]
+        attentions = attentions[:,0]
+        try:
+            output_sentence = ' '.join(output_words[0])
+        except TypeError:
+            output_sentence = "|".join(
+                [' '.join(sent) for sent in output_words[0]])
 
-                _, output_words, attentions,comp_ingr_id = self.forward(sample)
-                comp_ingr_id = comp_ingr_id[:,0]
-                attentions = attentions[:,0]
-                try:
-                    output_sentence = ' '.join(output_words[0])
-                except TypeError:
-                    output_sentence = "|".join(
-                        [' '.join(sent) for sent in output_words[0]])
-
-                or_sent = " ".join([self.train_dataset.vocab_ingrs.idx2word[ingr.item()][0] for ingr in sample["ingr"][0]])
-                self.logger.info(
-                    "Input: "+ or_sent)
-                self.logger.info(
-                    "Target: "+str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"]]))
-                self.logger.info("Generated: "+output_sentence)
-                try:
-                    comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
-                    showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-                except AttributeError:
-                    showSentAttention(or_sent, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-                #except:
-
+        or_sent = " ".join([self.train_dataset.vocab_ingrs.idx2word[ingr.item()][0] for ingr in sample["ingr"][0]])
+        self.logger.info(
+            "Input: "+ or_sent)
+        self.logger.info(
+            "Target: "+str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"]]))
+        self.logger.info("Generated: "+output_sentence)
+        try:
+            comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
+            showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+        except AttributeError:
+            showSentAttention(or_sent, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+    
+    def evalFromId(self,id):
+        self.eval()
+        with torch.no_grad():
+            idx = self.test_dataset.id2index.index(id)
+            sample = self.test_dataset.data[idx]
+            for k in ["ingr","target_instr","title"]+["cuisine"]*("cuisine" in sample):
+                sample[k] = sample[k].unsqueeze(0)
+            
+            self.evalSample(sample)
+                
     def evalProcess(self):
         self.eval()
         start = time.time()
@@ -491,6 +501,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         """
 
         input_tensor = batch["ingr"].to(self.device)
+        batch_size = input_tensor.shape[0]
         try:
             target_tensor = batch["target_instr"].to(self.device)
         except AttributeError:
@@ -514,7 +525,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         else:
             sampling_proba = 1
 
-        comp_ingrs = torch.zeros(self.max_length,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
+        comp_ingrs = torch.zeros(self.max_length,batch_size,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi,comp_ingr = self.forwardDecoderStep(decoder_input, decoder_hidden,
                                                                                encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
@@ -558,6 +569,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         decoder_attentions: (max_len,batch,max_ingr)
         """
         input_tensor = batch["ingr"].to(self.device)
+        batch_size = input_tensor.shape[0]
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor, pairing=True)
 
@@ -589,7 +601,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         else:
             sampling_proba = 1
 
-        comp_ingrs = torch.zeros(self.max_length,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
+        comp_ingrs = torch.zeros(self.max_length,batch_size,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi,comp_ingr = self.forwardDecoderStep(
                 decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
