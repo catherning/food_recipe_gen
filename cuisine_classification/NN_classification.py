@@ -59,6 +59,7 @@ argparser.add_argument('--saving-path', type=str, default=os.path.join(os.getcwd
                        help='Saving path')
 argparser.add_argument('--load-folder', type=str,
                        help='Loading best model in folder load-path')
+# TODO: change classify file to each file when running
 argparser.add_argument('--classify-folder', type=str, default=os.path.join(os.getcwd(), "recipe_1m_analysis", "data"),
                        help='The folder where classify-file is.')
 argparser.add_argument('--classify-file', type=str, default="train", choices=["train", "test", "val"],
@@ -74,7 +75,7 @@ argparser.add_argument('--embed-dim1', type=int, default=256,
                        help='Display steps')
 argparser.add_argument('--embed-dim2', type=int, default=64,
                        help='Display steps')
-argparser.add_argument('--embed-dim3', type=int, # default 16 ?
+argparser.add_argument('--embed-dim3', type=int, default=16,
                        help='Display steps')
 argparser.add_argument('--balanced', type='bool', nargs='?',
                        const=True, default=False,
@@ -174,6 +175,7 @@ def createVocab(args, df):
                 idx += 1
                 
     else:
+        # TODO: add min_ingrs limit
         vocab_ingrs = utils.Vocabulary()
         vocab_ingrs.add_word("<pad>")
         vocab_ingrs.add_word("<unk>")
@@ -337,23 +339,20 @@ def createDataLoaders(args, df, vocab_ingrs, vocab_cuisine):
 
 
 class Net(nn.Module):
-    def __init__(self, args, vocab_ingrs, vocab_cuisine, device=0, weights_classes=None):
+    def __init__(self, args, vocab_ingrs, vocab_cuisine, embedding_dim1, embedding_dim2, embed_= 200, embedding_dim3=None, max_ingr=50,device=0, weights_classes=None):
         super(Net, self).__init__()
         self.args = args
         self.vocab_size = len(vocab_ingrs)
         self.num_classes = num_classes = len(vocab_cuisine)
         self.vocab_ingrs = vocab_ingrs
         self.vocab_cuisine = vocab_cuisine
+        self.embedding_dim3 = embedding_dim3
         self.device = device
-        embedding_dim1 = args.embed_dim1
-        embedding_dim2 = args.embed_dim2
-        self.embedding_dim3 = args.embed_dim3
-        embed_ = args.embed_
 
         self.dropout = nn.Dropout(0.2)
         if self.args.embedding_layer:
             self.embedding_layer = nn.Embedding(self.vocab_size,embed_)
-            self.layer_1 = nn.Linear(embed_ * args.max_ingr, embedding_dim1, bias=True)
+            self.layer_1 = nn.Linear(embed_ * max_ingr, embedding_dim1, bias=True)
         else:
             self.layer_1 = nn.Linear(self.vocab_size, embedding_dim1, bias=True)            
         
@@ -563,7 +562,9 @@ def main():
     train_loader, dev_loader, test_loader, weights_classes = createDataLoaders(args,
         df, vocab_ingrs, vocab_cuisine)
 
-    net = Net(args,vocab_ingrs, vocab_cuisine, device=args.device, weights_classes=weights_classes).to(args.device)
+    net = Net(args,vocab_ingrs, vocab_cuisine, args.embed_dim1, args.embed_dim2, args.embed_,       
+              device=args.device, weights_classes=weights_classes).to(args.device)
+    # TODO: just give args instead of embed dim
 
     if args.load:
         if args.train_mode:
