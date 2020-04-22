@@ -35,8 +35,7 @@ if raw_present:
     for i in range(NB_RECIPE):
         with open(join(PATH2,files[i]),encoding="utf8") as json_file:
             dict_data = json.load(json_file)
-        # TODO: use nutrition estimages, totalTime (in s?) in the future, 
-        # useless keys for now:
+        # NOTE: useless keys for now:
         # "totalTime","source","images","id","totalTimeInSeconds",'attribution','nutritionEstimates','yield', "flavours", etc.
 
         list_ingr={}

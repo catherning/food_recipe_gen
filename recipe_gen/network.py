@@ -119,6 +119,7 @@ class IngrAttnDecoderRNN(AttnDecoderRNN):
         hidden_size = args.hidden_size
         self.gru = nn.GRU(3*hidden_size, hidden_size)
         self.attention = IngrAtt(args)
+        
 
 class PairAttnDecoderRNN(AttnDecoderRNN):
     def __init__(self, args, output_size, unk_token=3):
@@ -215,8 +216,8 @@ class IngrAtt(BaseAttention):
     def __init__(self, args):
         super().__init__(args)
         hidden_size = self.hidden_size
-        self.key_layer = nn.Linear(2 * hidden_size, hidden_size, bias=False)
-        self.query_layer = nn.Linear(hidden_size, hidden_size, bias=False)
+        self.key_layer = nn.Linear(hidden_size, hidden_size, bias=False)
+        self.query_layer = nn.Linear(2 * hidden_size, hidden_size, bias=False)
         self.attn = nn.Linear(hidden_size, 1, bias= False)
 
     def forward(self, embedded, hidden, encoder_outputs):
@@ -228,8 +229,8 @@ class IngrAtt(BaseAttention):
         batch_size = embedded.shape[1]
         hidden_repeat = hidden[0].unsqueeze(1).expand(-1,self.max_ingr,-1)
         
-        query = self.query_layer(hidden_repeat)
-        key = self.key_layer(encoder_outputs.view(batch_size,self.max_ingr,self.hidden_size *2))
+        query = self.query_layer(encoder_outputs.view(batch_size,self.max_ingr,self.hidden_size *2))
+        key = self.key_layer(hidden_repeat)
 
         scores = self.attn(torch.tanh(query + key))
         attn_weights = F.softmax(scores.squeeze(2), dim=-1)
@@ -264,13 +265,13 @@ class PairingAtt(IngrAtt):
         attn_scores: (batch,top_k) 
         """
         batch_size = embedded.shape[1]
-        scores = torch.zeros(batch_size, self.pairings.top_k).to(embedded.device)
+        comp_scores = torch.zeros(batch_size, self.pairings.top_k).to(embedded.device)
         comp_ingr_id = torch.ones(
             batch_size, self.pairings.top_k, dtype=torch.long,device=embedded.device)*self.unk_token
 
         for i,(comp_ingr, score_list) in enumerate(map(self.pairings.bestPairingsFromIngr, ingr_id)):
             comp_ingr_id[i, :len(comp_ingr)] = torch.LongTensor(comp_ingr)
-            scores[i, :len(score_list)]=torch.FloatTensor(score_list)            
+            comp_scores[i, :len(score_list)]=torch.FloatTensor(score_list)            
 
         comp_emb = encoder_embedding(comp_ingr_id)
 
@@ -281,13 +282,13 @@ class PairingAtt(IngrAtt):
         scores_att = self.attn(torch.tanh(query + key))
         attn_weights = F.softmax(scores_att.squeeze(2), dim=-1)
         
-        # XXX: renormalize after multiplication ?
         # TODO: try with emphazing unknown pairings
-        attn_scores = (attn_weights * scores).to(comp_emb.device)
+        attn_scores = (attn_weights * comp_scores).to(comp_emb.device)
+        attn_scores = F.softmax(attn_scores,dim=-1)
 
         # TODO: try with still doing the attention, but without the scores if there's no compatible ingr ?
         # or too broad to add ingr afterwards ?
-        if scores.sum() == 0:
+        if comp_scores.sum() == 0:
             return None, attn_weights,comp_ingr_id
 
         # attn_scores view: (batch,1,top_k)

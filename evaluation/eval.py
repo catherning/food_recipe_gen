@@ -88,7 +88,7 @@ def loadPairing():
     return pairing
 
 def recipeScore(ingr_list,pairing):
-    # TODO: get average ingr compatibility, average ingr compat for added ingr
+    
     nb = 0
     score = 0
     for i,ingr1 in enumerate(ingr_list):
