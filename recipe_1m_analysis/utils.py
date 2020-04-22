@@ -18,7 +18,7 @@ class Vocabulary(object):
         if idx is None:
             if word not in self.word2idx:
                 self.word2idx[word] = self.idx
-                self.idx2word[self.idx] = [word] # XXX: might gives bugs, for spe toks
+                self.idx2word[self.idx] = word
                 self.idx += 1
             return self.idx
         else:
