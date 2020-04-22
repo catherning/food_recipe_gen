@@ -127,7 +127,7 @@ class RecipesDataset(Dataset):
                 if ingr not in self.vocab_ingrs.word2idx:
                     return False
 
-        if not len(p[0])>=self.max_ingr-1:
+        if len(p[0])>=self.max_ingr-1:
             return False
 
         lengths=[]
@@ -220,13 +220,16 @@ def flattenSequence(data, lengths):
 
     return torch.cat(arr, dim=0)
 
-def showPlot(points):
+def showPlot(points,path):
     plt.figure()
     fig, ax = plt.subplots()
     # this locator puts ticks at regular intervals
     loc = ticker.MultipleLocator(base=0.2)
     ax.yaxis.set_major_locator(loc)
     plt.plot(points)
+    
+    plt.savefig(os.path.join(path,'loss.png'))
+    plt.close(fig)
 
 def showSentAttention(input_sentence, output_words, attentions,path,name=None):
     b_id =0

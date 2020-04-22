@@ -65,7 +65,7 @@ class Seq2seq(nn.Module):
         # Training param
         self.decay_factor = args.decay_factor
         self.learning_rate = args.learning_rate
-        self.criterion = nn.CrossEntropyLoss(reduction="sum")
+        self.criterion = nn.CrossEntropyLoss(reduction="sum",ignore_index=self.train_dataset.PAD_token)
 
         self.paramLogging()
 
@@ -224,16 +224,19 @@ class Seq2seq(nn.Module):
     def train_iter(self, batch, iter):
         target_length = batch["target_length"]
         target_tensor = batch["target_instr"].to(self.device)
+        batch_size = target_length.shape[0]
 
         decoder_outputs, decoded_words, _,_ = self.forward(batch, iter=iter)
         # TODO: change flattenSeq if hierarchical
-        aligned_outputs = flattenSequence(decoder_outputs, target_length)
-        aligned_target = flattenSequence(target_tensor, target_length)
-        # aligned_outputs = decoder_outputs.view(
-        #     self.batch_size*self.max_length, -1)
-        # aligned_target = target_tensor.view(self.batch_size*self.max_length)
+        # aligned_outputs = flattenSequence(decoder_outputs, target_length)
+        # aligned_target = flattenSequence(target_tensor, target_length)
+    
+        aligned_outputs = decoder_outputs.view(
+            batch_size*self.max_length, -1)
+        aligned_target = target_tensor.view(batch_size*self.max_length)
+        
         loss = self.criterion(
-            aligned_outputs, aligned_target)/self.batch_size
+            aligned_outputs, aligned_target)/batch_size
 
         return loss, decoded_words
 
@@ -247,6 +250,7 @@ class Seq2seq(nn.Module):
         def lmbda(epoch): return 0.95
         scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(
             optim, lr_lambda=lmbda) for optim in self.optim_list]
+        plot_losses = []
         for ep in range(self.args.begin_epoch, self.args.epoch+1):
             self.train()
             for iter, batch in enumerate(self.train_dataloader, start=1):
@@ -270,6 +274,7 @@ class Seq2seq(nn.Module):
                 if iter % max(self.args.print_step, self.args.n_iters//10) == 0:
                     print_loss_avg = print_loss_total / \
                         max(self.args.print_step, self.args.n_iters//10)
+                    plot_losses.append(print_loss_avg)
                     print_loss_total = 0
                     self.logger.info('Epoch {} {} ({} {}%) loss={}'.format(ep, timeSince(
                         start, iter / self.args.n_iters), iter, int(iter / self.args.n_iters * 100), print_loss_avg))
@@ -302,6 +307,8 @@ class Seq2seq(nn.Module):
 
             for scheduler in scheduler_list:
                 scheduler.step()
+                
+        showPlot(plot_losses,self.savepath)
 
     def evaluateFromText(self, sample):
         self.eval()
