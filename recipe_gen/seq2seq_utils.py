@@ -98,9 +98,12 @@ class RecipesDataset(Dataset):
             count_e = 0
             for idx,recipe in self.data.items():
                 try:
-                    pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"],idx]
-                    if self.filterSinglePair(pair):
-                        _dict = self.tensorsFromPair(pair)
+                    sample = {"ingr":recipe["ingredients"],
+                            "tokenized":recipe["tokenized"],
+                            "title":recipe["title"],
+                            "id":idx}
+                    if self.filterSinglePair(sample):
+                        _dict = self.tensorsFromPair(sample)
                         _dict["cuisine"]=torch.LongTensor([self.vocab_cuisine.word2idx[recipe["cuisine"]]])
                         del _dict["title"]
                         data.append(_dict)
@@ -111,27 +114,30 @@ class RecipesDataset(Dataset):
 
         else:
             for idx,recipe in self.data.items():
-                pair = [recipe["ingredients"],recipe["tokenized"],recipe["title"],idx]
-                if self.filterSinglePair(pair):
-                    data.append(self.tensorsFromPair(pair))
+                sample = {"ingr":recipe["ingredients"],
+                        "tokenized":recipe["tokenized"],
+                        "title":recipe["title"],
+                        "id":idx}
+                if self.filterSinglePair(sample):
+                    data.append(self.tensorsFromPair(sample))
 
         self.data = data[:self.samples_max]
 
     def filterSinglePair(self,p):
         try: 
-            for ingr in p[0]:
+            for ingr in p["ingr"]:
                 if ingr.name not in self.vocab_ingrs.word2idx:
                     return False
         except AttributeError:
-            for ingr in p[0]:
+            for ingr in p["ingr"]:
                 if ingr not in self.vocab_ingrs.word2idx:
                     return False
 
-        if len(p[0])>=self.max_ingr-1:
+        if len(p["ingr"])>=self.max_ingr-1:
             return False
 
         lengths=[]
-        for sent in p[1]:
+        for sent in p["tokenized"]:
             for word in sent:
                 # TODO check how steps tokenized ? Put into vocab ???
                 if word not in self.vocab_tokens.word2idx:
@@ -188,15 +194,15 @@ class RecipesDataset(Dataset):
         return tensor_, b_id
 
     def tensorsFromPair(self,pair):
-        input_tensor,_ = self.tensorFromSentence(self.vocab_ingrs, pair[0])
-        target_tensor,target_length = self.tensorFromSentence(self.vocab_tokens, pair[1],instructions=True)
-        title,_ = self.tensorFromSentence(self.vocab_tokens,pair[2])
+        input_tensor,_ = self.tensorFromSentence(self.vocab_ingrs, pair["ingr"])
+        target_tensor,target_length = self.tensorFromSentence(self.vocab_tokens, pair["tokenized"],instructions=True)
+        title,_ = self.tensorFromSentence(self.vocab_tokens,pair["title"])
         
         return {"ingr":input_tensor,
                     "target_instr": target_tensor,
                     "target_length":target_length,
                     "title":title,
-                    "id":pair[-1]}
+                    "id":pair["id"]}
                 # "ingr_tok":pair[0],
                 # "target_tok":pair[1]}
 
