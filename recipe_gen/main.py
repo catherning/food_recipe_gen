@@ -123,8 +123,8 @@ argparser.add_argument('--bidirectional', type='bool', nargs='?',
                        help='Uses nucleus sampling')
 argparser.add_argument('--num-gru-layers', type=int, default=1)
 
-argparser.add_argument('--hidden-size', type=int, default=256)
-argparser.add_argument('--word-embed', type=int, default=100)
+argparser.add_argument('--hidden-size', type=int, default=128) #TODO: change to 256
+argparser.add_argument('--word-embed', type=int, default=200)
 argparser.add_argument('--ingr-embed', type=int, default=100)
 argparser.add_argument('--title-embed', type=int, default=100)
 argparser.add_argument('--cuisine-embed', type=int, default=30)

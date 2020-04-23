@@ -79,7 +79,7 @@ class PairingData:
     def bestPairingsFromIngr(self, ingr_id):
         """
         ex: ingr_id = 2
-        returns [(frozenset({16, 2}), 0.01891073), (frozenset({129, 2}), 0.0022993684)]
+        returns [16,129], [0.0189,0.0022]
         """
         try:
             return list(self.pairing_scores[ingr_id.item()].keys()), list(self.pairing_scores[ingr_id.item()].values())
