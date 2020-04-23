@@ -433,14 +433,16 @@ class Seq2seqAtt(Seq2seq):
 
     def evaluateAndShowAttention(self, sample):
         _, output_words, attentions, comp_ingr_id = self.evaluateFromText(sample)
-        self.logger.info('input = ' + sample["ingr"])
-        self.logger.info('output = ' + ' '.join(output_words))
-        showAttention(sample["ingr"], output_words, attentions)
+        self.logger.info('input = ' + ' '.join(sample["ingr"]))
+        self.logger.info('output = ' + ' '.join(output_words[0]))
+        # showAttention(sample["ingr"], output_words, attentions[:,0],self.savepath)
         try:
+            comp_ingr_id = comp_ingr_id[:,0]
+            attentions = attentions[:,0]
             comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
-            showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+            showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name="user_input")
         except AttributeError:
-            showSentAttention(sample["ingr"], output_words[0], attentions,self.savepath,name=sample["id"][:3])
+            showSentAttention(sample["ingr"], output_words[0], attentions,self.savepath,name="user_input")
 
 
 class Seq2seqTrans(Seq2seq):
