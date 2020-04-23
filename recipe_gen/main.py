@@ -104,21 +104,30 @@ argparser.add_argument('--begin-epoch', type=int, default=1)
 argparser.add_argument('--epoch', type=int, default=100)
 argparser.add_argument('--n-iters', type=int, default=500)
 argparser.add_argument('--learning-rate', type=float, default=0.001)
-argparser.add_argument('--decay_factor', type=float, default=500.,
+argparser.add_argument('--decay-factor', type=float, default=500.,
                        help='Speed of increasing the probability of sampling from model. Default: 500.')
-argparser.add_argument('--dropout', type=float, default=0.1)
 argparser.add_argument('--temperature', type=float, default=0.7)
-argparser.add_argument('--topk', type=int, default=3)
-argparser.add_argument('--topp', type=float, default=0.9)
 argparser.add_argument('--scheduled-sampling', type='bool', nargs='?',
                        const=True, default=True,
                        help='Uses scheduled-sampling')
+
+# Model config
+argparser.add_argument('--topk', type=int, default=3)
+argparser.add_argument('--topp', type=float, default=0.9)
 argparser.add_argument('--nucleus-sampling', type='bool', nargs='?',
                        const=True, default=True,
                        help='Uses nucleus sampling')
+argparser.add_argument('--dropout', type=float, default=0.2)
+argparser.add_argument('--bidirectional', type='bool', nargs='?',
+                       const=True, default=True,
+                       help='Uses nucleus sampling')
+argparser.add_argument('--num-gru-layers', type=int, default=1)
 
-# Model config
-argparser.add_argument('--hidden-size', type=int, default=128)
+argparser.add_argument('--hidden-size', type=int, default=256)
+argparser.add_argument('--word-embed', type=int, default=100)
+argparser.add_argument('--ingr-embed', type=int, default=100)
+argparser.add_argument('--title-embed', type=int, default=100)
+argparser.add_argument('--cuisine-embed', type=int, default=30)
 argparser.add_argument('--max-ingr', type=int, default=10)
 argparser.add_argument('--max-length', type=int, default=100)
 # for hierarchical, then max-length <30 is better, per step

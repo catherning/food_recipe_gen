@@ -8,15 +8,17 @@ from recipe_gen.seq2seq_utils import MAX_INGR, MAX_LENGTH
 from recipe_gen.pairing_utils import PairingData
 
 class EncoderRNN(nn.Module):
-    def __init__(self, args, input_size):
+    def __init__(self, args, input_size,embedding_size):
         super(EncoderRNN, self).__init__()
         self.hidden_size = hidden_size = args.hidden_size
         self.device = args.device
         self.max_ingr = args.max_ingr
         self.batch_size = args.batch_size
+        self.word_embed = embedding_size
+        self.gru_layers = args.num_gru_layers
 
-        self.embedding = nn.Embedding(input_size, hidden_size)
-        self.gru = nn.GRU(args.hidden_size, args.hidden_size, bidirectional=True) # TODO: change size as biGRU => num_dir = 2
+        self.embedding = nn.Embedding(input_size, self.word_embed)
+        self.gru = nn.GRU(self.word_embed, args.hidden_size, bidirectional=args.bidirectional,num_layers=self.gru_layers,dropout=args.dropout) # TODO: change size as biGRU => num_dir = 2
 
         # so that correct hidden dims for decoder because biGRU
         self.hiddenLayer = nn.Linear(2*args.hidden_size,args.hidden_size)
@@ -37,9 +39,9 @@ class EncoderRNN(nn.Module):
 
     def forward_all(self, input_tensor):
         """
-        input: (batch,max_ingr) ?
+        input: (batch,max_ingr)
         encoder_outputs: (max_ingr,batch,hidden*2)
-        encoder_hidden: (2,batch,hidden)
+        encoder_hidden: (2,batch,hidden) -> (1,batch,hidden)
         """
         #TODO: check, after permute, EOS n'est plus à la fin!?
         input_tensor=input_tensor[:,torch.randperm(input_tensor.size()[1])]
@@ -64,20 +66,26 @@ class DecoderRNN(nn.Module):
         super(DecoderRNN, self).__init__()
         self.hidden_size = hidden_size = args.hidden_size
         self.batch_size = args.batch_size
+        self.word_embed = args.word_embed
+        self.gru_layers = args.num_gru_layers
 
-        self.embedding = nn.Embedding(output_size, hidden_size)
-        self.gru = nn.GRU(hidden_size, hidden_size)
+        self.embedding = nn.Embedding(output_size, self.word_embed)
+        self.gru = nn.GRU(self.word_embed, hidden_size,num_layers=self.gru_layers,dropout=args.dropout)
         self.out = nn.Linear(hidden_size, output_size)
         #self.log_softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, input, hidden, encoder_output):
         """
-        input (1,batch)
-        hidden (2, batch, hidden_size)
-        encoder_output (max_ingr,batch, 2*hidden_size) 
+        input (1,N)
+        hidden (1, N, hidden_size)
+        encoder_output (max_ingr, N, 2*hidden_size) 
+        
+        returns 
+        output (1, N, hidden_size) -> (N, vocab_tok_size)
+        hidden (1, N, hidden_size)
         """
         self.batch_size = input.shape[1]
-        output = self.embedding(input).view(1, self.batch_size, -1) #(1,batch,hidden)
+        output = self.embedding(input).view(1, self.batch_size, -1) #(1,batch,word_embed)
         output = F.relu(output)
         
         output, hidden = self.gru(output, hidden)
@@ -117,7 +125,7 @@ class IngrAttnDecoderRNN(AttnDecoderRNN):
     def __init__(self, args, output_size):
         super().__init__(args, output_size)
         hidden_size = args.hidden_size
-        self.gru = nn.GRU(3*hidden_size, hidden_size)
+        self.gru = nn.GRU(3*hidden_size, hidden_size,num_layers=self.gru_layers,dropout=args.dropout)
         self.attention = IngrAtt(args)
 
 class PairAttnDecoderRNN(AttnDecoderRNN):
@@ -125,10 +133,8 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         super().__init__(args, output_size)
         self.attention = IngrAtt(args)
         self.pairAttention = PairingAtt(args, unk_token=unk_token)
-        self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
+        self.gru = nn.GRU(2*args.hidden_size, args.hidden_size,num_layers=self.gru_layers,dropout=args.dropout)
         self.lin = nn.Linear(3*args.hidden_size,2*args.hidden_size)
-
-        # self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
     
     def forward(self, input, hidden, encoder_outputs, encoder_embedding, input_tensor):
         """
@@ -139,7 +145,7 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         output
         """
         batch_size = hidden.shape[1]
-        embedded = self.embedding(input)  # (1, batch_size, hidden)
+        embedded = self.embedding(input)  # (1, batch_size, word_embed)
 
         output, attn_weights = self.attention(
             embedded, hidden, encoder_outputs)
@@ -173,9 +179,8 @@ class Attention(BaseAttention):
     def __init__(self, args):
         super().__init__(args)
         hidden_size = self.hidden_size
-        self.dropout_p = args.dropout
         self.attn = nn.Linear(2*hidden_size, self.max_ingr)
-        self.dropout = nn.Dropout(self.dropout_p)
+        self.dropout = nn.Dropout(args.dropout)
 
         self.attn_combine = nn.Linear(hidden_size * 3, hidden_size)
 
@@ -264,9 +269,10 @@ class PairingAtt(IngrAtt):
         attn_scores: (batch,top_k) 
         """
         batch_size = embedded.shape[1]
-        scores = torch.zeros(batch_size, self.pairings.top_k).to(embedded.device)
+        device = embedded.device
+        scores = torch.zeros(batch_size, self.pairings.top_k).to(device)
         comp_ingr_id = torch.ones(
-            batch_size, self.pairings.top_k, dtype=torch.long,device=embedded.device)*self.unk_token
+            batch_size, self.pairings.top_k, dtype=torch.long, device = device)*self.unk_token
 
         for i,(comp_ingr, score_list) in enumerate(map(self.pairings.bestPairingsFromIngr, ingr_id)):
             comp_ingr_id[i, :len(comp_ingr)] = torch.LongTensor(comp_ingr)

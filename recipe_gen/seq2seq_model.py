@@ -50,7 +50,7 @@ class Seq2seq(nn.Module):
         self.logger = args.logger
         self.train_mode = args.train_mode
 
-        self.encoder = EncoderRNN(args, input_size)
+        self.encoder = EncoderRNN(args, input_size, args.ingr_embed)
         self.decoder = DecoderRNN(args, output_size)
 
         # TODO: change optim: self.optimizers  = optim.Adam(self.parameters())
@@ -176,9 +176,9 @@ class Seq2seq(nn.Module):
         target_tensor: (batch_size,max_len)
 
         return:
-        decoder_outputs: (batch,max_len,size voc)
-        decoder_words: final (<max_len,batch)
-        decoder_attentions: (max_len,batch,max_ingr)
+        decoder_outputs: (batch, max_len, size voc)
+        decoder_words: final (batch, max_len)
+        decoder_attentions: (<max_len, batch, max_ingr)
         """
         input_tensor = batch["ingr"].to(self.device)
         try:
@@ -191,11 +191,11 @@ class Seq2seq(nn.Module):
             input_tensor)
 
         # encoder_outputs (max_ingr,batch, 2*hidden_size)
-        # encoder_hidden (2, batch, hidden_size)
+        # encoder_hidden (1, batch, hidden_size)
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
-        decoder_hidden = encoder_hidden  # (2, batch, hidden_size)
+        decoder_hidden = encoder_hidden  # (1, batch, hidden_size)
 
         if self.args.scheduled_sampling and self.training:
             sampling_proba = 1-inverse_sigmoid_decay(
@@ -219,7 +219,7 @@ class Seq2seq(nn.Module):
             else:
                 decoder_input = target_tensor[:, di].view(1, -1)
 
-        return decoder_outputs, decoded_words, decoder_attentions[:di + 1],None
+        return decoder_outputs, decoded_words, decoder_attentions[:di + 1], None
 
     def train_iter(self, batch, iter):
         target_length = batch["target_length"]
@@ -549,13 +549,13 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
 class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
     def __init__(self, args):
         super().__init__(args)
-        self.title_encoder = EncoderRNN(args, self.output_size)
+        self.title_encoder = EncoderRNN(args, self.output_size, args.title_embed)
         # output because tok of  title are in vocab_toks
         self.title_optimizer = optim.Adam(
             self.title_encoder.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.title_optimizer)
 
-        self.encoder_fusion = nn.Linear(2*args.hidden_size, args.hidden_size)
+        self.encoder_fusion = nn.Linear(2 * args.hidden_size, args.hidden_size)
         self.fusion_optim = optim.Adam(
             (self.encoder_fusion.parameters()), lr=args.learning_rate)
         self.optim_list.append(self.fusion_optim)
@@ -627,11 +627,12 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
     def __init__(self, args):
         super().__init__(args)
         self.hidden_size = args.hidden_size
+        self.cuis_embed = args.cuisine_embed
 
-
-        self.cuis_embedding = nn.Embedding(len(self.train_dataset.vocab_cuisine), self.hidden_size)
+        # self.cuis_embedding = nn.Embedding(len(self.train_dataset.vocab_cuisine), self.cuis_embed)
         self.cuisine_encoder = nn.Sequential(
-            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.Embedding(len(self.train_dataset.vocab_cuisine), self.cuis_embed),
+            nn.Linear(self.cuis_embed, self.hidden_size),
             nn.ReLU(),
             nn.Dropout(p=args.dropout)
         )
@@ -672,8 +673,8 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
             input_tensor)
         # encoder_outputs (max_ingr,hidden_size, batch)
         # encoder_hidden (1,hidden_size, batch)
-        cuis_emb = self.cuis_embedding(cuisine_tensor)
-        cuisine_encoding = self.cuisine_encoder(cuis_emb)
+        # cuis_emb = self.cuis_embedding(cuisine_tensor)
+        cuisine_encoding = self.cuisine_encoder(cuisine_tensor)
 
         decoder_hidden = torch.cat(
             (encoder_hidden, cuisine_encoding.view(1,batch_size,self.hidden_size)), dim=2)
