@@ -248,6 +248,7 @@ def main():
         except TypeError:
             print([" ".join(sent) for sent in output_words[0]])
 
+        # TODO: fuse the evalFuncs
         try:
             model.evaluateAndShowAttention(sample)
         except (TypeError, AttributeError):

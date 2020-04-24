@@ -175,6 +175,53 @@ class BaseModel(nn.Module):
                 scheduler.step()
                 
         showPlot(plot_losses,self.savepath)
+        
+    def evalProcess(self):
+        """
+        Eval method called during training after each epoch
+        """
+        self.eval()
+        start = time.time()
+        print_loss_total = 0
+        with torch.no_grad():
+            for iter, batch in enumerate(self.test_dataloader, start=1):
+                loss, _ = self.train_iter(batch, iter)
+                print_loss_total += loss.detach()
+
+                if iter %  max(self.args.print_step, self.args.n_iters//10) == 0:
+                    print("Eval Current loss = {}".format(
+                        print_loss_total/iter))
+
+            print_loss_avg = print_loss_total / iter
+            self.logger.info("Eval loss = {}".format(print_loss_avg))
+        return print_loss_avg
+    
+    def evalOutput(self):
+        """
+        Evaluate on dev dataset and prints generated to console and into logfile
+        """
+        self.eval()
+        start = time.time()
+        print_loss_total = 0
+
+        with torch.no_grad():
+            for iter, batch in enumerate(self.test_dataloader, start=1):
+                loss, output_words = self.train_iter(batch, iter)
+
+                for i, ex in enumerate(output_words):
+                    try:
+                        self.logger.info(batch["id"][i]+" "+' '.join(ex))
+                    except TypeError:
+                        self.logger.info(
+                            batch["id"][i]+" "+"|".join([' '.join(sent) for sent in ex]))
+
+                print_loss_total += loss.detach()
+
+                if iter % self.args.print_step == 0:
+                    print("Current loss = {}".format(print_loss_total/iter))
+
+            print_loss_avg = print_loss_total / iter
+            self.logger.info("Eval loss = {}".format(print_loss_avg))
 
     def evaluateFromText(self, sample):
         self.eval()
@@ -229,14 +276,16 @@ class BaseModel(nn.Module):
         try:
             attentions = att_data["attentions"][:,0]
             comp_ingr_id = att_data["comp_ingrs"][:,0]
-            comp_ingr_id = comp_ingr_id
+            focused_ingrs_id = att_data["focused_ingr"][:,0]
+            focused_ingrs = [self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in focused_ingrs_id]
             comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
-            showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+            showPairingAttention(comp_ingr, focused_ingrs, output_words[0], attentions,self.savepath,name=sample["id"][:3])
         except (AttributeError,TypeError):
             showSentAttention(or_sent, output_words[0], attentions,self.savepath,name=sample["id"][:3])
             
     def evaluateRandomly(self, n=10):
         self.eval()
+        self.batch_size = 1
         with torch.no_grad():
             for i in range(n):
                 sample = random.choice(self.test_dataset.data)
@@ -244,54 +293,13 @@ class BaseModel(nn.Module):
     
     def evalFromId(self,id):
         self.eval()
+        self.batch_size = 1
         with torch.no_grad():
             idx = self.test_dataset.id2index.index(id)
             sample = self.test_dataset.data[idx]            
             self.evalSample(sample)
-                
-    def evalProcess(self):
-        self.eval()
-        start = time.time()
-        print_loss_total = 0
-        with torch.no_grad():
-            for iter, batch in enumerate(self.test_dataloader, start=1):
-                loss, _ = self.train_iter(batch, iter)
-                print_loss_total += loss.detach()
-
-                if iter %  max(self.args.print_step, self.args.n_iters//10) == 0:
-                    print("Eval Current loss = {}".format(
-                        print_loss_total/iter))
-
-            print_loss_avg = print_loss_total / iter
-            self.logger.info("Eval loss = {}".format(print_loss_avg))
-        return print_loss_avg
-
-    def evalOutput(self):
-        self.eval()
-        start = time.time()
-        print_loss_total = 0
-
-        with torch.no_grad():
-            for iter, batch in enumerate(self.test_dataloader, start=1):
-                loss, output_words = self.train_iter(batch, iter)
-
-                for i, ex in enumerate(output_words):
-                    try:
-                        self.logger.info(batch["id"][i]+" "+' '.join(ex))
-                    except TypeError:
-                        self.logger.info(
-                            batch["id"][i]+" "+"|".join([' '.join(sent) for sent in ex]))
-
-                print_loss_total += loss.detach()
-
-                if iter % self.args.print_step == 0:
-                    print("Current loss = {}".format(print_loss_total/iter))
-
-            print_loss_avg = print_loss_total / iter
-            self.logger.info("Eval loss = {}".format(print_loss_avg))
-
-            
-class Seq2seq(nn.Module):
+                            
+class Seq2seq(BaseModel):
     def __init__(self, args):
         super().__init__(args)
 
@@ -519,7 +527,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         decoder_outputs[:, di] = decoder_output
         topi = self.samplek(decoder_output, decoded_words)
         comp_ingrs[di]=comp_ingr
-        focused_ingrs[di]= focused_ingrs
+        focused_ingrs[di]= focused_ingr
         return decoder_attentions, decoder_hidden, topi, comp_ingrs,focused_ingrs
 
     def forward(self, batch, iter=iter):

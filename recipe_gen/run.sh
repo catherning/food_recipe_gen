@@ -8,4 +8,5 @@ python ./recipe_gen/main.py \
     --max-ingr 10 \
     --max-length 100 \
     --model-name Seq2seq \
-    --hidden-size 256
+    --hidden-size 256 \
+    --num-gru-layers 2

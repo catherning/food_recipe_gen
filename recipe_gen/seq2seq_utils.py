@@ -244,11 +244,12 @@ def showSentAttention(input_sentence, output_words, attentions,path,name=None):
         showAttention(input_sentence,sent,attentions[b_id:b_id+len_sent],path,name="{}_{}".format(name,i))
         b_id += len_sent
 
-def showPairingAttention(comp_ingr, output_words, attentions,path,name=None):
+def showPairingAttention(comp_ingr, focused_ingrs, output_words, attentions,path,name=None):
     for i,w in enumerate(output_words):
-        showAttention(comp_ingr[i],w,attentions[i].unsqueeze(0),path,name="{}_{}".format(name,i))
+        if focused_ingrs[i]!="<eos>" and focused_ingrs[i]!="<pad>":
+            showAttention(comp_ingr[i],w,attentions[i].unsqueeze(0),path, title=focused_ingrs[i], name="{}_{}_{}".format(name,i,w))
 
-def showAttention(input_sentence, output_words, attentions,path,name=None):
+def showAttention(input_sentence, output_words, attentions,path, title = None, name=None):
     # Set up figure with colorbar
     fig = plt.figure(figsize=(15,15))
     ax = fig.add_subplot(111)
@@ -256,12 +257,15 @@ def showAttention(input_sentence, output_words, attentions,path,name=None):
     fig.colorbar(cax)
 
     # Set up axes
-    ax.set_xticklabels([''] + input_sentence.split(' '), rotation=90)
+    ax.set_xticklabels([''] +input_sentence.split(' '), rotation=90)
     ax.set_yticklabels([''] + output_words.split(' '))
 
     # Show label at every tick
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+    
+    if title:
+        plt.title("Focused ingredient : {}".format(title), y=1)
 
     # plt.show()
     plt.savefig(os.path.join(path,'attention_{}.png'.format(name)))

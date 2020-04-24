@@ -33,8 +33,7 @@ class EncoderRNN(nn.Module):
         output: (1,batch,hidden * 2)
         hidden
         """
-        embedded = self.embedding(input_).view(1, self.batch_size, -1)
-        output = embedded
+        output = self.embedding(input_).view(1, self.batch_size, -1)
         output, hidden = self.gru(output, hidden)
         return output, hidden
 
@@ -49,7 +48,7 @@ class EncoderRNN(nn.Module):
         """
         #TODO: check, after permute, EOS n'est plus à la fin!?
         input_tensor=input_tensor[:,torch.randperm(input_tensor.size()[1])]
-        self.batch_size = batch_size =  len(input_tensor)
+        self.batch_size = batch_size = len(input_tensor)
         encoder_hidden = self.initHidden().to(self.device)
         encoder_outputs = torch.zeros(
             self.max_ingr, batch_size, self.hidden_size*2, device=self.device)
@@ -103,8 +102,8 @@ class DecoderRNN(nn.Module):
         output = self.out(output[0])
         return output, hidden, None, None
 
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size)
+    # def initHidden(self):
+    #     return torch.zeros(1, 1, self.hidden_size)
 
  
 class AttnDecoderRNN(DecoderRNN):
