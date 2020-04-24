@@ -305,14 +305,13 @@ class PairingAtt(IngrAtt):
         scores_att = self.attn(torch.tanh(query + key))
         attn_weights = F.softmax(scores_att.squeeze(2), dim=-1)
         
-        # XXX: renormalize after multiplication ?
-        # TODO: try with emphazing unknown pairings
-        attn_scores = (attn_weights * scores).to(comp_emb.device)
-
         # TODO: try with still doing the attention, but without the scores if there's no compatible ingr ?
         # or too broad to add ingr afterwards ?
         if scores.sum() == 0:
             return None, attn_weights,comp_ingr_id
+        
+        # TODO: try with emphazing unknown pairings
+        attn_scores = F.normalize((attn_weights * scores),1)#.to(comp_emb.device)
 
         # attn_scores view: (batch,1,top_k)
         # comb_emb (batch,top_k,hidden_size)
