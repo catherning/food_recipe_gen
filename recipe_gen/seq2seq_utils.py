@@ -240,8 +240,9 @@ def showPlot(points,path):
 def showSentAttention(input_sentence, output_words, attentions,path,name=None):
     b_id =0
     for i,sent in enumerate(" ".join(output_words).replace('<eos> ', ', ').split(" , ")):
-        showAttention(input_sentence,sent,attentions[b_id:b_id+len(sent)],path,name="{}_{}".format(name,i))
-        b_id = len(sent)
+        len_sent = len(sent.split())
+        showAttention(input_sentence,sent,attentions[b_id:b_id+len_sent],path,name="{}_{}".format(name,i))
+        b_id += len_sent
 
 def showPairingAttention(comp_ingr, output_words, attentions,path,name=None):
     for i,w in enumerate(output_words):
@@ -255,7 +256,7 @@ def showAttention(input_sentence, output_words, attentions,path,name=None):
     fig.colorbar(cax)
 
     # Set up axes
-    ax.set_xticklabels(input_sentence.split(' '), rotation=90)
+    ax.set_xticklabels([''] + input_sentence.split(' '), rotation=90)
     ax.set_yticklabels([''] + output_words.split(' '))
 
     # Show label at every tick
@@ -292,7 +293,6 @@ if __name__ == "__main__":
     dataset_loader = torch.utils.data.DataLoader(recipe_dataset,
                                                  batch_size=4, shuffle=True,
                                                  num_workers=4)
-
 
     for i_batch, sample_batched in enumerate(dataset_loader):
         print(i_batch, sample_batched)
