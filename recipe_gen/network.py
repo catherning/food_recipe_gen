@@ -16,18 +16,22 @@ class EncoderRNN(nn.Module):
         self.batch_size = args.batch_size
         self.word_embed = embedding_size
         self.gru_layers = args.num_gru_layers
-
+        self.num_directions = 2 if args.bidirectional else 1
+        
         self.embedding = nn.Embedding(input_size, self.word_embed)
-        self.gru = nn.GRU(self.word_embed, args.hidden_size, bidirectional=args.bidirectional,num_layers=self.gru_layers,dropout=args.dropout) # TODO: change size as biGRU => num_dir = 2
+        self.gru = nn.GRU(self.word_embed, args.hidden_size, bidirectional=args.bidirectional,num_layers=self.gru_layers,dropout=args.dropout)
 
         # so that correct hidden dims for decoder because biGRU
-        self.hiddenLayer = nn.Linear(2*args.hidden_size,args.hidden_size)
+        # self.hiddenLayer = nn.Linear(2*args.hidden_size,args.hidden_size)
 
     def forward(self, input_, hidden):
         """
         input_: (batch)
-        hidden: (1,batch,hidden * 2) *2 bc biGRU
-        output: (1,batch,hidden * 2) 
+        hidden: ((2 if self.bidirectional else 1) * num_layers, batch, hidden) *2 bc biGRU
+        
+        returns
+        output: (1,batch,hidden * 2)
+        hidden
         """
         embedded = self.embedding(input_).view(1, self.batch_size, -1)
         output = embedded
@@ -35,20 +39,20 @@ class EncoderRNN(nn.Module):
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(2, self.batch_size, self.hidden_size) # (num_layers * num_directions, batch, hidden_size)
+        return torch.zeros(self.num_directions * self.gru_layers, self.batch_size, self.hidden_size) # (num_layers * num_directions, batch, hidden_size)
 
     def forward_all(self, input_tensor):
         """
         input: (batch,max_ingr)
         encoder_outputs: (max_ingr,batch,hidden*2)
-        encoder_hidden: (2,batch,hidden) -> (1,batch,hidden)
+        encoder_hidden: (2 * num_layers ,batch,hidden) -> (num_layers,batch,hidden)
         """
         #TODO: check, after permute, EOS n'est plus à la fin!?
         input_tensor=input_tensor[:,torch.randperm(input_tensor.size()[1])]
-        self.batch_size = len(input_tensor)
+        self.batch_size = batch_size =  len(input_tensor)
         encoder_hidden = self.initHidden().to(self.device)
         encoder_outputs = torch.zeros(
-            self.max_ingr, self.batch_size, self.hidden_size*2, device=self.device)
+            self.max_ingr, batch_size, self.hidden_size*2, device=self.device)
 
         for ei in range(self.max_ingr):
             # TODO: couldn't give directly all input_tensor, not step by step ???
@@ -56,8 +60,15 @@ class EncoderRNN(nn.Module):
                 input_tensor[:, ei], encoder_hidden)
             encoder_outputs[ei] = encoder_output[0]
 
-        encoder_hidden = torch.cat((encoder_hidden[0],encoder_hidden[1]),1).unsqueeze(0)
-        encoder_hidden = F.relu(self.hiddenLayer(encoder_hidden)) # because was size 2-hidden_size
+        if self.gru_layers > 1 and self.num_directions==2:
+            encoder_hidden = encoder_hidden.view(self.gru_layers, self.num_directions, self.batch_size, self.hidden_size)
+            encoder_hidden = torch.cat((encoder_hidden[:,0],encoder_hidden[:,1]),2)
+        elif self.num_directions==2:
+            encoder_hidden = torch.cat((encoder_hidden[0],encoder_hidden[1]),1).unsqueeze(0)
+    
+        # encoder_hidden = F.relu(self.hiddenLayer(encoder_hidden)) # because was size 2-hidden_size
+        # XXX: no relu ?
+        # put hiddenLayer out of encoder, fuse with encoder_fusion
 
         return encoder_outputs, encoder_hidden
 
@@ -77,12 +88,12 @@ class DecoderRNN(nn.Module):
     def forward(self, input, hidden, encoder_output):
         """
         input (1,N)
-        hidden (1, N, hidden_size)
+        hidden (num_layers, N, hidden_size)
         encoder_output (max_ingr, N, 2*hidden_size) 
         
         returns 
         output (1, N, hidden_size) -> (N, vocab_tok_size)
-        hidden (1, N, hidden_size)
+        hidden (num_layers, N, hidden_size)
         """
         self.batch_size = input.shape[1]
         output = self.embedding(input).view(1, self.batch_size, -1) #(1,batch,word_embed)

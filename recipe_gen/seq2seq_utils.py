@@ -104,7 +104,7 @@ class RecipesDataset(Dataset):
                             "id":idx}
                     if self.filterSinglePair(sample):
                         _dict = self.tensorsFromPair(sample)
-                        _dict["cuisine"]=torch.LongTensor([self.vocab_cuisine.word2idx[recipe["cuisine"]]])
+                        _dict["cuisine"]=torch.tensor(self.vocab_cuisine.word2idx[recipe["cuisine"]],dtype=torch.long)
                         del _dict["title"]
                         data.append(_dict)
                 except AttributeError:

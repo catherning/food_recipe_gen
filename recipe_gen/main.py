@@ -202,6 +202,7 @@ def main():
         [optim.load_state_dict(checkpoint['optimizer_state_dict'][i])
          for i, optim in enumerate(model.optim_list)]
         args.begin_epoch = checkpoint['epoch']
+        args.training_losses = checkpoint['loss_list']
         # loss = checkpoint['loss']
         print("Model loaded for resuming training.")
 

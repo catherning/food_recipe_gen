@@ -61,11 +61,19 @@ class Seq2seq(nn.Module):
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
         self.optim_list = [self.encoder_optimizer, self.decoder_optimizer]
+        
+        self.encoder_fusion = nn.Sequential(nn.Linear((2 if self.args.bidirectional else 1) * args.hidden_size, args.hidden_size),
+                                            nn.Tanh())
+        self.fusion_optim = optim.Adam(
+            (self.encoder_fusion.parameters()), lr=args.learning_rate)
+        self.optim_list.append(self.fusion_optim)
 
         # Training param
         self.decay_factor = args.decay_factor
         self.learning_rate = args.learning_rate
         self.criterion = nn.CrossEntropyLoss(reduction="sum",ignore_index=self.train_dataset.PAD_token)
+        
+        self.training_losses =[]
 
         self.paramLogging()
 
@@ -195,7 +203,8 @@ class Seq2seq(nn.Module):
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
-        decoder_hidden = encoder_hidden  # (1, batch, hidden_size)
+        encoder_hidden = self.encoder_fusion(encoder_hidden)
+        decoder_hidden = encoder_hidden  # (num_layers, batch, hidden_size)
 
         if self.args.scheduled_sampling and self.training:
             sampling_proba = 1-inverse_sigmoid_decay(
@@ -242,7 +251,7 @@ class Seq2seq(nn.Module):
 
     def train_process(self):
         start = time.time()
-        plot_losses = []
+        plot_losses = self.training_losses
         print_loss_total = 0
         plot_loss_total = 0
         best_loss = math.inf
@@ -296,6 +305,7 @@ class Seq2seq(nn.Module):
                 'model_state_dict': self.state_dict(),
                 'optimizer_state_dict': [optim.state_dict() for optim in self.optim_list],
                 'loss': loss,
+                'loss_list': plot_losses
             }, os.path.join(self.savepath, "train_model_{}_{}.tar".format(datetime.now().strftime('%m-%d-%H-%M'), ep)))
 
             val_loss = self.evalProcess()
@@ -511,16 +521,18 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         except AttributeError:
             Warning("Evaluation mode: only taking ingredient list as input")
 
+        # Encoder
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor, pairing=True)
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
-        # encoder_outputs (hidden_size, batch) or (max_ingr,hidden) ??
-        # encoder_hidden (1, batch, hidden_size)
+        # encoder_outputs (max_ingr, batch, hidden_size*2) 
+        # encoder_hidden (num_layers, batch, hidden_size)
 
-        decoder_hidden = encoder_hidden
+        decoder_hidden = self.encoder_fusion(encoder_hidden)
 
+        # Scheduled sampling
         if self.args.scheduled_sampling and self.training:
             sampling_proba = 1-inverse_sigmoid_decay(
                 self.decay_factor, iter)
@@ -529,6 +541,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         else:
             sampling_proba = 1
 
+        # Decoder part
         comp_ingrs = torch.zeros(self.max_length,batch_size,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi,comp_ingr = self.forwardDecoderStep(decoder_input, decoder_hidden,
@@ -557,7 +570,8 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
             self.title_encoder.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.title_optimizer)
 
-        self.encoder_fusion = nn.Linear(2 * args.hidden_size, args.hidden_size)
+        self.encoder_fusion = nn.Sequential(nn.Linear((2 if self.args.bidirectional else 1)* 2 * args.hidden_size, args.hidden_size),
+                                            nn.Tanh())
         self.fusion_optim = optim.Adam(
             (self.encoder_fusion.parameters()), lr=args.learning_rate)
         self.optim_list.append(self.fusion_optim)
@@ -634,7 +648,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         # self.cuis_embedding = nn.Embedding(len(self.train_dataset.vocab_cuisine), self.cuis_embed)
         self.cuisine_encoder = nn.Sequential(
             nn.Embedding(len(self.train_dataset.vocab_cuisine), self.cuis_embed),
-            nn.Linear(self.cuis_embed, self.hidden_size),
+            nn.Linear(self.cuis_embed, 2*self.hidden_size),
             nn.ReLU(),
             nn.Dropout(p=args.dropout)
         )
@@ -642,8 +656,9 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         self.cuisine_optimizer = optim.Adam(
             self.cuisine_encoder.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.cuisine_optimizer)
-
-        self.encoder_fusion = nn.Linear(2*args.hidden_size, args.hidden_size)
+        
+        self.encoder_fusion = nn.Sequential(nn.Linear((2 if self.args.bidirectional else 1)* 2 * args.hidden_size, args.hidden_size),
+                                            nn.Tanh())
         self.fusion_optim = optim.Adam(
             self.encoder_fusion.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.fusion_optim)
@@ -673,14 +688,13 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
-        # encoder_outputs (max_ingr,hidden_size, batch)
-        # encoder_hidden (1,hidden_size, batch)
-        # cuis_emb = self.cuis_embedding(cuisine_tensor)
+        # encoder_outputs (max_ingr, N, hidden_size)
+        # encoder_hidden (num_layers, N, hidden_size*2)
         cuisine_encoding = self.cuisine_encoder(cuisine_tensor)
+        cuisine_encoding = torch.stack([cuisine_encoding] * self.encoder.gru_layers)
 
         decoder_hidden = torch.cat(
-            (encoder_hidden, cuisine_encoding.view(1,batch_size,self.hidden_size)), dim=2)
-
+            (encoder_hidden, cuisine_encoding), dim=2)
         decoder_hidden = self.encoder_fusion(decoder_hidden)
 
         if self.args.scheduled_sampling and self.training:
