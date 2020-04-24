@@ -240,7 +240,7 @@ def main():
         sample = {"ingr":"tomato salad beef lemon".split(),
                   "title":"mediteranean salad".split(),
                   "cuisine":"Asian"}
-        _, output_words, _,_ = model.evaluateFromText(sample)
+        _, output_words, _ = model.evaluateFromText(sample)
     
         
         try:

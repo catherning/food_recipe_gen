@@ -25,7 +25,7 @@ from recipe_gen.seq2seq_utils import *
 from recipe_gen.network import *
 from KitcheNette_master.unk_pairs_gen import getMainIngr
 
-class Seq2seq(nn.Module):
+class BaseModel(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -76,7 +76,7 @@ class Seq2seq(nn.Module):
         self.training_losses =[]
 
         self.paramLogging()
-
+        
     def paramLogging(self):
         for k, v in self.args.defaults.items():
             try:
@@ -85,157 +85,13 @@ class Seq2seq(nn.Module):
                         k, getattr(self.args, k)))
             except AttributeError:
                 continue
-
-    def addAttention(self, di, decoder_attentions, cur_attention):
-        if cur_attention is not None:
-            decoder_attentions[di] = cur_attention.data
-        return decoder_attentions
-
-    def samplek(self, decoder_output, decoded_words):
-        # TODO: change for hierarchical
         
-        chosen_id = torch.zeros(
-            decoder_output.shape[0], dtype=torch.long, device=self.device)
-        decoder_output = decoder_output/self.args.temperature
-        
-        if self.args.nucleus_sampling:
-            topv = self.top_p_filtering(decoder_output,self.args.topp)
-            distrib = torch.distributions.categorical.Categorical(logits=topv)
-            for batch_id, idx in enumerate(distrib.sample()):
-                chosen_id[batch_id] = idx
-                decoded_words[batch_id].append(
-                    self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
-            
-        else:
-            topv, topi = decoder_output.topk(self.args.topk)        
-            distrib = torch.distributions.categorical.Categorical(logits=topv)
-
-            for batch_id, idx in enumerate(distrib.sample()):
-                chosen_id[batch_id] = topi[batch_id, idx]   
-                decoded_words[batch_id].append(
-                    self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
-            
-        return chosen_id
-    
-    def top_p_filtering(self, logits, top_p=0.0, filter_value=-float('Inf')):
-        """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
-            Args:
-                logits: logits distribution shape (vocabulary size)
-                top_k >0: keep only top k tokens with highest probability (top-k filtering).
-                top_p >0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
-                    Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
-        """
-        
-        # if top_k > 0:
-        #     # Remove all tokens with a probability less than the last token of the top-k
-        #     indices_to_remove = logits < torch.topk(logits, top_k)[0][:, -1, None]
-        # if top_p > 0.0:
-        
-        sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-
-        # Remove tokens with cumulative probability above the threshold
-        sorted_indices_to_remove = cumulative_probs > top_p
-        # Shift the indices to the right to keep also the first token above the threshold
-        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-        sorted_indices_to_remove[..., 0] = 0
-
-        # indices_to_remove = sorted_indices[sorted_indices_to_remove]
-        indices_to_remove = torch.zeros_like(logits, dtype=torch.bool).scatter_(
-            dim=-1, index=sorted_indices, src=sorted_indices_to_remove )
-            
-        logits[indices_to_remove] = filter_value
-            
-        return logits
-
-    def initForward(self, input_tensor, pairing=False):
-        # XXX: should be able not to reassign if do view with correct hidden size instead
-        self.batch_size = len(input_tensor)
-        decoder_input = torch.tensor(
-            [[self.train_dataset.SOS_token]*self.batch_size], device=self.device)
-        # decoder_input final (<max_len,batch)
-
-        decoded_words = [[] for i in range(self.batch_size)]
-        decoder_outputs = torch.zeros(self.batch_size, self.max_length, len(
-            self.train_dataset.vocab_tokens), device=self.device)
-
-        if pairing:
-            decoder_attentions = torch.zeros(
-                self.max_length, self.batch_size, self.decoder.pairAttention.pairings.top_k)
-        else:
-            decoder_attentions = torch.zeros(
-                self.max_length, self.batch_size, self.max_ingr)
-
-        return decoder_input, decoded_words, decoder_outputs, decoder_attentions
-
-    def forwardDecoderStep(self, decoder_input, decoder_hidden,
-                           encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words):
-        decoder_output, decoder_hidden, decoder_attention, _ = self.decoder(
-            decoder_input, decoder_hidden, encoder_outputs)  # can remove encoder_outputs ? not used in decoder
-        decoder_outputs[:, di] = decoder_output
-        decoder_attentions = self.addAttention(
-            di, decoder_attentions, decoder_attention)
-        topi = self.samplek(decoder_output, decoded_words)
-        return decoder_attentions, decoder_hidden, topi
-
-    def forward(self, batch, iter=iter):
-        """
-        input_tensor: (batch_size,max_ingr)
-        target_tensor: (batch_size,max_len)
-
-        return:
-        decoder_outputs: (batch, max_len, size voc)
-        decoder_words: final (batch, max_len)
-        decoder_attentions: (<max_len, batch, max_ingr)
-        """
-        input_tensor = batch["ingr"].to(self.device)
-        try:
-            target_tensor = batch["target_instr"].to(
-                self.device)  # (batch,max_step,max_length) ?
-        except AttributeError:
-            target_tensor = None
-
-        decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
-            input_tensor)
-
-        # encoder_outputs (max_ingr,batch, 2*hidden_size)
-        # encoder_hidden (1, batch, hidden_size)
-        encoder_outputs, encoder_hidden = self.encoder.forward_all(
-            input_tensor)
-
-        encoder_hidden = self.encoder_fusion(encoder_hidden)
-        decoder_hidden = encoder_hidden  # (num_layers, batch, hidden_size)
-
-        if self.args.scheduled_sampling and self.training:
-            sampling_proba = 1-inverse_sigmoid_decay(
-                self.decay_factor, iter)
-        elif not self.args.scheduled_sampling and self.training:
-            sampling_proba = 0
-        else:
-            sampling_proba = 1
-
-        for di in range(self.max_length):
-            decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
-                                                                               encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words)
-
-            if random.random() < sampling_proba:
-                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
-                    :, 0]
-                if len(idx_end) == self.batch_size:
-                    break
-                decoder_input = topi.squeeze().detach().view(
-                    1, -1)  # detach from history as input
-            else:
-                decoder_input = target_tensor[:, di].view(1, -1)
-
-        return decoder_outputs, decoded_words, decoder_attentions[:di + 1], None
-
     def train_iter(self, batch, iter):
         target_length = batch["target_length"]
         target_tensor = batch["target_instr"].to(self.device)
-        batch_size = target_length.shape[0]
+        self.batch_size = batch_size = target_length.shape[0]
 
-        decoder_outputs, decoded_words, _,_ = self.forward(batch, iter=iter)
+        decoder_outputs, decoded_words, _ = self.forward(batch, iter=iter)
         # TODO: change flattenSeq if hierarchical
         # aligned_outputs = flattenSequence(decoder_outputs, target_length)
         # aligned_target = flattenSequence(target_tensor, target_length)
@@ -355,8 +211,8 @@ class Seq2seq(nn.Module):
     def evalSample(self,sample):
         for k in ["ingr","target_instr"]+["title"]*("title" in sample)+["cuisine"]*("cuisine" in sample):
             sample[k] = sample[k].unsqueeze(0)
-        _, output_words, attentions,comp_ingr_id = self.forward(sample)
-        attentions = attentions[:,0]
+        _, output_words, att_data = self.forward(sample)
+
         try:
             output_sentence = ' '.join(output_words[0])
         except TypeError:
@@ -369,8 +225,11 @@ class Seq2seq(nn.Module):
         self.logger.info(
             "Target: "+str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"]]))
         self.logger.info("Generated: "+output_sentence)
+        
         try:
-            comp_ingr_id = comp_ingr_id[:,0]
+            attentions = att_data["attentions"][:,0]
+            comp_ingr_id = att_data["comp_ingrs"][:,0]
+            comp_ingr_id = comp_ingr_id
             comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
             showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
         except (AttributeError,TypeError):
@@ -430,6 +289,164 @@ class Seq2seq(nn.Module):
 
             print_loss_avg = print_loss_total / iter
             self.logger.info("Eval loss = {}".format(print_loss_avg))
+
+            
+class Seq2seq(nn.Module):
+    def __init__(self, args):
+        super().__init__(args)
+
+    def addAttention(self, di, decoder_attentions, cur_attention):
+        if cur_attention is not None:
+            decoder_attentions[di] = cur_attention.data
+        return decoder_attentions
+
+    def samplek(self, decoder_output, decoded_words):
+        # TODO: change for hierarchical
+        
+        chosen_id = torch.zeros(
+            decoder_output.shape[0], dtype=torch.long, device=self.device)
+        decoder_output = decoder_output/self.args.temperature
+        
+        if self.args.nucleus_sampling:
+            topv = self.top_p_filtering(decoder_output,self.args.topp)
+            distrib = torch.distributions.categorical.Categorical(logits=topv)
+            for batch_id, idx in enumerate(distrib.sample()):
+                chosen_id[batch_id] = idx
+                decoded_words[batch_id].append(
+                    self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
+            
+        else:
+            topv, topi = decoder_output.topk(self.args.topk)        
+            distrib = torch.distributions.categorical.Categorical(logits=topv)
+
+            for batch_id, idx in enumerate(distrib.sample()):
+                chosen_id[batch_id] = topi[batch_id, idx]   
+                decoded_words[batch_id].append(
+                    self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
+            
+        return chosen_id
+    
+    def top_p_filtering(self, logits, top_p=0.0, filter_value=-float('Inf')):
+        """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
+            Args:
+                logits: logits distribution shape (vocabulary size)
+                top_k >0: keep only top k tokens with highest probability (top-k filtering).
+                top_p >0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
+                    Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
+        """
+        
+        # if top_k > 0:
+        #     # Remove all tokens with a probability less than the last token of the top-k
+        #     indices_to_remove = logits < torch.topk(logits, top_k)[0][:, -1, None]
+        # if top_p > 0.0:
+        
+        sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+
+        # Remove tokens with cumulative probability above the threshold
+        sorted_indices_to_remove = cumulative_probs > top_p
+        # Shift the indices to the right to keep also the first token above the threshold
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+        sorted_indices_to_remove[..., 0] = 0
+
+        # indices_to_remove = sorted_indices[sorted_indices_to_remove]
+        indices_to_remove = torch.zeros_like(logits, dtype=torch.bool).scatter_(
+            dim=-1, index=sorted_indices, src=sorted_indices_to_remove )
+            
+        logits[indices_to_remove] = filter_value
+            
+        return logits
+
+    def getSamplingProba(self, iter):
+        if self.args.scheduled_sampling and self.training:
+            sampling_proba = 1-inverse_sigmoid_decay(
+                self.decay_factor, iter)
+        elif not self.args.scheduled_sampling and self.training:
+            sampling_proba = 0
+        else:
+            sampling_proba = 1
+        return sampling_proba
+
+
+    def initForward(self, input_tensor, pairing=False):
+        # XXX: should be able not to reassign if do view with correct hidden size instead
+        batch_size = self.batch_size
+        decoder_input = torch.tensor(
+            [[self.train_dataset.SOS_token]*batch_size], device=self.device)
+        # decoder_input final (<max_len,batch)
+
+        decoded_words = [[] for i in range(batch_size)]
+        decoder_outputs = torch.zeros(batch_size, self.max_length, len(
+            self.train_dataset.vocab_tokens), device=self.device)
+
+        if pairing:
+            decoder_attentions = torch.zeros(
+                self.max_length, batch_size, self.decoder.pairAttention.pairings.top_k)
+            comp_ingrs = torch.zeros(self.max_length,batch_size,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
+            focused_ingrs = torch.zeros(self.max_length,batch_size,dtype=torch.int)
+            return decoder_input, decoded_words, decoder_outputs, decoder_attentions,comp_ingrs,focused_ingrs
+        else:
+            decoder_attentions = torch.zeros(
+                self.max_length, batch_size, self.max_ingr)
+            return decoder_input, decoded_words, decoder_outputs, decoder_attentions
+
+
+    def forwardDecoderStep(self, decoder_input, decoder_hidden,
+                           encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words):
+        decoder_output, decoder_hidden, decoder_attention, _ = self.decoder(
+            decoder_input, decoder_hidden, encoder_outputs)  # can remove encoder_outputs ? not used in decoder
+        decoder_outputs[:, di] = decoder_output
+        decoder_attentions = self.addAttention(
+            di, decoder_attentions, decoder_attention)
+        topi = self.samplek(decoder_output, decoded_words)
+        return decoder_attentions, decoder_hidden, topi
+
+    def forward(self, batch, iter=iter):
+        """
+        input_tensor: (batch_size,max_ingr)
+        target_tensor: (batch_size,max_len)
+
+        return:
+        decoder_outputs: (batch, max_len, size voc)
+        decoder_words: final (batch, max_len)
+        decoder_attentions: (<max_len, batch, max_ingr)
+        """
+
+        input_tensor = batch["ingr"].to(self.device)
+        try:
+            target_tensor = batch["target_instr"].to(
+                self.device)  # (batch,max_step,max_length) ?
+        except AttributeError:
+            target_tensor = None
+
+        decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
+            input_tensor)
+
+        # encoder_outputs (max_ingr,batch, 2*hidden_size)
+        # encoder_hidden (1, batch, hidden_size)
+        encoder_outputs, encoder_hidden = self.encoder.forward_all(
+            input_tensor)
+
+        encoder_hidden = self.encoder_fusion(encoder_hidden)
+        decoder_hidden = encoder_hidden  # (num_layers, batch, hidden_size)
+
+        sampling_proba = self.getSamplingProba(iter)
+
+        for di in range(self.max_length):
+            decoder_attentions, decoder_hidden, topi = self.forwardDecoderStep(decoder_input, decoder_hidden,
+                                                                               encoder_outputs, di, decoder_attentions, decoder_outputs, decoded_words)
+
+            if random.random() < sampling_proba:
+                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
+                    :, 0]
+                if len(idx_end) == self.batch_size:
+                    break
+                decoder_input = topi.squeeze().detach().view(
+                    1, -1)  # detach from history as input
+            else:
+                decoder_input = target_tensor[:, di].view(1, -1)
+
+        return decoder_outputs, decoded_words, None
 
 
 class Seq2seqAtt(Seq2seq):
@@ -493,20 +510,25 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
             self.vocab_main_ingr.add_word(self.train_dataset.vocab_ingrs.idx2word[i],i)
 
     def forwardDecoderStep(self, decoder_input, decoder_hidden,
-                           encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words):
-        decoder_output, decoder_hidden, decoder_attention, comp_ingr = self.decoder(
+                           encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words,comp_ingrs,focused_ingrs):
+        decoder_output, decoder_hidden, decoder_attention, comp_ingr,focused_ingr = self.decoder(
             decoder_input, decoder_hidden, encoder_outputs, self.encoder.embedding, input_tensor)
 
         decoder_attentions = self.addAttention(
             di, decoder_attentions, decoder_attention)
         decoder_outputs[:, di] = decoder_output
         topi = self.samplek(decoder_output, decoded_words)
-        return decoder_attentions, decoder_hidden, topi, comp_ingr
+        comp_ingrs[di]=comp_ingr
+        focused_ingrs[di]= focused_ingrs
+        return decoder_attentions, decoder_hidden, topi, comp_ingrs,focused_ingrs
 
     def forward(self, batch, iter=iter):
         """
         input_tensor: (batch_size,max_ingr)
         target_tensor: (batch_size,max_len)
+
+        encoder_outputs (max_ingr, batch, hidden_size*2) 
+        encoder_hidden (num_layers, batch, hidden_size)
 
         return:
         decoder_outputs: (batch,max_len,size voc)
@@ -515,41 +537,30 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         """
 
         input_tensor = batch["ingr"].to(self.device)
-        batch_size = input_tensor.shape[0]
         try:
             target_tensor = batch["target_instr"].to(self.device)
         except AttributeError:
             Warning("Evaluation mode: only taking ingredient list as input")
 
         # Encoder
-        decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
+        decoder_input, decoded_words, decoder_outputs, decoder_attentions,comp_ingrs,focused_ingrs = self.initForward(
             input_tensor, pairing=True)
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
-        # encoder_outputs (max_ingr, batch, hidden_size*2) 
-        # encoder_hidden (num_layers, batch, hidden_size)
 
         decoder_hidden = self.encoder_fusion(encoder_hidden)
 
         # Scheduled sampling
-        if self.args.scheduled_sampling and self.training:
-            sampling_proba = 1-inverse_sigmoid_decay(
-                self.decay_factor, iter)
-        elif not self.args.scheduled_sampling and self.training:
-            sampling_proba = 0
-        else:
-            sampling_proba = 1
-
+        sampling_proba = self.getSamplingProba(iter)
+        
         # Decoder part
-        comp_ingrs = torch.zeros(self.max_length,batch_size,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
         for di in range(self.max_length):
-            decoder_attentions, decoder_hidden, topi,comp_ingr = self.forwardDecoderStep(decoder_input, decoder_hidden,
-                                                                               encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
-            comp_ingrs[di]=comp_ingr
+            decoder_attentions, decoder_hidden, topi,comp_ingrs,focused_ingrs = self.forwardDecoderStep(decoder_input, decoder_hidden,
+                                                                               encoder_outputs, input_tensor, di, decoder_attentions, 
+                                                                               decoder_outputs, decoded_words,comp_ingrs,focused_ingrs)
             if random.random() < sampling_proba:
-                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
-                    :, 0]
+                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[:, 0]
                 if len(idx_end) == self.batch_size:
                     break
 
@@ -558,7 +569,9 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
             else:
                 decoder_input = target_tensor[:, di].view(1, -1)
 
-        return decoder_outputs, decoded_words, decoder_attentions[:di + 1],comp_ingrs[:di+1]
+        return decoder_outputs, decoded_words, {"attentions": decoder_attentions[:di + 1],
+                                                "comp_ingrs":comp_ingrs[:di+1],
+                                                "focused_ingr":focused_ingrs[:di+1]}
 
 
 class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
@@ -580,6 +593,9 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         """
         input_tensor: (batch_size,max_ingr)
         target_tensor: (batch_size,max_len)
+        
+        encoder_outputs (max_ingr,hidden_size, batch)
+        encoder_hidden (1,hidden_size, batch)
 
         return:
         decoder_outputs: (batch,max_len,size voc)
@@ -587,8 +603,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         decoder_attentions: (max_len,batch,max_ingr)
         """
         input_tensor = batch["ingr"].to(self.device)
-        batch_size = input_tensor.shape[0]
-        decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
+        decoder_input, decoded_words, decoder_outputs, decoder_attentions,comp_ingrs,focused_ingrs = self.initForward(
             input_tensor, pairing=True)
 
         try:
@@ -596,38 +611,25 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         except AttributeError:
             Warning("Evaluation mode: only taking ingredient list as input")
 
-        title_tensor = batch["title"].to(self.device)
-
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
-        # encoder_outputs (max_ingr,hidden_size, batch)
-        # encoder_hidden (1,hidden_size, batch)
-
+        
+        title_tensor = batch["title"].to(self.device)
         title_encoder_outputs, title_encoder_hidden = self.title_encoder.forward_all(
             title_tensor)
 
         decoder_hidden = torch.cat(
             (encoder_hidden, title_encoder_hidden), dim=2)
-
         decoder_hidden = self.encoder_fusion(decoder_hidden)
 
-        if self.args.scheduled_sampling and self.training:
-            sampling_proba = 1-inverse_sigmoid_decay(
-                self.decay_factor, iter)
-        elif not self.args.scheduled_sampling and self.training:
-            sampling_proba = 0
-        else:
-            sampling_proba = 1
+        sampling_proba = self.getSamplingProba(iter)
 
-        comp_ingrs = torch.zeros(self.max_length,batch_size,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi,comp_ingr = self.forwardDecoderStep(
                 decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
-            comp_ingrs[di]=comp_ingr
             
             if random.random() < sampling_proba:
-                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
-                    :, 0]
+                idx_end = (topi == self.train_dataset.EOS_token).nonzero()[:, 0]
                 if len(idx_end) == self.batch_size:
                     break
 
@@ -636,7 +638,9 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
             else:
                 decoder_input = target_tensor[:, di].view(1, -1)
 
-        return decoder_outputs, decoded_words, decoder_attentions[:di + 1],comp_ingrs[:di+1]
+        return decoder_outputs, decoded_words, {"attentions": decoder_attentions[:di + 1],
+                                                "comp_ingrs":comp_ingrs[:di+1],
+                                                "focused_ingr":focused_ingrs[:di+1]}
 
 
 class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
@@ -668,14 +672,16 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         input_tensor: (batch_size,max_ingr)
         target_tensor: (batch_size,max_len)
 
+        encoder_outputs (max_ingr, N, hidden_size)
+        encoder_hidden (num_layers, N, hidden_size*2)
+        
         return:
         decoder_outputs: (batch,max_len,size voc)
         decoder_words: final (<max_len,batch)
         decoder_attentions: (max_len,batch,max_ingr)
         """
         input_tensor = batch["ingr"].to(self.device)
-        batch_size = input_tensor.shape[0]
-        decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
+        decoder_input, decoded_words, decoder_outputs, decoder_attentions,comp_ingrs,focused_ingrs = self.initForward(
             input_tensor, pairing=True)
 
         try:
@@ -683,13 +689,10 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         except AttributeError:
             Warning("Evaluation mode: only taking ingredient list as input")
 
-        # XXX: if only change, that, can just rename both title and cuisine to a fusion
-        cuisine_tensor = batch["cuisine"].to(self.device)
-
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
-        # encoder_outputs (max_ingr, N, hidden_size)
-        # encoder_hidden (num_layers, N, hidden_size*2)
+        
+        cuisine_tensor = batch["cuisine"].to(self.device)
         cuisine_encoding = self.cuisine_encoder(cuisine_tensor)
         cuisine_encoding = torch.stack([cuisine_encoding] * self.encoder.gru_layers)
 
@@ -697,20 +700,12 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
             (encoder_hidden, cuisine_encoding), dim=2)
         decoder_hidden = self.encoder_fusion(decoder_hidden)
 
-        if self.args.scheduled_sampling and self.training:
-            sampling_proba = 1-inverse_sigmoid_decay(
-                self.decay_factor, iter)
-        elif not self.args.scheduled_sampling and self.training:
-            sampling_proba = 0
-        else:
-            sampling_proba = 1
+        sampling_proba = self.getSamplingProba(iter)
 
-        comp_ingrs = torch.zeros(self.max_length,batch_size,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
         for di in range(self.max_length):
             decoder_attentions, decoder_hidden, topi,comp_ingr  = self.forwardDecoderStep(
                 decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
-
-            comp_ingrs[di]=comp_ingr
+            
             if random.random() < sampling_proba:
                 idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
                     :, 0]
@@ -722,4 +717,6 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
             else:
                 decoder_input = target_tensor[:, di].view(1, -1)
 
-        return decoder_outputs, decoded_words, decoder_attentions[:di + 1],comp_ingrs[:di+1]
+        return decoder_outputs, decoded_words, {"attentions": decoder_attentions[:di + 1],
+                                                "comp_ingrs":comp_ingrs[:di+1],
+                                                "focused_ingr":focused_ingrs[:di+1]}

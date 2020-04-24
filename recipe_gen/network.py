@@ -165,6 +165,7 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
 
         # Selecting the focused ingredient from input then attend on compatible ingredients
         #TODO: if keep being always the same, sample from weights ?, or give sth else than encoder_outputs ? encoder_hidden ?
+        # Or select the first that is not eos or pad
         ingr_arg = torch.argmax(attn_weights, 1)
         ingr_id = input_tensor[torch.arange(batch_size),ingr_arg]
             
@@ -177,7 +178,7 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
         output, hidden = self.gru(output, hidden)
 
         output = self.out(output[0])
-        return output, hidden, attn_weights, comp_ingr
+        return output, hidden, attn_weights, comp_ingr, ingr_id
 
 class BaseAttention(nn.Module):
     def __init__(self, args):
