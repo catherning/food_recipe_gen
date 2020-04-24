@@ -15,7 +15,7 @@ import numpy as np
 import re
 import sys
 sys.path.insert(0, os.getcwd())
-
+ 
 from recipe_1m_analysis.utils import Vocabulary
 import recipe_1m_analysis.ingr_normalization as ingr_norm
 
@@ -174,10 +174,11 @@ def genIngrVoc(counter_ingrs):
     ## Ingredient vocab
     # Create a vocab wrapper for ingredients
     vocab_ingrs = Vocabulary()
-    vocab_ingrs.add_word('<pad>')
-    vocab_ingrs.add_word('<sos>')
-    vocab_ingrs.add_word('<eos>')
-    idx = vocab_ingrs.add_word('<unk>')
+    vocab_ingrs.add_word('<pad>',0)
+    vocab_ingrs.add_word('<sos>',1)
+    vocab_ingrs.add_word('<eos>',2)
+    idx = vocab_ingrs.add_word('<unk>',3)
+    idx += 1
 
     # Add the ingredients to the vocabulary.
     for word,cnt in counter_ingrs.items():
