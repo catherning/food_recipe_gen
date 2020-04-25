@@ -188,7 +188,7 @@ class BaseModel(nn.Module):
                 loss, _ = self.train_iter(batch, iter)
                 print_loss_total += loss.detach()
 
-                if iter %  max(self.args.print_step, self.args.n_iters//10) == 0:
+                if iter % max(self.args.print_step, len(self.test_dataloader)//(10*self.test_dataloader.batch_size)) == 0:
                     print("Eval Current loss = {}".format(
                         print_loss_total/iter))
 
@@ -514,8 +514,8 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         self.optim_list[1] = self.decoder_optimizer
         
         self.vocab_main_ingr = getMainIngr(self.train_dataset.vocab_ingrs)
-        for i in range(4):
-            self.vocab_main_ingr.add_word(self.train_dataset.vocab_ingrs.idx2word[i],i)
+        # for i in range(4):
+        #     self.vocab_main_ingr.add_word(self.train_dataset.vocab_ingrs.idx2word[i],i)
 
     def forwardDecoderStep(self, decoder_input, decoder_hidden,
                            encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words,comp_ingrs,focused_ingrs):

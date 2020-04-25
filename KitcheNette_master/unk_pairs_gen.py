@@ -47,8 +47,8 @@ def getMainIngr(vocab_ingrs):
             print(main_ingr)
 
     # TODO: remove special tokens sos, eos, pad, unk more properly (doesn't work for now)
-    del vocab_main_ingr.word2idx["<"]
-    del vocab_main_ingr.idx2word[0]
+    # del vocab_main_ingr.word2idx["<"]
+    # del vocab_main_ingr.idx2word[0]
 
     return vocab_main_ingr
 
