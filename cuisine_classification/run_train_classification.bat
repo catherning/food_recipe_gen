@@ -1,1 +1,2 @@
-python cuisine_classification/NN_classification.py  --proba-threshold 0.95  --nb-epochs 150  --file-type "full" --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets\cuisine_classification" 
+python cuisine_classification/NN_classification.py --nb-epochs 150  --file-type "full" --clusterin --data-folder "F:\user\Google Drive\Catherning Folder\THU\Thesis\Work\Recipe datasets\cuisine_classification" 
+REM --proba-threshold 0.95
