@@ -364,30 +364,36 @@ class Net(nn.Module):
         ingr_embed = args.ingr_embed
         hidden_dim1 = args.hidden_dim1
         hidden_dim2 = args.hidden_dim2
-        self.hidden_dim3 = args.hidden_dim3
+        self.hidden_dim3 = hidden_dim3 = args.hidden_dim3
 
-        self.dropout = nn.Dropout(0.2)
         if self.args.embedding_layer:
-            self.embedding_layer = nn.Embedding(self.vocab_size,ingr_embed)
-            self.layer_1 = nn.Linear(ingr_embed * args.max_ingr, hidden_dim1, bias=True)
+            self.embedding_layer=(self.vocab_size,ingr_embed)
+            model = [nn.Linear(ingr_embed * args.max_ingr, hidden_dim1, bias=True)]
         else:
-            self.layer_1 = nn.Linear(self.vocab_size, hidden_dim1, bias=True)            
+            model=[nn.Linear(self.vocab_size, hidden_dim1, bias=True)]        
         
-        self.layer_2 = nn.Linear(hidden_dim1, hidden_dim2, bias=True)
+        model+=[nn.ReLU(),
+                nn.Dropout(0.2),
+                nn.Linear(hidden_dim1, hidden_dim2, bias=True),
+                nn.ReLU(),
+                ]
 
         if hidden_dim3:
-            self.layer_3 = nn.Linear(hidden_dim2, hidden_dim3, bias=True)
-            self.output_layer = nn.Linear(
-                hidden_dim3, num_classes, bias=True)
+            model+=[nn.Dropout(0.2),
+                    nn.Linear(hidden_dim2, hidden_dim3, bias=True),
+                         nn.ReLU(),
+                        nn.Linear(hidden_dim3, num_classes, bias=True)]
         else:
-            self.output_layer = nn.Linear(
-                hidden_dim2, num_classes, bias=True)
+            model.append(nn.Linear(
+                hidden_dim2, num_classes, bias=True))
 
+        self.model = nn.Sequential(*model)
+        
         if args.balanced:
             self.criterion = nn.CrossEntropyLoss(weights_classes)
         else:
             self.criterion = nn.CrossEntropyLoss()
-
+            
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
 
     def forward(self, x):
@@ -395,11 +401,7 @@ class Net(nn.Module):
             x = self.embedding_layer(x)
             x = x.view(x.shape[0], -1)
   
-        out = F.relu(self.layer_1(x))
-        out = F.relu(self.layer_2(self.dropout(out)))
-        if self.embedding_dim3:
-            out = F.relu(self.layer_3(self.dropout(out)))
-        out = self.output_layer(out)
+        out = self.model(x)
         return out
 
     def train_process(self, train_loader, dev_loader, result_folder):
@@ -486,7 +488,7 @@ class Net(nn.Module):
                 predictions[data[1][0]] = predicted[0].item()
         
         if threshold:
-            print("Model confident for {}%% of recipes".format(len(predictions)/len(dataloader)*100))
+            LOGGER.info("Model confident for {}%% of recipes".format(len(predictions)/len(dataloader)*100))
 
         if dataset_type == "classify":
             return predictions, predictions_list
@@ -616,15 +618,17 @@ def main():
 
         test_accuracy = net.test(dev_loader, "test")
         test_accuracy_threshold = net.test(
-            dev_loader, "test", args.proba_threshold)
+            dev_loader, "test", 0.95)
         net.plotAccuracy(args.saving_path, epoch_accuracy, epoch_test_accuracy)
         net.saveResults(args.saving_path, loss, args.nb_epochs, epoch_accuracy,
                         epoch_test_accuracy, test_accuracy, test_accuracy_threshold)
+        
+        net.scikitEval(test_loader)
 
     if args.test and not args.train_mode:
         test_accuracy = net.test(test_loader, "test")
         test_accuracy_threshold = net.test(
-            test_loader, "test", 0.95)#args.proba_threshold)
+            test_loader, "test", 0.95)
         print(test_accuracy,test_accuracy_threshold)
         
         net.scikitEval(test_loader)
