@@ -91,7 +91,7 @@ class DecoderRNN(nn.Module):
         encoder_output (max_ingr, N, 2*hidden_size) 
         
         returns 
-        output (1, N, hidden_size) -> (N, vocab_tok_size)
+        output (1, N, word_embed) -> (1, N, hidden_size) -> (N, vocab_tok_size)
         hidden (num_layers, N, hidden_size)
         """
         self.batch_size = input.shape[1]
@@ -101,9 +101,6 @@ class DecoderRNN(nn.Module):
         output, hidden = self.gru(output, hidden)
         output = self.out(output[0])
         return output, hidden, None, None
-
-    # def initHidden(self):
-    #     return torch.zeros(1, 1, self.hidden_size)
 
  
 class AttnDecoderRNN(DecoderRNN):

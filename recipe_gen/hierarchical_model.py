@@ -40,17 +40,18 @@ class HierarchicalSeq2seq(Seq2seq):
     def initForward(self, input_tensor, pairing=False):
         self.batch_size = len(input_tensor)
 
+        decoder_input = torch.zeros((1,self.batch_size,self.args.hidden_size), device=self.device)  # input to Sentence decoder
+        #(1,batch,hidden)
+        # TODO: change when add bidirectionnal and num layers
+        
         sub_decoder_input = torch.tensor(
-            [[self.train_dataset.SOS_token]*self.batch_size], device=self.device)  # input to sub_decoder
+            [[self.train_dataset.SOS_token]*self.batch_size], device=self.device)  # input to Word sub_decoder
         # decoder_input final (<max_len,batch)
-
-        decoder_input = torch.tensor(
-            [[self.train_dataset.SOS_token]*self.batch_size], device=self.device)  # input to sub_decoder
 
         decoded_words = [[[] for j in range(self.max_step)] for i in range(
             self.batch_size)]  # chosen words
         decoder_outputs = torch.zeros(self.batch_size, self.max_step, self.max_length, len(
-            self.train_dataset.vocab_tokens), device=self.device)  # the proba on the words of vocab for each word
+            self.train_dataset.vocab_tokens), device=self.device)  # the proba on the words of vocab for each word of each sent
 
         if pairing:
             decoder_attentions = torch.zeros(self.max_step,
@@ -78,7 +79,7 @@ class HierarchicalSeq2seq(Seq2seq):
         except AttributeError:
             target_tensor = None
 
-        decoder_input, sub_decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
+        decoder_input, sub_decoder_input, decoded_words, sub_decoder_outputs, decoder_attentions = self.initForward(
             input_tensor)  # not same init, at least for decoder_input !!!!
 
         # encoder_outputs (max_ingr,batch, 2*hidden_size)
@@ -86,18 +87,19 @@ class HierarchicalSeq2seq(Seq2seq):
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
-        decoder_hidden = encoder_hidden  # (2, batch, hidden_size)
+        decoder_hidden = self.encoder_fusion(encoder_hidden)  # (2, batch, hidden_size)
 
         sampling_proba = self.getSamplingProba(iter)
 
+        # decoder_input
         for cur_step in range(self.max_step):
-            decoder_output, decoder_hidden, attn_weights, decoded_words = self.decoder(
-                decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, encoder_outputs, decoded_words, cur_step, target_tensor,
+            decoder_input, decoder_hidden, attn_weights, decoded_words = self.decoder(
+                decoder_input, sub_decoder_input, decoder_hidden, sub_decoder_outputs, encoder_outputs, decoded_words, cur_step, target_tensor,
                 sampling_proba)  # can remove encoder_outputs ? not used in decoder
             decoder_attentions = self.addAttention(
                 cur_step, decoder_attentions, attn_weights)
 
-        return decoder_outputs, decoded_words, decoder_attentions
+        return sub_decoder_outputs, decoded_words, decoder_attentions
 
 
 class HierarchicalSeq2seqAtt(HierarchicalSeq2seq, Seq2seqAtt):

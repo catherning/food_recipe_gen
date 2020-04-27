@@ -35,6 +35,9 @@ class BaseModel(nn.Module):
         self.test_dataset = RecipesDataset(args, train=False)
         self.input_size = input_size = len(self.train_dataset.vocab_ingrs)
         self.output_size = output_size = len(self.train_dataset.vocab_tokens)
+        self.hidden_size = args.hidden_size
+        self.hierarchical = True if "Hierarchical" in self.args.model_name else False
+   
 
         self.train_dataloader = torch.utils.data.DataLoader(self.train_dataset,
                                                             batch_size=args.batch_size, shuffle=True,
@@ -87,18 +90,23 @@ class BaseModel(nn.Module):
                 continue
         
     def train_iter(self, batch, iter):
-        target_length = batch["target_length"]
+        # target_length = batch["target_length"]
         target_tensor = batch["target_instr"].to(self.device)
-        self.batch_size = batch_size = target_length.shape[0]
+        self.batch_size = batch_size = target_tensor.shape[0]
 
         decoder_outputs, decoded_words, _ = self.forward(batch, iter=iter)
         # TODO: change flattenSeq if hierarchical
         # aligned_outputs = flattenSequence(decoder_outputs, target_length)
         # aligned_target = flattenSequence(target_tensor, target_length)
-    
-        aligned_outputs = decoder_outputs.view(
-            batch_size*self.max_length, -1)
-        aligned_target = target_tensor.view(batch_size*self.max_length)
+        
+        if self.hierarchical:
+            aligned_outputs = decoder_outputs.view(
+                batch_size*self.max_length*self.max_step, self.output_size)
+            aligned_target = target_tensor.view(batch_size*self.max_length*self.max_step)
+        else:
+            aligned_outputs = decoder_outputs.view(
+                batch_size*self.max_length, self.output_size)
+            aligned_target = target_tensor.view(batch_size*self.max_length)
         
         loss = self.criterion(
             aligned_outputs, aligned_target)/batch_size
@@ -150,10 +158,10 @@ class BaseModel(nn.Module):
                         self.logger.info("Target =  " + " ".join([self.train_dataset.vocab_tokens.idx2word[word.item(
                         )] for word in batch["target_instr"][0] if word.item() != 0]))
                     except TypeError:
-                        self.logger.info([" ".join(sent)
-                                          for sent in decoded_words[0]])
-                        self.logger.info([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item(
-                        )] for word in sent if word.item() != 0]) for sent in batch["target_instr"][0]])
+                        self.logger.info("Generated =  {}".format([" ".join(sent)
+                                          for sent in decoded_words[0]]))
+                        self.logger.info("Target = {}".format([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item(
+                        )] for word in sent if word.item() != 0]) for sent in batch["target_instr"][0]]))
 
 
             torch.save({
@@ -280,8 +288,10 @@ class BaseModel(nn.Module):
             focused_ingrs = [self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in focused_ingrs_id]
             comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
             showPairingAttention(comp_ingr, focused_ingrs, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-        except (AttributeError,TypeError):
+        except AttributeError:
             showSentAttention(or_sent, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+        except TypeError:
+            pass
             
     def evaluateRandomly(self, n=10):
         self.eval()
@@ -307,63 +317,6 @@ class Seq2seq(BaseModel):
         if cur_attention is not None:
             decoder_attentions[di] = cur_attention.data
         return decoder_attentions
-
-    def samplek(self, decoder_output, decoded_words):
-        # TODO: change for hierarchical
-        
-        chosen_id = torch.zeros(
-            decoder_output.shape[0], dtype=torch.long, device=self.device)
-        decoder_output = decoder_output/self.args.temperature
-        
-        if self.args.nucleus_sampling:
-            topv = self.top_p_filtering(decoder_output,self.args.topp)
-            distrib = torch.distributions.categorical.Categorical(logits=topv)
-            for batch_id, idx in enumerate(distrib.sample()):
-                chosen_id[batch_id] = idx
-                decoded_words[batch_id].append(
-                    self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
-            
-        else:
-            topv, topi = decoder_output.topk(self.args.topk)        
-            distrib = torch.distributions.categorical.Categorical(logits=topv)
-
-            for batch_id, idx in enumerate(distrib.sample()):
-                chosen_id[batch_id] = topi[batch_id, idx]   
-                decoded_words[batch_id].append(
-                    self.train_dataset.vocab_tokens.idx2word[chosen_id[batch_id].item()])
-            
-        return chosen_id
-    
-    def top_p_filtering(self, logits, top_p=0.0, filter_value=-float('Inf')):
-        """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
-            Args:
-                logits: logits distribution shape (vocabulary size)
-                top_k >0: keep only top k tokens with highest probability (top-k filtering).
-                top_p >0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
-                    Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
-        """
-        
-        # if top_k > 0:
-        #     # Remove all tokens with a probability less than the last token of the top-k
-        #     indices_to_remove = logits < torch.topk(logits, top_k)[0][:, -1, None]
-        # if top_p > 0.0:
-        
-        sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-
-        # Remove tokens with cumulative probability above the threshold
-        sorted_indices_to_remove = cumulative_probs > top_p
-        # Shift the indices to the right to keep also the first token above the threshold
-        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-        sorted_indices_to_remove[..., 0] = 0
-
-        # indices_to_remove = sorted_indices[sorted_indices_to_remove]
-        indices_to_remove = torch.zeros_like(logits, dtype=torch.bool).scatter_(
-            dim=-1, index=sorted_indices, src=sorted_indices_to_remove )
-            
-        logits[indices_to_remove] = filter_value
-            
-        return logits
 
     def getSamplingProba(self, iter):
         if self.args.scheduled_sampling and self.training:
@@ -406,7 +359,7 @@ class Seq2seq(BaseModel):
         decoder_outputs[:, di] = decoder_output
         decoder_attentions = self.addAttention(
             di, decoder_attentions, decoder_attention)
-        topi = self.samplek(decoder_output, decoded_words)
+        topi = samplek(self,decoder_output, decoded_words,self.train_dataset.vocab_tokens.idx2word)
         return decoder_attentions, decoder_hidden, topi
 
     def forward(self, batch, iter=iter):
@@ -525,7 +478,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         decoder_attentions = self.addAttention(
             di, decoder_attentions, decoder_attention)
         decoder_outputs[:, di] = decoder_output
-        topi = self.samplek(decoder_output, decoded_words)
+        topi = samplek(self,decoder_output, decoded_words,self.train_dataset.vocab_tokens.idx2word)
         comp_ingrs[di]=comp_ingr
         focused_ingrs[di]= focused_ingr
         return decoder_attentions, decoder_hidden, topi, comp_ingrs,focused_ingrs

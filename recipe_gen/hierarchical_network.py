@@ -20,19 +20,8 @@ class HierDecoderRNN(DecoderRNN):
         self.DOT_TOK = DOT_TOK
 
         # normal GRU is the sentence RNN
-        self.sub_gru = nn.GRU(self.hidden_size, self.hidden_size)  # word RNN
-
-    def samplek(self, decoder_output, decoded_words, cur_step):
-        # TODO: change for hierarchical
-        topv, topi = decoder_output.topk(self.args.topk)
-        distrib = torch.distributions.categorical.Categorical(logits=topv)
-        chosen_id = torch.zeros(
-            decoder_output.shape[0], dtype=torch.long, device=self.device)
-        for batch_id, idx in enumerate(distrib.sample()):
-            chosen_id[batch_id] = topi[batch_id, idx]
-            decoded_words[batch_id][cur_step].append(
-                self.idx2word[chosen_id[batch_id].item()])
-        return chosen_id
+        self.gru = nn.GRU(self.hidden_size, self.hidden_size,num_layers=self.gru_layers,dropout=args.dropout)
+        self.sub_gru = nn.GRU(self.word_embed, self.hidden_size,num_layers=self.gru_layers,dropout=args.dropout)
 
     def forward(self, decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, encoder_outputs, decoded_words, cur_step, target_tensor, sampling_proba):
         """
@@ -41,9 +30,8 @@ class HierDecoderRNN(DecoderRNN):
         encoder_output (max_ingr,batch, 2*hidden_size) for attention
         """
         self.batch_size = decoder_input.shape[1]
-        output = self.embedding(decoder_input).view(
-            1, self.batch_size, -1)  # (1,batch,hidden)
-        output = F.relu(output)
+        # (1,batch,hidden)
+        output = F.relu(decoder_input)
 
         output, decoder_hidden = self.gru(output, decoder_hidden)
 
@@ -56,9 +44,9 @@ class HierDecoderRNN(DecoderRNN):
             output_sub = F.relu(output_sub)
 
             output_sub, hidden_sub = self.sub_gru(output_sub, hidden_sub)
-            output_sub = self.softmax(self.out(output_sub[0]))
+            output_sub = self.out(output_sub[0])
 
-            topi = self.samplek(output_sub, decoded_words, cur_step)
+            topi = samplek(self,output_sub, decoded_words,self.idx2word, cur_step)
             decoder_outputs[:, cur_step, i] = output_sub
 
             if random.random() < sampling_proba:
@@ -66,12 +54,12 @@ class HierDecoderRNN(DecoderRNN):
                     :, 0]
                 if len(idx_end) == self.batch_size:
                     break
-                output_sub = topi.squeeze().detach().view(
+                sub_decoder_input = topi.squeeze().detach().view(
                     1, -1)  # detach from history as input
             else:
-                output_sub = target_tensor[:, cur_step, i].view(1, -1)
+                sub_decoder_input = target_tensor[:, cur_step, i].view(1, -1)
 
-        return output_sub, decoder_hidden, None, decoded_words
+        return output, decoder_hidden, None, decoded_words
 
 
 class HierAttnDecoderRNN(HierDecoderRNN):
@@ -79,17 +67,22 @@ class HierAttnDecoderRNN(HierDecoderRNN):
         super().__init__(args, output_size, idx2word, EOS_TOK, DOT_TOK)
         self.attention = Attention(args)
 
-    def forward(self, decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, encoder_outputs, decoded_words, cur_step, target_tensor, sampling_proba):
+    def forward(self, decoder_input, sub_decoder_input, decoder_hidden, sub_decoder_outputs, encoder_outputs, decoded_words, cur_step, target_tensor, sampling_proba):
         """
         input (1,batch)
         hidden (2, batch, hidden_size)
         encoder_output (max_ingr,batch, 2*hidden_size) for attention
+        
+        returns:
+        output
+        decoder_hidden
+        all_att_weights 
+        decoded_words
         """
         self.batch_size = decoder_input.shape[1]
-        output = self.embedding(decoder_input).view(
-            1, self.batch_size, -1)  # (1,batch,hidden)
-        output = F.relu(output)
 
+        # Main sentence GRU creates the sentence representation
+        output = F.relu(decoder_input) # (1,batch,hidden)
         output, decoder_hidden = self.gru(output, decoder_hidden)
 
         hidden_sub = output
@@ -98,6 +91,7 @@ class HierAttnDecoderRNN(HierDecoderRNN):
         all_att_weights = torch.Tensor(
             self.args.max_length, self.batch_size, self.args.max_ingr)
 
+        # Word GRU generates the sentence word by word
         for i in range(self.args.max_length):
             output_sub = self.embedding(sub_decoder_input).view(
                 1, self.batch_size, -1)  # (1,batch,hidden)
@@ -108,22 +102,22 @@ class HierAttnDecoderRNN(HierDecoderRNN):
             all_att_weights[i] = attn_weights
 
             output_sub, hidden_sub = self.sub_gru(output_sub, hidden_sub)
-            output_sub = self.softmax(self.out(output_sub[0]))
+            output_sub = self.out(output_sub[0])
 
-            topi = self.samplek(output_sub, decoded_words, cur_step)
-            decoder_outputs[:, cur_step, i] = output_sub
+            topi = samplek(self, output_sub, decoded_words, self.idx2word, cur_step)
+            sub_decoder_outputs[:, cur_step, i] = output_sub
 
             if random.random() < sampling_proba:
                 idx_end = ((topi == self.EOS_TOK) + (topi == self.DOT_TOK)).nonzero()[
                     :, 0]
                 if len(idx_end) == self.batch_size:
                     break
-                output_sub = topi.squeeze().detach().view(
+                sub_decoder_input = topi.squeeze().detach().view(
                     1, -1)  # detach from history as input
             else:
-                output_sub = target_tensor[:, cur_step, i].view(1, -1)
+                sub_decoder_input = target_tensor[:, cur_step, i].view(1, -1)
 
-        return output_sub, decoder_hidden, all_att_weights, decoded_words
+        return output, decoder_hidden, all_att_weights, decoded_words
 
 
 class HierIngrAttnDecoderRNN(HierAttnDecoderRNN):
@@ -132,6 +126,8 @@ class HierIngrAttnDecoderRNN(HierAttnDecoderRNN):
         hidden_size = args.hidden_size
         # self.gru = nn.GRU(3*hidden_size, hidden_size)
         self.attention = IngrAtt(args)
+        self.sub_gru = nn.GRU(self.args.word_embed + 2 * self.hidden_size, self.hidden_size,num_layers=self.gru_layers,dropout=args.dropout)
+
 
 
 class HierPairAttnDecoderRNN(HierDecoderRNN):
@@ -144,7 +140,7 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
 
         # self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
 
-    def forward(self, decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, 
+    def forward(self, decoder_input, sub_decoder_input, decoder_hidden, sub_decoder_outputs, 
             input_tensor, encoder_embedding, encoder_outputs, decoded_words, cur_step, target_tensor, sampling_proba):
         """
         input (1,batch)
@@ -176,26 +172,31 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
                 ingr_id[i] = input_tensor[i, id]
 
             out, attn_weights = self.pairAttention(
-                embedded, hidden_sub, ingr_id, encoder_embedding)
-            if out is None:
-                output = self.lin(output)
-            else:
-                output = out
+                output_sub, hidden_sub, ingr_id, encoder_embedding) 
+            # changed embedding (input of Main dec) to output_sub (like IngrAtt above)
+            # if out is None:
+            #     output = self.lin(output)
+            # else:
+            #     output_sub = out
+                
+            if out is not None:
+                output_sub = torch.cat((output_sub,out),dim=-1)#self.lin(output)
+                output_sub = self.lin(output_sub)
 
             output_sub, hidden_sub = self.sub_gru(output_sub, hidden_sub)
             output_sub = self.softmax(self.out(output_sub[0]))
 
-            topi = self.samplek(output_sub, decoded_words, cur_step)
-            decoder_outputs[:, cur_step, i] = output_sub
+            topi = samplek(self, output_sub, decoded_words, self.idx2word, cur_step)
+            sub_decoder_outputs[:, cur_step, i] = output_sub
 
             if random.random() < sampling_proba:
                 idx_end = ((topi == self.EOS_TOK) + (topi == self.DOT_TOK)).nonzero()[
                     :, 0]
                 if len(idx_end) == self.batch_size:
                     break
-                output_sub = topi.squeeze().detach().view(
+                sub_decoder_input = topi.squeeze().detach().view(
                     1, -1)  # detach from history as input
             else:
-                output_sub = target_tensor[:, cur_step, i].view(1, -1)
+                sub_decoder_input = target_tensor[:, cur_step, i].view(1, -1)
 
-        return output_sub, decoder_hidden, attn_weights, decoded_words
+        return output, decoder_hidden, attn_weights, decoded_words

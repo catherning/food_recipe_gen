@@ -14,6 +14,7 @@ import numpy as np
 
 import torch
 from torch.utils.data import DataLoader, Dataset
+import torch.nn.functional as F
 from recipe_1m_analysis.utils import Vocabulary
 
 
@@ -97,31 +98,37 @@ class RecipesDataset(Dataset):
         if self.model_name == "Seq2seqCuisinePairing":
             count_e = 0
             for idx,recipe in self.data.items():
-                try:
+                if len(data)<=self.samples_max:      
+                    try:
+                        sample = {"ingr":recipe["ingredients"],
+                                "tokenized":recipe["tokenized"],
+                                "title":recipe["title"],
+                                "id":idx}
+                        if self.filterSinglePair(sample):
+                            _dict = self.tensorsFromPair(sample)
+                            _dict["cuisine"]=torch.tensor(self.vocab_cuisine.word2idx[recipe["cuisine"]],dtype=torch.long)
+                            del _dict["title"]
+                            data.append(_dict)
+                    except AttributeError:
+                        count_e+=1
+                        continue
+                else:
+                    break
+            print("{} recipes without cuisine. {} recipes kept.".format(count_e,len(data)))
+
+        else:
+            for idx,recipe in self.data.items():
+                if len(data)<=self.samples_max:
                     sample = {"ingr":recipe["ingredients"],
                             "tokenized":recipe["tokenized"],
                             "title":recipe["title"],
                             "id":idx}
                     if self.filterSinglePair(sample):
-                        _dict = self.tensorsFromPair(sample)
-                        _dict["cuisine"]=torch.tensor(self.vocab_cuisine.word2idx[recipe["cuisine"]],dtype=torch.long)
-                        del _dict["title"]
-                        data.append(_dict)
-                except AttributeError:
-                    count_e+=1
-                    continue
-            print("{} recipes without cuisine. {} recipes kept.".format(count_e,len(data)))
+                        data.append(self.tensorsFromPair(sample))
+                else:
+                    break
 
-        else:
-            for idx,recipe in self.data.items():
-                sample = {"ingr":recipe["ingredients"],
-                        "tokenized":recipe["tokenized"],
-                        "title":recipe["title"],
-                        "id":idx}
-                if self.filterSinglePair(sample):
-                    data.append(self.tensorsFromPair(sample))
-
-        self.data = data[:self.samples_max]
+        self.data = data
 
     def filterSinglePair(self,p):
         try: 
@@ -205,6 +212,74 @@ class RecipesDataset(Dataset):
                     "id":pair["id"]}
                 # "ingr_tok":pair[0],
                 # "target_tok":pair[1]}
+
+def samplek(model, decoder_output, decoded_words,idx2word,cur_step=None):
+    # TODO: change for hierarchical
+    
+    chosen_id = torch.zeros(
+        decoder_output.shape[0], dtype=torch.long, device=model.device)
+    decoder_output = decoder_output/model.args.temperature
+    
+    if model.args.nucleus_sampling:
+        topv = top_p_filtering(decoder_output,model.args.topp)
+        distrib = torch.distributions.categorical.Categorical(logits=topv)
+        if cur_step is not None:
+            for batch_id, idx in enumerate(distrib.sample()):
+                chosen_id[batch_id] = idx
+                decoded_words[batch_id][cur_step].append(
+                    idx2word[chosen_id[batch_id].item()])        
+        else:
+            for batch_id, idx in enumerate(distrib.sample()):
+                chosen_id[batch_id] = idx
+                decoded_words[batch_id].append(
+                    idx2word[chosen_id[batch_id].item()])
+        
+    else:
+        topv, topi = decoder_output.topk(model.args.topk)        
+        distrib = torch.distributions.categorical.Categorical(logits=topv)
+        if cur_step is not None:
+            for batch_id, idx in enumerate(distrib.sample()):
+                chosen_id[batch_id] = topi[batch_id, idx]   
+                decoded_words[batch_id][cur_step].append(
+                    idx2word[chosen_id[batch_id].item()])        
+        else:
+            for batch_id, idx in enumerate(distrib.sample()):
+                chosen_id[batch_id] = topi[batch_id, idx]   
+                decoded_words[batch_id].append(
+                    idx2word[chosen_id[batch_id].item()])
+        
+    return chosen_id
+                
+def top_p_filtering(logits, top_p=0.0, filter_value=-float('Inf')):
+    """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
+        Args:
+            logits: logits distribution shape (vocabulary size)
+            top_k >0: keep only top k tokens with highest probability (top-k filtering).
+            top_p >0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
+                Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
+    """
+    
+    # if top_k > 0:
+    #     # Remove all tokens with a probability less than the last token of the top-k
+    #     indices_to_remove = logits < torch.topk(logits, top_k)[0][:, -1, None]
+    # if top_p > 0.0:
+    
+    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+    cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+
+    # Remove tokens with cumulative probability above the threshold
+    sorted_indices_to_remove = cumulative_probs > top_p
+    # Shift the indices to the right to keep also the first token above the threshold
+    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+    sorted_indices_to_remove[..., 0] = 0
+
+    # indices_to_remove = sorted_indices[sorted_indices_to_remove]
+    indices_to_remove = torch.zeros_like(logits, dtype=torch.bool).scatter_(
+        dim=-1, index=sorted_indices, src=sorted_indices_to_remove )
+        
+    logits[indices_to_remove] = filter_value
+        
+    return logits
 
 def inverse_sigmoid_decay(decay_factor, i):
     return decay_factor / (
