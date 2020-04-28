@@ -173,15 +173,18 @@ class RecipesDataset(Dataset):
         if instructions:
             if self.hierarchical:
                 tensor_ = torch.ones(self.max_step,max_size,dtype=torch.long) * self.PAD_token
-                b_id = []
+                b_id = torch.zeros(self.max_step,dtype=torch.int)
                 for i,sent in enumerate(sentence):
-                    if i>=MAX_STEP:
+                    if i>=self.max_step:
+                        i=self.max_step-1
                         break
                     tokenized = self.instr2idx(sent)
                     sent_len = len(tokenized)
                     tensor_[i][:sent_len]= tokenized
-                    tensor_[i][sent_len]=self.EOS_token
-                    b_id.append(sent_len)            
+                    b_id[i]=sent_len
+                            
+                tensor_[i][sent_len]=self.EOS_token
+                b_id[i]+=1
             else:
                 b_id = 0
                 for sent in sentence:
@@ -198,7 +201,7 @@ class RecipesDataset(Dataset):
             tensor_[len(tokenized)]=self.EOS_token
             b_id = len(tokenized)+1
 
-        return tensor_, b_id
+        return tensor_, b_id # or pad with 0 of size max_step
 
     def tensorsFromPair(self,pair):
         input_tensor,_ = self.tensorFromSentence(self.vocab_ingrs, pair["ingr"])

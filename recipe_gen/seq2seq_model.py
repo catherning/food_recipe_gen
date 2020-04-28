@@ -158,10 +158,11 @@ class BaseModel(nn.Module):
                         self.logger.info("Target =  " + " ".join([self.train_dataset.vocab_tokens.idx2word[word.item(
                         )] for word in batch["target_instr"][0] if word.item() != 0]))
                     except TypeError:
-                        self.logger.info("Generated =  {}".format([" ".join(sent)
-                                          for sent in decoded_words[0]]))
-                        self.logger.info("Target = {}".format([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item(
-                        )] for word in sent if word.item() != 0]) for sent in batch["target_instr"][0]]))
+                        self.logger.info("Generated =  {}".format([" ".join(sent[:batch["target_length"][0,i]]) 
+                                                                   for i,sent in enumerate(decoded_words[0])]))
+                        self.logger.info("Target = {}".format([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] 
+                                                                         for word in sent[:batch["target_length"][0,i]]]) 
+                                                                         for i,sent in enumerate(batch["target_instr"][0])]))
 
 
             torch.save({
