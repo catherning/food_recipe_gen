@@ -164,8 +164,8 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
             # Selecting the focused ingredient from input then attend on compatible ingredients
             ingr_arg = torch.argmax(attn_weights, 1)
             ingr_id = torch.LongTensor(batch_size)
-            for i, id in enumerate(ingr_arg):
-                ingr_id[i] = input_tensor[i, id]
+            for j, id in enumerate(ingr_arg):
+                ingr_id[j] = input_tensor[j, id]
 
             out, attn_scores, comp_ingr_id = self.pairAttention(
                 embedded, hidden_sub, ingr_id, encoder_embedding) 
