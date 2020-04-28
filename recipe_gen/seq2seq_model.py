@@ -154,9 +154,9 @@ class BaseModel(nn.Module):
 
                     try:
                         self.logger.info(
-                            "Generated =  "+" ".join(decoded_words[0]))
+                            "Generated =  "+" ".join(decoded_words[0][:batch["target_length"][0]]))
                         self.logger.info("Target =  " + " ".join([self.train_dataset.vocab_tokens.idx2word[word.item(
-                        )] for word in batch["target_instr"][0] if word.item() != 0]))
+                        )] for word in batch["target_instr"][0,:batch["target_length"][0]]]))
                     except TypeError:
                         self.logger.info("Generated =  {}".format([" ".join(sent[:batch["target_length"][0,i]]) 
                                                                    for i,sent in enumerate(decoded_words[0])]))
