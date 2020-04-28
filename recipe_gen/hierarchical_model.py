@@ -124,7 +124,7 @@ class HierarchicalSeq2seqIngrAtt(HierarchicalSeq2seq):
         self.optim_list[1] = self.decoder_optimizer
 
 
-class HierarchicalSeq2seqIngrPairingAtt(Seq2seq):
+class HierarchicalSeq2seqIngrPairingAtt(HierarchicalSeq2seq,Seq2seq):
     def __init__(self, args):
         super().__init__(args)
 
@@ -132,7 +132,7 @@ class HierarchicalSeq2seqIngrPairingAtt(Seq2seq):
         self.max_step = args.max_step
 
         self.decoder = HierPairAttnDecoderRNN(args, self.output_size, self.train_dataset.vocab_tokens.idx2word,
-                                              self.train_dataset.EOS_token, self.train_dataset.vocab_tokens.word2idx["."])
+                                              EOS_TOK = self.train_dataset.EOS_token, DOT_TOK = self.train_dataset.vocab_tokens.word2idx["."])
         self.decoder_optimizer = optim.Adam(
             self.decoder.parameters(), lr=args.learning_rate)
         self.optim_list[1] = self.decoder_optimizer
@@ -154,7 +154,7 @@ class HierarchicalSeq2seqIngrPairingAtt(Seq2seq):
         except AttributeError:
             target_tensor = None
 
-        decoder_input, sub_decoder_input, decoded_words, decoder_outputs = self.initForward(
+        decoder_input, sub_decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
             input_tensor)  # not same init, at least for decoder_input !!!!
 
         # encoder_outputs (max_ingr,batch, 2*hidden_size)
@@ -162,7 +162,7 @@ class HierarchicalSeq2seqIngrPairingAtt(Seq2seq):
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
-        decoder_hidden = encoder_hidden  # (2, batch, hidden_size)
+        decoder_hidden = self.encoder_fusion(encoder_hidden)  # (2, batch, hidden_size)
 
         sampling_proba = self.getSamplingProba(iter)
 

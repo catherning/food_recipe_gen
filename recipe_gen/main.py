@@ -18,6 +18,7 @@ from recipe_1m_analysis.utils import Vocabulary
 from recipe_gen.pairing_utils import PairingData
 from recipe_gen.seq2seq_utils import FOLDER_PATH,DATA_FILES
 
+# os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 PAIRING_PATH = os.path.join(
     os.getcwd(), "KitcheNette_master", "results", "pairings.pkl")

@@ -167,8 +167,9 @@ class PairAttnDecoderRNN(AttnDecoderRNN):
             
         out, attn_weights, comp_ingr = self.pairAttention(
             embedded, hidden, ingr_id, encoder_embedding)
+        # add embedding twice ! once in output of att, once in out of pairAtt
         if out is not None:
-            output = torch.cat((output,out),dim=-1)#self.lin(output)
+            output = torch.cat((output,out),dim=-1)
             output = self.lin(output)
 
         output, hidden = self.gru(output, hidden)
@@ -285,7 +286,7 @@ class PairingAtt(IngrAtt):
         """
         batch_size = embedded.shape[1]
         device = embedded.device
-        scores = torch.zeros(batch_size, self.pairings.top_k).to(device)
+        scores = torch.zeros(batch_size, self.pairings.top_k,device=device)
         comp_ingr_id = torch.ones(batch_size, self.pairings.top_k, dtype=torch.long, device = device)*self.unk_token
         
         for i,(comp_ingr, score_list) in enumerate(map(self.pairings.bestPairingsFromIngr, ingr_id)):

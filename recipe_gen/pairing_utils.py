@@ -64,13 +64,14 @@ class PairingData:
                         self.pairedIngr[ingr1]=self.vocab_ingrs.word2idx[ingr1]
                     if ingr2 not in self.pairedIngr:
                         self.pairedIngr[ingr2]=self.vocab_ingrs.word2idx[ingr2]
+                        
+                    self.addPairing(ingr1,ingr2,row[score_name])
+                    self.addPairing(ingr2,ingr1,row[score_name])
                 except (KeyError,AttributeError):
                     #print(ingr1,ingr2)
                     count_error += 1
                     continue
                 
-                self.addPairing(ingr1,ingr2,row[score_name])
-                self.addPairing(ingr2,ingr1,row[score_name])
 
 
         print("{} pairs in total".format(len(self)))

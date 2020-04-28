@@ -135,10 +135,8 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
         super().__init__(args, output_size, idx2word, EOS_TOK, DOT_TOK)
         self.attention = IngrAtt(args)
         self.pairAttention = PairingAtt(args, unk_token=UNK_TOK)
-        # self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
-        self.lin = nn.Linear(3*args.hidden_size, 2*args.hidden_size)
-
-        # self.gru = nn.GRU(2*args.hidden_size, args.hidden_size)
+        self.lin = nn.Linear(2*args.word_embed + args.ingr_embed + 2 * self.hidden_size, args.word_embed + 2* self.hidden_size)
+        self.sub_gru = nn.GRU(self.args.word_embed + 2 * self.hidden_size, self.hidden_size,num_layers=self.gru_layers,dropout=args.dropout)
 
     def forward(self, decoder_input, sub_decoder_input, decoder_hidden, sub_decoder_outputs, 
             input_tensor, encoder_embedding, encoder_outputs, decoded_words, cur_step, target_tensor, sampling_proba):
@@ -147,23 +145,21 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
         hidden (2, batch, hidden_size)
         encoder_output (max_ingr,batch, 2*hidden_size) for attention
         """
-        self.batch_size = decoder_input.shape[1]
-        embedded = self.embedding(decoder_input).view(
-            1, self.batch_size, -1)  # (1,batch,hidden)
-        output = F.relu(embedded)
-
+        self.batch_size = batch_size = decoder_input.shape[1]
+        # (1,batch,hidden)
+        output = F.relu(decoder_input)
         output, decoder_hidden = self.gru(output, decoder_hidden)
 
         hidden_sub = output
         # XXX: is it ok same embedding for both dec and subdec input ??? for now the init inputs are the same
 
         for i in range(self.args.max_length):
-            output_sub = self.embedding(sub_decoder_input).view(
+            embedded = self.embedding(sub_decoder_input).view(
                 1, self.batch_size, -1)  # (1,batch,hidden)
-            output_sub = F.relu(output_sub)
+            embedded = F.relu(embedded)
 
             output_sub, attn_weights = self.attention(
-                output_sub, hidden_sub, encoder_outputs)
+                embedded, hidden_sub, encoder_outputs)
 
             # Selecting the focused ingredient from input then attend on compatible ingredients
             ingr_arg = torch.argmax(attn_weights, 1)
@@ -171,20 +167,16 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
             for i, id in enumerate(ingr_arg):
                 ingr_id[i] = input_tensor[i, id]
 
-            out, attn_weights = self.pairAttention(
-                output_sub, hidden_sub, ingr_id, encoder_embedding) 
+            out, attn_scores, comp_ingr_id = self.pairAttention(
+                embedded, hidden_sub, ingr_id, encoder_embedding) 
             # changed embedding (input of Main dec) to output_sub (like IngrAtt above)
-            # if out is None:
-            #     output = self.lin(output)
-            # else:
-            #     output_sub = out
                 
             if out is not None:
                 output_sub = torch.cat((output_sub,out),dim=-1)#self.lin(output)
                 output_sub = self.lin(output_sub)
 
             output_sub, hidden_sub = self.sub_gru(output_sub, hidden_sub)
-            output_sub = self.softmax(self.out(output_sub[0]))
+            output_sub = self.out(output_sub[0])
 
             topi = samplek(self, output_sub, decoded_words, self.idx2word, cur_step)
             sub_decoder_outputs[:, cur_step, i] = output_sub
