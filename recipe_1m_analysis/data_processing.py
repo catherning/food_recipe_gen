@@ -14,6 +14,7 @@ from tqdm import *
 import numpy as np
 import re
 import sys
+from datetime import datetime
 sys.path.insert(0, os.getcwd())
  
 from recipe_1m_analysis.utils import Vocabulary
@@ -358,6 +359,7 @@ def main(args):
     #####
     # 1. Count words in dataset and clean
     #####
+    args.save_path = os.path.join(args.save_path,datetime.now().strftime('%m-%d-%H-%M'))
     if args.forcegen_all:
         vocab_ingrs = clean_count(
             args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs)
