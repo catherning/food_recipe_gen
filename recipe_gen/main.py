@@ -215,7 +215,7 @@ def main():
         except KeyError:
             pass
         print("Model loaded for resuming training.")
-        showPlot(model.training_losses, model.training_losses, args.begin_epoch, model.savepath)
+        showPlot(model.training_losses, model.training_losses, model.savepath)
 
     if args.load:
         path = os.path.join(

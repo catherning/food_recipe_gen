@@ -131,15 +131,15 @@ class BaseModel(nn.Module):
             for iter, batch in enumerate(self.train_dataloader, start=1):
                 if iter == self.args.n_iters:
                     break
-
-                for optim in self.optim_list:
-                    optim.zero_grad()
+                
+                if iter % self.args.update_step==0:
+                    for optim in self.optim_list:
+                        optim.zero_grad()
 
                 loss, decoded_words = self.train_iter(batch, iter)
-
-                if iter % self.args.update_step:
-                    loss.backward()
-
+                loss.backward()
+                
+                if iter % self.args.update_step==0:
                     for optim in self.optim_list:
                         optim.step()
 
