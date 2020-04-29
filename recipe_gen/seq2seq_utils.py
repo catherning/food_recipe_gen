@@ -52,7 +52,7 @@ class RecipesDataset(Dataset):
         self.max_ingr = args.max_ingr
         self.max_step = args.max_step
         self.model_name =  args.model_name
-        self.samples_max = args.samples_max
+        self.samples_max = args.samples_max if train else args.samples_max//10
         
 
         with open(os.path.join(args.data_folder,args.vocab_ingr_file),'rb') as f:
@@ -83,6 +83,7 @@ class RecipesDataset(Dataset):
                 self.data=pickle.load(f)
                 
         self.process_data()
+        args.logger.info("Dataset of size {}".format(len(self)))
 
     def __len__(self):
         return len(self.data)
@@ -98,7 +99,7 @@ class RecipesDataset(Dataset):
         if self.model_name == "Seq2seqCuisinePairing":
             count_e = 0
             for idx,recipe in self.data.items():
-                if len(data)<=self.samples_max:      
+                if len(data)<self.samples_max:      
                     try:
                         sample = {"ingr":recipe["ingredients"],
                                 "tokenized":recipe["tokenized"],
@@ -118,7 +119,7 @@ class RecipesDataset(Dataset):
 
         else:
             for idx,recipe in self.data.items():
-                if len(data)<=self.samples_max:
+                if len(data)<self.samples_max:
                     sample = {"ingr":recipe["ingredients"],
                             "tokenized":recipe["tokenized"],
                             "title":recipe["title"],
