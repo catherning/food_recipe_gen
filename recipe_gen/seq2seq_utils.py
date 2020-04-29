@@ -304,13 +304,21 @@ def flattenSequence(data, lengths):
 
     return torch.cat(arr, dim=0)
 
-def showPlot(points,path):
+def showPlot(train_loss,val_loss,path):
     plt.figure()
     fig, ax = plt.subplots()
+    x = [i for i in range(len(train_loss))]
     # this locator puts ticks at regular intervals
-    loc = ticker.MultipleLocator(base=0.2)
-    ax.yaxis.set_major_locator(loc)
-    plt.plot(points)
+    # loc = ticker.MultipleLocator(base=1/9)
+    # ax.xaxis.set_major_locator(loc)
+
+    # ax.xaxis.set_major_locator(ticker.AutoLocator())
+    plt.plot(x, train_loss, label='Train loss')
+    plt.plot(x, val_loss, label='Val loss')
+    ax.legend()
+    plt.xlabel("Epoch")
+    plt.ylabel("Cross Entropy Loss")
+    plt.title("Cross Entropy Loss during training")
     
     plt.savefig(os.path.join(path,'loss.png'))
     plt.close(fig)

@@ -77,6 +77,8 @@ class BaseModel(nn.Module):
         self.criterion = nn.CrossEntropyLoss(reduction="sum",ignore_index=self.train_dataset.PAD_token)
         
         self.training_losses =[]
+        self.val_losses = []
+        self.best_loss = math.inf
 
         self.paramLogging()
         
@@ -115,15 +117,15 @@ class BaseModel(nn.Module):
 
     def train_process(self):
         start = time.time()
-        plot_losses = self.training_losses
         print_loss_total = 0
         plot_loss_total = 0
-        best_loss = math.inf
+        best_loss = self.best_loss
+        train_losses = self.training_losses
+        val_losses = self.val_losses
 
         def lmbda(epoch): return 0.95
         scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(
             optim, lr_lambda=lmbda) for optim in self.optim_list]
-        plot_losses = []
         for ep in range(self.args.begin_epoch, self.args.epoch+1):
             self.train()
             for iter, batch in enumerate(self.train_dataloader, start=1):
@@ -147,7 +149,6 @@ class BaseModel(nn.Module):
                 if iter % max(self.args.print_step, self.args.n_iters//10) == 0:
                     print_loss_avg = print_loss_total / \
                         max(self.args.print_step, self.args.n_iters//10)
-                    plot_losses.append(print_loss_avg)
                     print_loss_total = 0
                     self.logger.info('Epoch {} {} ({} {}%) loss={}'.format(ep, timeSince(
                         start, iter / self.args.n_iters), iter, int(iter / self.args.n_iters * 100), print_loss_avg))
@@ -164,16 +165,20 @@ class BaseModel(nn.Module):
                                                                          for word in sent[:batch["target_length"][0,i]]]) 
                                                                          for i,sent in enumerate(batch["target_instr"][0])]))
 
-
+            train_losses.append(plot_loss_total/ iter)
+            plot_loss_total = 0
+            val_loss = self.evalProcess()
+            val_losses.append(val_loss)
+            
             torch.save({
                 'epoch': ep,
                 'model_state_dict': self.state_dict(),
                 'optimizer_state_dict': [optim.state_dict() for optim in self.optim_list],
-                'loss': loss,
-                'loss_list': plot_losses
+                'best_loss': best_loss,
+                'train_losses': train_losses,
+                'val_losses': val_losses,
             }, os.path.join(self.savepath, "train_model_{}_{}.tar".format(datetime.now().strftime('%m-%d-%H-%M'), ep)))
 
-            val_loss = self.evalProcess()
             if val_loss < best_loss:
                 self.logger.info("Best model so far, saving it.")
                 torch.save(self.state_dict(), os.path.join(
@@ -183,7 +188,7 @@ class BaseModel(nn.Module):
             for scheduler in scheduler_list:
                 scheduler.step()
                 
-        showPlot(plot_losses,self.savepath)
+        showPlot(train_losses, val_losses, self.savepath)
         
     def evalProcess(self):
         """

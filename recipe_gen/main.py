@@ -16,7 +16,7 @@ sys.path.insert(0, os.getcwd())
 
 from recipe_1m_analysis.utils import Vocabulary
 from recipe_gen.pairing_utils import PairingData
-from recipe_gen.seq2seq_utils import FOLDER_PATH,DATA_FILES
+from recipe_gen.seq2seq_utils import FOLDER_PATH,DATA_FILES, showPlot
 
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
@@ -198,14 +198,24 @@ def main():
             os.getcwd(), "recipe_gen", "results", args.model_name,args.load_folder)
         newest_file = max(filter(lambda f: f[0]=="t",os.listdir(path)), key=lambda f: os.path.getmtime(os.path.join(path,f)))
         
-        checkpoint = torch.load(os.path.join(path, newest_file))
+        try:
+            checkpoint = torch.load(os.path.join(path, newest_file))
+        except RuntimeError:
+            checkpoint = torch.load(os.path.join(path, newest_file),map_location='cuda:0')
         model.load_state_dict(checkpoint['model_state_dict'])
         [optim.load_state_dict(checkpoint['optimizer_state_dict'][i])
          for i, optim in enumerate(model.optim_list)]
         args.begin_epoch = checkpoint['epoch']
-        args.training_losses = checkpoint['loss_list']
-        # loss = checkpoint['loss']
+        try:
+            model.training_losses = checkpoint['train_losses']
+        except KeyError:
+            model.training_losses = checkpoint['loss_list']
+        try:   
+            model.best_loss = checkpoint['best_loss']
+        except KeyError:
+            pass
         print("Model loaded for resuming training.")
+        showPlot(model.training_losses, model.training_losses, args.begin_epoch, model.savepath)
 
     if args.load:
         path = os.path.join(
