@@ -32,12 +32,13 @@ class HierDecoderRNN(DecoderRNN):
         self.batch_size = decoder_input.shape[1]
         # (1,batch,hidden)
         output = F.relu(decoder_input)
-
         output, decoder_hidden = self.gru(output, decoder_hidden)
 
-        hidden_sub = output
-        # XXX: is it ok same embedding for both dec and subdec input ??? for now the init inputs are the same
-
+        if self.gru_layers==1:
+            hidden_sub = output
+        elif self.gru_layers==2:
+            hidden_sub = torch.cat([output,output],dim=0)
+            
         for i in range(self.args.max_length):
             output_sub = self.embedding(sub_decoder_input).view(
                 1, self.batch_size, -1)  # (1,batch,hidden)
@@ -85,8 +86,10 @@ class HierAttnDecoderRNN(HierDecoderRNN):
         output = F.relu(decoder_input) # (1,batch,hidden)
         output, decoder_hidden = self.gru(output, decoder_hidden)
 
-        hidden_sub = output
-        # XXX: is it ok same embedding for both dec and subdec input ??? for now the init inputs are the same
+        if self.gru_layers==1:
+            hidden_sub = output
+        elif self.gru_layers==2:
+            hidden_sub = torch.cat([output,output],dim=0)
 
         all_att_weights = torch.Tensor(
             self.args.max_length, self.batch_size, self.args.max_ingr)
@@ -150,8 +153,10 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
         output = F.relu(decoder_input)
         output, decoder_hidden = self.gru(output, decoder_hidden)
 
-        hidden_sub = output
-        # XXX: is it ok same embedding for both dec and subdec input ??? for now the init inputs are the same
+        if self.gru_layers==1:
+            hidden_sub = output
+        elif self.gru_layers==2:
+            hidden_sub = torch.cat([output,output],dim=0)
 
         for i in range(self.args.max_length):
             embedded = self.embedding(sub_decoder_input).view(

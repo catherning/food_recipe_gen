@@ -66,7 +66,7 @@ class BaseModel(nn.Module):
         self.optim_list = [self.encoder_optimizer, self.decoder_optimizer]
         
         self.encoder_fusion = nn.Sequential(nn.Linear((2 if self.args.bidirectional else 1) * args.hidden_size, args.hidden_size),
-                                            nn.Tanh())
+                                            nn.ReLU())
         self.fusion_optim = optim.Adam(
             (self.encoder_fusion.parameters()), lr=args.learning_rate)
         self.optim_list.append(self.fusion_optim)
@@ -552,7 +552,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         self.optim_list.append(self.title_optimizer)
 
         self.encoder_fusion = nn.Sequential(nn.Linear((2 if self.args.bidirectional else 1)* 2 * args.hidden_size, args.hidden_size),
-                                            nn.Tanh())
+                                            nn.ReLU())
         self.fusion_optim = optim.Adam(
             (self.encoder_fusion.parameters()), lr=args.learning_rate)
         self.optim_list.append(self.fusion_optim)
@@ -630,7 +630,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         self.optim_list.append(self.cuisine_optimizer)
         
         self.encoder_fusion = nn.Sequential(nn.Linear((2 if self.args.bidirectional else 1)* 2 * args.hidden_size, args.hidden_size),
-                                            nn.Tanh())
+                                            nn.ReLU())
         self.fusion_optim = optim.Adam(
             self.encoder_fusion.parameters(), lr=args.learning_rate)
         self.optim_list.append(self.fusion_optim)
