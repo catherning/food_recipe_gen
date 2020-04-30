@@ -355,7 +355,7 @@ def showAttention(input_sentence, output_words, attentions,path, title = None, n
         plt.title("Focused ingredient : {}".format(title), y=1)
 
     # plt.show()
-    plt.savefig(os.path.join(path,'attention_{}.png'.format(name)))
+    plt.savefig(os.path.join(path,'attention_{}.png'.format(name.replace("\\","_").replace("/","_"))))
     plt.close(fig)
 
 def asMinutes(s):

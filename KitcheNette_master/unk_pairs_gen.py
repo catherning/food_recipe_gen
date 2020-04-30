@@ -15,9 +15,10 @@ from recipe_gen.seq2seq_utils import DATA_FILES, FOLDER_PATH
 def getKnowPairs(filepath):
     with open(os.path.join(known_file), 'rb') as f:
         known_pairs = pd.read_csv(f)
-
+        
     known_dict = {}
     count_e = 0
+    error_set = set()
     for row_idx, row in known_pairs.iterrows():
         try:
             ingr1_n = ingr_norm.normalize_ingredient(row["ingr1"])
@@ -25,8 +26,13 @@ def getKnowPairs(filepath):
             known_dict[frozenset((ingr1_n.name, ingr2_n.name))] = row["npmi"]
         except AttributeError:
             count_e += 1
+            if ingr_norm.normalize_ingredient(row["ingr1"]) is None:
+                error_set.add(row["ingr1"])
+            if ingr_norm.normalize_ingredient(row["ingr2"]) is None:
+                error_set.add(row["ingr2"])
 
     print("Removed {} false pairings".format(count_e))
+    print(error_set,len(error_set))
     return known_dict
 
 
@@ -45,7 +51,7 @@ def getMainIngr(vocab_ingrs):
                 ingr_norm.normalize_ingredient(main_ingr).name, k)
         except:
             print(main_ingr)
-
+    
     # TODO: remove special tokens sos, eos, pad, unk more properly (doesn't work for now)
     # del vocab_main_ingr.word2idx["<"]
     # del vocab_main_ingr.idx2word[0]
@@ -74,5 +80,5 @@ if __name__ == "__main__":
         vocab_ingrs = pickle.load(f)
 
     vocab_main_ingr = getMainIngr(vocab_ingrs)
-    list_ingr = list(vocab_main_ingr.word2idx.keys())
+    list_ingr = list(vocab_main_ingr.word2idx.keys())[4:]
     generatePairings(list_ingr, os.path.join(path,'main_pairing_prediction.csv'),known_dict)

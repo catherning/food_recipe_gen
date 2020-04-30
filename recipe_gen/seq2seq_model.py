@@ -472,6 +472,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
             self.decoder.parameters(), lr=args.learning_rate)
         self.optim_list[1] = self.decoder_optimizer
         
+        # NOTE: could save and load it
         self.vocab_main_ingr = getMainIngr(self.train_dataset.vocab_ingrs)
         # for i in range(4):
         #     self.vocab_main_ingr.add_word(self.train_dataset.vocab_ingrs.idx2word[i],i)

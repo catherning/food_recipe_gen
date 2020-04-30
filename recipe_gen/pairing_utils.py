@@ -3,6 +3,7 @@ import heapq
 import os
 import pickle
 import sys
+import torch
 
 import pandas as pd
 sys.path.append(os.getcwd())
@@ -55,6 +56,9 @@ class PairingData:
 
         data = pd.read_csv(filepath)
         count_error=0
+        
+        error_set = set()
+        
         for index, row in data.iterrows():
             if row[score_name] > self.min_score:
                 try:
@@ -67,14 +71,19 @@ class PairingData:
                         
                     self.addPairing(ingr1,ingr2,row[score_name])
                     self.addPairing(ingr2,ingr1,row[score_name])
-                except (KeyError,AttributeError):
-                    #print(ingr1,ingr2)
+                except (AttributeError):
+                    if ingr_norm.normalize_ingredient(row["ingr1"]) is None:
+                        error_set.add(row["ingr1"])
+                    if ingr_norm.normalize_ingredient(row["ingr2"]) is None:
+                        error_set.add(row["ingr2"])
                     count_error += 1
                     continue
-                
+                except KeyError as e:
+                    print(e,row["ingr1"],row["ingr2"])
+        print(error_set)
 
 
-        print("{} pairs in total".format(len(self)))
+        print("{} pairs in total above score {}".format(len(self),self.min_score))
         print("{} pair(s) not added because of an absent ingredient in the vocab or false ingredient".format(count_error))
 
     def bestPairingsFromIngr(self, ingr_id):
