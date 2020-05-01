@@ -56,20 +56,19 @@ class BaseModel(nn.Module):
         self.encoder = EncoderRNN(args, input_size, args.ingr_embed)
         self.decoder = DecoderRNN(args, output_size)
 
-        # TODO: change optim: self.optimizers  = optim.Adam(self.parameters())
-        # or Adam((self.encoder.param,self.decoder.param) directly ?
-        # => no need for optim_list ?
-        self.encoder_optimizer = optim.Adam(
-            self.encoder.parameters(), lr=args.learning_rate)
-        self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list = [self.encoder_optimizer, self.decoder_optimizer]
-        
         self.encoder_fusion = nn.Sequential(nn.Linear((2 if self.args.bidirectional else 1) * args.hidden_size, args.hidden_size),
                                             nn.ReLU())
-        self.fusion_optim = optim.Adam(
-            (self.encoder_fusion.parameters()), lr=args.learning_rate)
-        self.optim_list.append(self.fusion_optim)
+        
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
+        
+        # self.encoder_optimizer = optim.Adam(
+        #     self.encoder.parameters(), lr=args.learning_rate)
+        # self.decoder_optimizer = optim.Adam(
+        #     self.decoder.parameters(), lr=args.learning_rate)
+        # self.optim_list = [self.encoder_optimizer, self.decoder_optimizer]
+        # self.fusion_optim = optim.Adam(
+        #     (self.encoder_fusion.parameters()), lr=args.learning_rate)
+        # self.optim_list.append(self.fusion_optim)
 
         # Training param
         self.decay_factor = args.decay_factor
@@ -123,9 +122,11 @@ class BaseModel(nn.Module):
         train_losses = self.training_losses
         val_losses = self.val_losses
 
-        def lmbda(epoch): return 0.95
-        scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(
-            optim, lr_lambda=lmbda) for optim in self.optim_list]
+        # def lmbda(epoch): return 0.95
+        # scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(
+        #     optim, lr_lambda=lmbda) for optim in self.optim_list]
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,patience=2,verbose=True)
+        
         for ep in range(self.args.begin_epoch, self.args.epoch+1):
             self.train()
             for iter, batch in enumerate(self.train_dataloader, start=1):
@@ -133,15 +134,17 @@ class BaseModel(nn.Module):
                     break
                 
                 if iter % self.args.update_step==0:
-                    for optim in self.optim_list:
-                        optim.zero_grad()
+                    self.optimizer.zero_grad()
+                    # for optim in self.optim_list:
+                    #     optim.zero_grad()
 
                 loss, decoded_words = self.train_iter(batch, iter)
                 loss.backward()
                 
                 if iter % self.args.update_step==0:
-                    for optim in self.optim_list:
-                        optim.step()
+                    self.optimizer.step()
+                    # for optim in self.optim_list:
+                    #     optim.step()
 
                 print_loss_total += loss.detach()
                 plot_loss_total += loss.detach()
@@ -173,7 +176,7 @@ class BaseModel(nn.Module):
             torch.save({
                 'epoch': ep,
                 'model_state_dict': self.state_dict(),
-                'optimizer_state_dict': [optim.state_dict() for optim in self.optim_list],
+                'optimizer_state_dict':  self.optimizer.state_dict(), #[optim.state_dict() for optim in self.optim_list],
                 'best_loss': best_loss,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
@@ -185,8 +188,9 @@ class BaseModel(nn.Module):
                     self.savepath, "best_model"))
                 best_loss = val_loss
 
-            for scheduler in scheduler_list:
-                scheduler.step()
+            scheduler.step(val_loss)
+            # for scheduler in scheduler_list:
+            #     scheduler.step()
                 
         showPlot(train_losses, val_losses, self.savepath)
         
@@ -203,7 +207,7 @@ class BaseModel(nn.Module):
                 print_loss_total += loss.detach()
 
                 if iter % max(self.args.print_step, len(self.test_dataloader)//(10*self.test_dataloader.batch_size)) == 0:
-                    print("Eval Current loss = {}".format(
+                    print("Current Eval loss = {}".format(
                         print_loss_total/iter))
 
             print_loss_avg = print_loss_total / iter
@@ -421,9 +425,7 @@ class Seq2seqAtt(Seq2seq):
         super().__init__(args)
 
         self.decoder = AttnDecoderRNN(args, self.output_size)
-        self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1] = self.decoder_optimizer
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
 
     def evaluateAndShowAttention(self, sample):
         _, output_words, attentions, comp_ingr_id = self.evaluateFromText(sample)
@@ -447,9 +449,7 @@ class Seq2seqTrans(Seq2seq):
             d_model=args.hidden_size, nhead=8)
         self.decoder = nn.TransformerDecoder(self.decoderLayer, 4)
 
-        self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1] = self.decoder_optimizer
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
 
 
 class Seq2seqIngrAtt(Seq2seqAtt):
@@ -457,9 +457,7 @@ class Seq2seqIngrAtt(Seq2seqAtt):
         super().__init__(args)
 
         self.decoder = IngrAttnDecoderRNN(args, self.output_size)
-        self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1] = self.decoder_optimizer
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
 
 
 class Seq2seqIngrPairingAtt(Seq2seqAtt):
@@ -468,14 +466,10 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
 
         self.decoder = PairAttnDecoderRNN(
             args, self.output_size, unk_token=self.train_dataset.UNK_token)
-        self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1] = self.decoder_optimizer
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
         
         # NOTE: could save and load it
         self.vocab_main_ingr = getMainIngr(self.train_dataset.vocab_ingrs)
-        # for i in range(4):
-        #     self.vocab_main_ingr.add_word(self.train_dataset.vocab_ingrs.idx2word[i],i)
 
     def forwardDecoderStep(self, decoder_input, decoder_hidden,
                            encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words,comp_ingrs,focused_ingrs):
@@ -547,15 +541,10 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         super().__init__(args)
         self.title_encoder = EncoderRNN(args, self.output_size, args.title_embed)
         # output because tok of  title are in vocab_toks
-        self.title_optimizer = optim.Adam(
-            self.title_encoder.parameters(), lr=args.learning_rate)
-        self.optim_list.append(self.title_optimizer)
 
         self.encoder_fusion = nn.Sequential(nn.Linear((2 if self.args.bidirectional else 1)* 2 * args.hidden_size, args.hidden_size),
                                             nn.ReLU())
-        self.fusion_optim = optim.Adam(
-            (self.encoder_fusion.parameters()), lr=args.learning_rate)
-        self.optim_list.append(self.fusion_optim)
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
 
     def forward(self, batch, iter=iter):
         """
@@ -617,7 +606,6 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         self.hidden_size = args.hidden_size
         self.cuis_embed = args.cuisine_embed
 
-        # self.cuis_embedding = nn.Embedding(len(self.train_dataset.vocab_cuisine), self.cuis_embed)
         self.cuisine_encoder = nn.Sequential(
             nn.Embedding(len(self.train_dataset.vocab_cuisine), self.cuis_embed),
             nn.Linear(self.cuis_embed, 2*self.hidden_size),
@@ -625,15 +613,9 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
             nn.Dropout(p=args.dropout)
         )
         
-        self.cuisine_optimizer = optim.Adam(
-            self.cuisine_encoder.parameters(), lr=args.learning_rate)
-        self.optim_list.append(self.cuisine_optimizer)
-        
         self.encoder_fusion = nn.Sequential(nn.Linear((2 if self.args.bidirectional else 1)* 2 * args.hidden_size, args.hidden_size),
                                             nn.ReLU())
-        self.fusion_optim = optim.Adam(
-            self.encoder_fusion.parameters(), lr=args.learning_rate)
-        self.optim_list.append(self.fusion_optim)
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
 
     def forward(self, batch, iter=iter):
         """

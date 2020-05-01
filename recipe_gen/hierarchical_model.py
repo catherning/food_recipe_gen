@@ -33,9 +33,10 @@ class HierarchicalSeq2seq(Seq2seq):
 
         self.decoder = HierDecoderRNN(args, self.output_size, self.train_dataset.vocab_tokens.idx2word,
                                       self.train_dataset.EOS_token, self.train_dataset.vocab_tokens.word2idx["."])
-        self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1] = self.decoder_optimizer
+        # self.decoder_optimizer = optim.Adam(
+        #     self.decoder.parameters(), lr=args.learning_rate)
+        # self.optim_list[1] = self.decoder_optimizer
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
 
     def initForward(self, input_tensor, pairing=False):
         self.batch_size = len(input_tensor)
@@ -108,10 +109,7 @@ class HierarchicalSeq2seqAtt(HierarchicalSeq2seq, Seq2seqAtt):
 
         self.decoder = HierAttnDecoderRNN(args, self.output_size, self.train_dataset.vocab_tokens.idx2word,
                                           self.train_dataset.EOS_token, self.train_dataset.vocab_tokens.word2idx["."])
-        self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1] = self.decoder_optimizer
-
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
 
 class HierarchicalSeq2seqIngrAtt(HierarchicalSeq2seq):
     def __init__(self, args):
@@ -119,9 +117,7 @@ class HierarchicalSeq2seqIngrAtt(HierarchicalSeq2seq):
 
         self.decoder = HierIngrAttnDecoderRNN(args, self.output_size, self.train_dataset.vocab_tokens.idx2word,
                                               self.train_dataset.EOS_token, self.train_dataset.vocab_tokens.word2idx["."])
-        self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1] = self.decoder_optimizer
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
 
 
 class HierarchicalSeq2seqIngrPairingAtt(HierarchicalSeq2seq,Seq2seq):
@@ -133,9 +129,7 @@ class HierarchicalSeq2seqIngrPairingAtt(HierarchicalSeq2seq,Seq2seq):
 
         self.decoder = HierPairAttnDecoderRNN(args, self.output_size, self.train_dataset.vocab_tokens.idx2word,
                                               EOS_TOK = self.train_dataset.EOS_token, DOT_TOK = self.train_dataset.vocab_tokens.word2idx["."])
-        self.decoder_optimizer = optim.Adam(
-            self.decoder.parameters(), lr=args.learning_rate)
-        self.optim_list[1] = self.decoder_optimizer
+        self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
 
     def forward(self, batch, iter=iter):
         """
