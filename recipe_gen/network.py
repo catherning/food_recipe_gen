@@ -309,7 +309,7 @@ class PairingAtt(IngrAtt):
             return None, attn_weights,comp_ingr_id
         
         # TODO: try with emphazing unknown pairings
-        attn_scores = F.normalize((attn_weights * scores),1)#.to(comp_emb.device)
+        attn_scores = F.normalize((attn_weights * scores),1)
 
         # attn_scores view: (batch,1,top_k)
         # comb_emb (batch,top_k,hidden_size)

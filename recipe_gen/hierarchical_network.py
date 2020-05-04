@@ -157,8 +157,12 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
             hidden_sub = output
         elif self.gru_layers==2:
             hidden_sub = torch.cat([output,output],dim=0)
+            
+        all_attn_weights = torch.zeros(self.args.max_length,batch_size,self.pairAttention.pairings.top_k)
+        all_comp_ingr = torch.zeros(self.args.max_length,batch_size,self.pairAttention.pairings.top_k)
+        all_ingr_id = torch.zeros(self.args.max_length,batch_size)
 
-        for i in range(self.args.max_length):
+        for di in range(self.args.max_length):
             embedded = self.embedding(sub_decoder_input).view(
                 1, self.batch_size, -1)  # (1,batch,hidden)
             embedded = F.relu(embedded)
@@ -172,9 +176,12 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
             for j, id in enumerate(ingr_arg):
                 ingr_id[j] = input_tensor[j, id]
 
-            out, attn_scores, comp_ingr_id = self.pairAttention(
+            out, attn_scores, comp_ingr = self.pairAttention(
                 embedded, hidden_sub, ingr_id, encoder_embedding) 
             # changed embedding (input of Main dec) to output_sub (like IngrAtt above)
+            all_attn_weights[di] = attn_scores
+            all_comp_ingr[di] = comp_ingr
+            all_ingr_id[di] = ingr_id
                 
             if out is not None:
                 output_sub = torch.cat((output_sub,out),dim=-1)#self.lin(output)
@@ -184,7 +191,7 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
             output_sub = self.out(output_sub[0])
 
             topi = samplek(self, output_sub, decoded_words, self.idx2word, cur_step)
-            sub_decoder_outputs[:, cur_step, i] = output_sub
+            sub_decoder_outputs[:, cur_step, di] = output_sub
 
             if random.random() < sampling_proba:
                 idx_end = ((topi == self.EOS_TOK) + (topi == self.DOT_TOK)).nonzero()[
@@ -194,6 +201,6 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
                 sub_decoder_input = topi.squeeze().detach().view(
                     1, -1)  # detach from history as input
             else:
-                sub_decoder_input = target_tensor[:, cur_step, i].view(1, -1)
+                sub_decoder_input = target_tensor[:, cur_step, di].view(1, -1)
 
-        return output, decoder_hidden, attn_weights, decoded_words
+        return output, decoder_hidden, all_attn_weights[:di+1], decoded_words, all_comp_ingr[:di+1], all_ingr_id[:di+1]

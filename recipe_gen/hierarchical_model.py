@@ -39,29 +39,34 @@ class HierarchicalSeq2seq(Seq2seq):
         self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
 
     def initForward(self, input_tensor, pairing=False):
-        self.batch_size = len(input_tensor)
+        self.batch_size = batch_size = len(input_tensor)
 
-        decoder_input = torch.zeros((1,self.batch_size,self.args.hidden_size), device=self.device)  # input to Sentence decoder
+        decoder_input = torch.zeros((1,batch_size,self.args.hidden_size), device=self.device)  # input to Sentence decoder
         #(1,batch,hidden)
         # TODO: change when add bidirectionnal and num layers
         
         sub_decoder_input = torch.tensor(
-            [[self.train_dataset.SOS_token]*self.batch_size], device=self.device)  # input to Word sub_decoder
+            [[self.train_dataset.SOS_token]*batch_size], device=self.device)  # input to Word sub_decoder
         # decoder_input final (<max_len,batch)
 
         decoded_words = [[[] for j in range(self.max_step)] for i in range(
-            self.batch_size)]  # chosen words
-        decoder_outputs = torch.zeros(self.batch_size, self.max_step, self.max_length, len(
+            batch_size)]  # chosen words
+        decoder_outputs = torch.zeros(batch_size, self.max_step, self.max_length, len(
             self.train_dataset.vocab_tokens), device=self.device)  # the proba on the words of vocab for each word of each sent
 
         if pairing:
             decoder_attentions = torch.zeros(self.max_step,
-                                             self.max_length, self.batch_size, self.decoder.pairAttention.pairings.top_k)
+                                             self.max_length, batch_size, self.decoder.pairAttention.pairings.top_k)
+            comp_ingrs = torch.zeros(self.max_step,self.max_length,batch_size,self.decoder.pairAttention.pairings.top_k,dtype=torch.int)
+            focused_ingrs = torch.zeros(self.max_step,self.max_length,batch_size,dtype=torch.int)
+            
+            return decoder_input, sub_decoder_input, decoded_words, decoder_outputs, decoder_attentions,comp_ingrs,focused_ingrs
+            
         else:
             decoder_attentions = torch.zeros(self.max_step,
-                                             self.max_length, self.batch_size, self.max_ingr)
+                                             self.max_length, batch_size, self.max_ingr)
 
-        return decoder_input, sub_decoder_input, decoded_words, decoder_outputs, decoder_attentions
+            return decoder_input, sub_decoder_input, decoded_words, decoder_outputs, decoder_attentions
 
     def forward(self, batch, iter=iter):
         """
@@ -100,7 +105,7 @@ class HierarchicalSeq2seq(Seq2seq):
             decoder_attentions = self.addAttention(
                 cur_step, decoder_attentions, attn_weights)
 
-        return sub_decoder_outputs, decoded_words, decoder_attentions
+        return sub_decoder_outputs, decoded_words, {"attentions": decoder_attentions}
 
 
 class HierarchicalSeq2seqAtt(HierarchicalSeq2seq, Seq2seqAtt):
@@ -148,8 +153,8 @@ class HierarchicalSeq2seqIngrPairingAtt(HierarchicalSeq2seq,Seq2seq):
         except AttributeError:
             target_tensor = None
 
-        decoder_input, sub_decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
-            input_tensor)  # not same init, at least for decoder_input !!!!
+        decoder_input, sub_decoder_input, decoded_words, decoder_outputs, decoder_attentions,comp_ingrs,focused_ingrs = self.initForward(
+            input_tensor,pairing=True)  # not same init, at least for decoder_input !!!!
 
         # encoder_outputs (max_ingr,batch, 2*hidden_size)
         # encoder_hidden (2, batch, hidden_size)
@@ -161,10 +166,19 @@ class HierarchicalSeq2seqIngrPairingAtt(HierarchicalSeq2seq,Seq2seq):
         sampling_proba = self.getSamplingProba(iter)
 
         for cur_step in range(self.max_step):
-            decoder_output, decoder_hidden, _, decoded_words = self.decoder(
-                decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, input_tensor,
-                self.encoder.embedding, encoder_outputs, decoded_words, cur_step, target_tensor, sampling_proba)
-            # can remove encoder_outputs ? not used in decoder
+            decoded_words, decoder_attentions = self.forwardDecoderStep(decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, input_tensor, encoder_outputs, decoded_words, 
+                                                                        cur_step, target_tensor, sampling_proba, decoder_attentions,comp_ingrs,focused_ingrs)
 
-        # decoder_attentions[:di + 1]
-        return decoder_outputs, decoded_words, None
+        return decoder_outputs, decoded_words, {"attentions": decoder_attentions,
+                                                "comp_ingrs":comp_ingrs,
+                                                "focused_ingr":focused_ingrs}
+
+    def forwardDecoderStep(self, decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, input_tensor, encoder_outputs, decoded_words, cur_step, target_tensor, sampling_proba, decoder_attentions,comp_ingrs,focused_ingrs):
+        decoder_output, decoder_hidden, decoder_attention, decoded_words, comp_ingr, focused_ingr = self.decoder(
+            decoder_input, sub_decoder_input, decoder_hidden, decoder_outputs, input_tensor,
+            self.encoder.embedding, encoder_outputs, decoded_words, cur_step, target_tensor, sampling_proba)
+        decoder_attentions = self.addAttention(
+            cur_step, decoder_attentions, decoder_attention)
+        comp_ingrs[cur_step]=comp_ingr
+        focused_ingrs[cur_step]= focused_ingr
+        return decoded_words, decoder_attentions

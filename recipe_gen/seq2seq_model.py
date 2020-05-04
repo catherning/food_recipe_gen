@@ -78,6 +78,7 @@ class BaseModel(nn.Module):
         self.training_losses =[]
         self.val_losses = []
         self.best_loss = math.inf
+        self.best_epochs = []
 
         self.paramLogging()
         
@@ -171,7 +172,7 @@ class BaseModel(nn.Module):
             train_losses.append(plot_loss_total/ iter)
             plot_loss_total = 0
             val_loss = self.evalProcess()
-            val_losses.append(val_loss)
+            val_losses.append(val_loss.detach())
             
             torch.save({
                 'epoch': ep,
@@ -187,11 +188,14 @@ class BaseModel(nn.Module):
                 torch.save(self.state_dict(), os.path.join(
                     self.savepath, "best_model"))
                 best_loss = val_loss
+                self.best_epochs.insert(0,ep)
+                self.best_epochs = self.best_epochs[:5]
 
             scheduler.step(val_loss)
             # for scheduler in scheduler_list:
             #     scheduler.step()
-                
+
+        self.logger.info("5 best epochs: {}".format(self.best_epochs))
         showPlot(train_losses, val_losses, self.savepath)
         
     def evalProcess(self):
@@ -280,28 +284,43 @@ class BaseModel(nn.Module):
 
         try:
             output_sentence = ' '.join(output_words[0])
+            target_sent = " ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in sample["target_instr"][0] if word.item() != 0])
         except TypeError:
+            # Hierar models
             output_sentence = "|".join(
                 [' '.join(sent) for sent in output_words[0]])
+            target_sent = str(["|".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"][0]])
 
-        or_sent = " ".join([self.train_dataset.vocab_ingrs.idx2word[ingr.item()][0] for ingr in sample["ingr"][0]])
-        self.logger.info(
-            "Input: "+ or_sent)
-        self.logger.info(
-            "Target: "+str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"]]))
-        self.logger.info("Generated: "+output_sentence)
+        input_ingr = " ".join([self.train_dataset.vocab_ingrs.idx2word[ingr.item()][0] for ingr in sample["ingr"][0]])
+        self.logger.info("Input: " + input_ingr)
+        self.logger.info("Target: " + target_sent)
+        self.logger.info("Generated: " + output_sentence)
         
-        try:
-            attentions = att_data["attentions"][:,0]
-            comp_ingr_id = att_data["comp_ingrs"][:,0]
-            focused_ingrs_id = att_data["focused_ingr"][:,0]
-            focused_ingrs = [self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in focused_ingrs_id]
-            comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
-            showPairingAttention(comp_ingr, focused_ingrs, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-        except AttributeError:
-            showSentAttention(or_sent, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-        except TypeError:
-            pass
+        if self.hierarchical:
+            try:
+                attentions = att_data["attentions"][:,:,0]
+                comp_ingr_id = att_data["comp_ingrs"][:,:,0]
+                focused_ingrs_id = att_data["focused_ingr"][:,:,0]
+                focused_ingrs = [self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in focused_ingrs_id]
+                comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
+                showPairingAttention(comp_ingr, focused_ingrs, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+            except (AttributeError,KeyError):
+                showSentAttention(input_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+            except TypeError:
+                pass
+        
+        else:
+            try:
+                attentions = att_data["attentions"][:,0]
+                comp_ingr_id = att_data["comp_ingrs"][:,0]
+                focused_ingrs_id = att_data["focused_ingr"][:,0]
+                focused_ingrs = [self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in focused_ingrs_id]
+                comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
+                showPairingAttention(comp_ingr, focused_ingrs, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+            except AttributeError:
+                showSentAttention(input_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
+            except TypeError:
+                pass
             
     def evaluateRandomly(self, n=10):
         self.eval()
@@ -340,7 +359,6 @@ class Seq2seq(BaseModel):
 
 
     def initForward(self, input_tensor, pairing=False):
-        # XXX: should be able not to reassign if do view with correct hidden size instead
         batch_size = self.batch_size
         decoder_input = torch.tensor(
             [[self.train_dataset.SOS_token]*batch_size], device=self.device)
@@ -417,7 +435,7 @@ class Seq2seq(BaseModel):
             else:
                 decoder_input = target_tensor[:, di].view(1, -1)
 
-        return decoder_outputs, decoded_words, None
+        return decoder_outputs, decoded_words, None#{"attentions": decoder_attentions[:di + 1]}
 
 
 class Seq2seqAtt(Seq2seq):
@@ -582,8 +600,8 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
         sampling_proba = self.getSamplingProba(iter)
 
         for di in range(self.max_length):
-            decoder_attentions, decoder_hidden, topi,comp_ingr = self.forwardDecoderStep(
-                decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
+            decoder_attentions, decoder_hidden, topi,comp_ingrs,focused_ingrs = self.forwardDecoderStep(
+                decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words,comp_ingrs,focused_ingrs)
             
             if random.random() < sampling_proba:
                 idx_end = (topi == self.train_dataset.EOS_token).nonzero()[:, 0]
@@ -653,8 +671,8 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         sampling_proba = self.getSamplingProba(iter)
 
         for di in range(self.max_length):
-            decoder_attentions, decoder_hidden, topi,comp_ingr  = self.forwardDecoderStep(
-                decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words)
+            decoder_attentions, decoder_hidden, topi,comp_ingrs,focused_ingrs  = self.forwardDecoderStep(
+                decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words,comp_ingrs,focused_ingrs)
             
             if random.random() < sampling_proba:
                 idx_end = (topi == self.train_dataset.EOS_token).nonzero()[
