@@ -126,7 +126,7 @@ class BaseModel(nn.Module):
         # def lmbda(epoch): return 0.95
         # scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(
         #     optim, lr_lambda=lmbda) for optim in self.optim_list]
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,patience=2,verbose=True)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,factor=0.6,patience=5,verbose=True)
         
         for ep in range(self.args.begin_epoch, self.args.epoch+1):
             self.train()
