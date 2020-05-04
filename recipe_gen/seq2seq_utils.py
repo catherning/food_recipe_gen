@@ -4,6 +4,7 @@ import pickle
 import sys
 import argparse
 import time
+import re
 sys.path.append(os.getcwd())
 
 import matplotlib
@@ -334,6 +335,7 @@ def showSentAttention(input_sentence, output_words, attentions,path,name=None):
 def showPairingAttention(comp_ingr, focused_ingrs, output_words, attentions,path,name=None):
     for i,w in enumerate(output_words):
         if focused_ingrs[i]!="<eos>" and focused_ingrs[i]!="<pad>":
+            w = re.sub('[^a-zA-Z0-9 \n\.]', '', w)
             showAttention(comp_ingr[i],w,attentions[i].unsqueeze(0),path, title=focused_ingrs[i], name="{}_{}_{}".format(name,i,w))
 
 def showAttention(input_sentence, output_words, attentions,path, title = None, name=None):
@@ -354,8 +356,7 @@ def showAttention(input_sentence, output_words, attentions,path, title = None, n
     if title:
         plt.title("Focused ingredient : {}".format(title), y=1)
 
-    # plt.show()
-    plt.savefig(os.path.join(path,'attention_{}.png'.format(name.replace("\\","_").replace("/","_"))))
+    plt.savefig(os.path.join(path,'attention_{}.png'.format(name)))
     plt.close(fig)
 
 def asMinutes(s):
