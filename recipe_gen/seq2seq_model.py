@@ -235,61 +235,32 @@ class BaseModel(nn.Module):
 
                 print_loss_total += loss.detach()
 
-                if iter % self.args.print_step == 0:
-                    print("Current loss = {}".format(print_loss_total/iter))
-
             print_loss_avg = print_loss_total / iter
             self.logger.info("Eval loss = {}".format(print_loss_avg))
 
-    def evaluateFromText(self, sample):
-        self.eval()
-        with torch.no_grad():
-            input_tensor, _ = self.train_dataset.tensorFromSentence(
-                self.train_dataset.vocab_ingrs, sample["ingr"])
-            input_tensor = input_tensor.view(1, -1).to(self.device)
-
-            try:
-                target_tensor, _ = self.train_dataset.tensorFromSentence(
-                    self.train_dataset.vocab_tokens, sample["target"], instructions=True)
-                target_tensor = target_tensor.view(1, -1).to(self.device)
-            except KeyError:
-                target_tensor = None
-
-            try:
-                title_tensor, _ = self.train_dataset.tensorFromSentence(
-                    self.train_dataset.vocab_tokens, sample["title"])
-                title_tensor = title_tensor.view(1, -1).to(self.device)
-            except KeyError:
-                title_tensor = None
-            
-            try:
-                cuis_tensor = torch.LongTensor([self.train_dataset.vocab_cuisine.word2idx[sample["cuisine"]]])
-            except (KeyError,AttributeError):
-                cuis_tensor = None
-
-            batch = {"ingr": input_tensor,
-                     "target_instr": target_tensor, 
-                     "title": title_tensor,
-                     "cuisine":cuis_tensor}
-            return self.forward(batch)
-
     def evalSample(self,sample):
-        for k in ["ingr","target_instr"]+["title"]*("title" in sample)+["cuisine"]*("cuisine" in sample):
+        for k in ["ingr"]+["target_instr"]*("target_instr" in sample)+["title"]*("title" in sample)+["cuisine"]*("cuisine" in sample):
             sample[k] = sample[k].unsqueeze(0)
         _, output_words, att_data = self.forward(sample)
 
+        input_ingr = " ".join([self.train_dataset.vocab_ingrs.idx2word[ingr.item()][0] for ingr in sample["ingr"][0]])
+        self.logger.info("Input: " + input_ingr)
+        
+        try:
+            target_sent = " ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in sample["target_instr"][0] if word.item() != 0])
+            self.logger.info("Target: " + target_sent)
+        except TypeError:
+            target_sent = str(["|".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"][0]])
+            self.logger.info("Target: " + target_sent)
+        except KeyError:
+            pass
+        
         try:
             output_sentence = ' '.join(output_words[0])
-            target_sent = " ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in sample["target_instr"][0] if word.item() != 0])
         except TypeError:
             # Hierar models
             output_sentence = "|".join(
                 [' '.join(sent) for sent in output_words[0]])
-            target_sent = str(["|".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"][0]])
-
-        input_ingr = " ".join([self.train_dataset.vocab_ingrs.idx2word[ingr.item()][0] for ingr in sample["ingr"][0]])
-        self.logger.info("Input: " + input_ingr)
-        self.logger.info("Target: " + target_sent)
         self.logger.info("Generated: " + output_sentence)
         
         if self.hierarchical:
@@ -313,10 +284,39 @@ class BaseModel(nn.Module):
                 focused_ingrs = [self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in focused_ingrs_id]
                 comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
                 showPairingAttention(comp_ingr, focused_ingrs, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-            except AttributeError:
+            except (AttributeError,KeyError):
                 showSentAttention(input_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
             except TypeError:
                 pass
+
+    def evaluateFromText(self, sample):
+        self.eval()
+        batch = {"id":sample["id"]}
+        with torch.no_grad():
+            input_tensor, _ = self.train_dataset.tensorFromSentence(
+                self.train_dataset.vocab_ingrs, sample["ingr"])
+            batch["ingr"] = input_tensor.to(self.device)
+
+            try:
+                target_tensor, _ = self.train_dataset.tensorFromSentence(
+                    self.train_dataset.vocab_tokens, sample["target"], instructions=True)
+                batch["target_instr"] = target_tensor.to(self.device)
+            except KeyError:
+                pass
+
+            try:
+                title_tensor, _ = self.train_dataset.tensorFromSentence(
+                    self.train_dataset.vocab_tokens, sample["title"])
+                batch["title"] = title_tensor.to(self.device)
+            except KeyError:
+                pass
+            
+            try:
+                batch["cuisine"] = torch.LongTensor([self.train_dataset.vocab_cuisine.word2idx[sample["cuisine"]]])
+            except (KeyError,AttributeError):
+                pass
+            
+            self.evalSample(batch)
             
     def evaluateRandomly(self, n=10):
         self.eval()
@@ -401,7 +401,7 @@ class Seq2seq(BaseModel):
         try:
             target_tensor = batch["target_instr"].to(
                 self.device)  # (batch,max_step,max_length) ?
-        except AttributeError:
+        except (AttributeError,KeyError):
             target_tensor = None
 
         decoder_input, decoded_words, decoder_outputs, decoder_attentions = self.initForward(
@@ -431,8 +431,8 @@ class Seq2seq(BaseModel):
             else:
                 decoder_input = target_tensor[:, di].view(1, -1)
 
-        return decoder_outputs, decoded_words, None#{"attentions": decoder_attentions[:di + 1]}
-    # TODO: TEST output att None with Seq2seqAtt & IngrAtt
+        return decoder_outputs, decoded_words, {"attentions": decoder_attentions[:di + 1]}
+
 
 class Seq2seqAtt(Seq2seq):
     def __init__(self, args):
@@ -440,20 +440,6 @@ class Seq2seqAtt(Seq2seq):
 
         self.decoder = AttnDecoderRNN(args, self.output_size)
         self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
-
-    def evaluateAndShowAttention(self, sample):
-        _, output_words, attentions, comp_ingr_id = self.evaluateFromText(sample)
-        self.logger.info('input = ' + ' '.join(sample["ingr"]))
-        self.logger.info('output = ' + ' '.join(output_words[0]))
-        # showAttention(sample["ingr"], output_words, attentions[:,0],self.savepath)
-        try:
-            comp_ingr_id = comp_ingr_id[:,0]
-            attentions = attentions[:,0]
-            comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
-            showPairingAttention(comp_ingr, output_words[0], attentions,self.savepath,name="user_input")
-        except AttributeError:
-            showSentAttention(sample["ingr"], output_words[0], attentions,self.savepath,name="user_input")
-
 
 class Seq2seqTrans(Seq2seq):
     def __init__(self, args):

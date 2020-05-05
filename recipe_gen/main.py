@@ -250,7 +250,7 @@ def main():
 
     if args.test:
         # Evaluate on whole test dataset
-        model.evalOutput()
+        #model.evalOutput()
 
         # Evaluate on 2 random samples in test dataset and print results
         model.evaluateRandomly(n=2)
@@ -258,26 +258,14 @@ def main():
         # Evaluate on user input
         sample = {"ingr":"tomato salad beef lemon".split(),
                   "title":"mediteranean salad".split(),
-                  "cuisine":"Asian"}
-        _, output_words, _ = model.evaluateFromText(sample)
-    
-        
-        try:
-            print(' '.join(output_words[0]))
-        except TypeError:
-            print([" ".join(sent) for sent in output_words[0]])
+                  "cuisine":"Asian",
+                  "id":"user"}
+        model.evaluateFromText(sample)
 
-        # TODO: fuse the evalFuncs
-        try:
-            model.evaluateAndShowAttention(sample)
-        except (TypeError, AttributeError):
-            print("No attention to show.")
-    
     if args.sample_id:
         model.evalFromId(args.sample_id)
             
     return args
-
 
 if __name__ == "__main__":
     if sys.modules['__main__'].__file__ == cProfile.__file__:
