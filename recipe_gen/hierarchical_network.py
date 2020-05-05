@@ -203,4 +203,4 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
             else:
                 sub_decoder_input = target_tensor[:, cur_step, di].view(1, -1)
 
-        return output, decoder_hidden, all_attn_weights[:di+1], decoded_words, all_comp_ingr[:di+1], all_ingr_id[:di+1]
+        return output, decoder_hidden, all_attn_weights, decoded_words, all_comp_ingr, all_ingr_id

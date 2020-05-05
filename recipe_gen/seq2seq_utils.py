@@ -62,7 +62,7 @@ class RecipesDataset(Dataset):
         with open(os.path.join(args.data_folder,args.vocab_tok_file),'rb') as f:
             self.vocab_tokens=pickle.load(f)
         
-        if self.model_name == "Seq2seqCuisinePairing":
+        if "Cuisine" in self.model_name:
             with open(os.path.join(args.data_folder,args.vocab_cuisine_file),'rb') as f:
                 self.vocab_cuisine = pickle.load(f)
 
@@ -97,7 +97,7 @@ class RecipesDataset(Dataset):
 
     def process_data(self):
         data = []
-        if self.model_name == "Seq2seqCuisinePairing":
+        if "Cuisine" in self.model_name:
             count_e = 0
             for idx,recipe in self.data.items():
                 if len(data)<self.samples_max:      
@@ -218,9 +218,7 @@ class RecipesDataset(Dataset):
                 # "ingr_tok":pair[0],
                 # "target_tok":pair[1]}
 
-def samplek(model, decoder_output, decoded_words,idx2word,cur_step=None):
-    # TODO: change for hierarchical
-    
+def samplek(model, decoder_output, decoded_words,idx2word,cur_step=None):   
     chosen_id = torch.zeros(
         decoder_output.shape[0], dtype=torch.long, device=model.device)
     decoder_output = decoder_output/model.args.temperature
@@ -263,12 +261,6 @@ def top_p_filtering(logits, top_p=0.0, filter_value=-float('Inf')):
             top_p >0.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
                 Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
     """
-    
-    # if top_k > 0:
-    #     # Remove all tokens with a probability less than the last token of the top-k
-    #     indices_to_remove = logits < torch.topk(logits, top_k)[0][:, -1, None]
-    # if top_p > 0.0:
-    
     sorted_logits, sorted_indices = torch.sort(logits, descending=True)
     cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
 
@@ -290,7 +282,6 @@ def inverse_sigmoid_decay(decay_factor, i):
     return decay_factor / (
         decay_factor + math.exp(i / decay_factor))
 
-
 def flattenSequence(data, lengths):
     # input has already <sos> removed for target, because decoded outputs for prediction doesn't have it.
     # this function will cut the <eos>
@@ -310,11 +301,7 @@ def showPlot(train_loss,val_loss,path):
     plt.figure()
     fig, ax = plt.subplots()
     x = [i for i in range(len(train_loss))]
-    # this locator puts ticks at regular intervals
-    # loc = ticker.MultipleLocator(base=1/9)
-    # ax.xaxis.set_major_locator(loc)
-
-    # ax.xaxis.set_major_locator(ticker.AutoLocator())
+    
     plt.plot(x, train_loss, label='Train loss')
     plt.plot(x, val_loss, label='Val loss')
     ax.legend()
@@ -371,8 +358,6 @@ def timeSince(since, percent):
     es = s / (percent)
     rs = es - s
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
-
-
 
 if __name__ == "__main__":
     args = argparser.parse_args()

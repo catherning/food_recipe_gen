@@ -71,14 +71,12 @@ argparser.add_argument('--sample-id', type=str,
 argparser.add_argument('--model-name', type=str, choices=[
                        'Seq2seq', 'Seq2seqAtt', 'Seq2seqIngrAtt', 'Seq2seqIngrPairingAtt',
                        'Seq2seqTitlePairing', 'Seq2seqCuisinePairing', 'Seq2seqTrans',
-                       'HierarchicalSeq2seq', 'HierarchicalSeq2seqAtt', 'HierarchicalSeq2seqIngrAtt',
-                       'HierarchicalSeq2seqIngrPairingAtt'],
+                       'HierarchicalSeq2seq', 'HierarchicalAtt', 'HierarchicalIngrAtt',
+                       'HierarchicalIngrPairingAtt','HierarchicalTitlePairing','HierarchicalCuisinePairing'],
                        default="Seq2seqIngrPairingAtt",
                        help='Model name for saving/loading')
 argparser.add_argument('--print-step', type=int, default=50,
                        help='Display steps')
-argparser.add_argument('--validation-step', type=int, default=1,  # XXX: utility ?
-                       help='Number of random search validation')
 argparser.add_argument('--train-mode', type='bool', nargs='?',
                        const=True, default=True,
                        help='Enable training')
@@ -124,7 +122,7 @@ argparser.add_argument('--bidirectional', type='bool', nargs='?',
                        help='Uses nucleus sampling')
 argparser.add_argument('--num-gru-layers', type=int, default=1)
 
-argparser.add_argument('--hidden-size', type=int, default=128) #TODO: change to 256
+argparser.add_argument('--hidden-size', type=int, default=128)
 argparser.add_argument('--word-embed', type=int, default=200)
 argparser.add_argument('--ingr-embed', type=int, default=100)
 argparser.add_argument('--title-embed', type=int, default=100)
@@ -166,7 +164,6 @@ def init_seed(args):
     args.logger.info("seed = {}, pid = {}".format(args.seed, os.getpid()))
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-
 
 
 def getDefaultArgs(argparser):

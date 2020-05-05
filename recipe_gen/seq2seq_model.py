@@ -92,15 +92,11 @@ class BaseModel(nn.Module):
                 continue
         
     def train_iter(self, batch, iter):
-        # target_length = batch["target_length"]
         target_tensor = batch["target_instr"].to(self.device)
         self.batch_size = batch_size = target_tensor.shape[0]
 
         decoder_outputs, decoded_words, _ = self.forward(batch, iter=iter)
-        # TODO: change flattenSeq if hierarchical
-        # aligned_outputs = flattenSequence(decoder_outputs, target_length)
-        # aligned_target = flattenSequence(target_tensor, target_length)
-        
+
         if self.hierarchical:
             aligned_outputs = decoder_outputs.view(
                 batch_size*self.max_length*self.max_step, self.output_size)
@@ -436,7 +432,7 @@ class Seq2seq(BaseModel):
                 decoder_input = target_tensor[:, di].view(1, -1)
 
         return decoder_outputs, decoded_words, None#{"attentions": decoder_attentions[:di + 1]}
-
+    # TODO: TEST output att None with Seq2seqAtt & IngrAtt
 
 class Seq2seqAtt(Seq2seq):
     def __init__(self, args):
@@ -558,8 +554,6 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
     def __init__(self, args):
         super().__init__(args)
         self.title_encoder = EncoderRNN(args, self.output_size, args.title_embed)
-        # output because tok of  title are in vocab_toks
-
         self.encoder_fusion = nn.Sequential(nn.Linear((2 if self.args.bidirectional else 1)* 2 * args.hidden_size, args.hidden_size),
                                             nn.ReLU())
         self.optimizer = optim.Adam(self.parameters(),lr=args.learning_rate)
@@ -590,7 +584,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
             input_tensor)
         
         title_tensor = batch["title"].to(self.device)
-        title_encoder_outputs, title_encoder_hidden = self.title_encoder.forward_all(
+        _, title_encoder_hidden = self.title_encoder.forward_all(
             title_tensor)
 
         decoder_hidden = torch.cat(
@@ -671,7 +665,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
         sampling_proba = self.getSamplingProba(iter)
 
         for di in range(self.max_length):
-            decoder_attentions, decoder_hidden, topi,comp_ingrs,focused_ingrs  = self.forwardDecoderStep(
+            decoder_attentions, decoder_hidden, topi,comp_ingrs,focused_ingrs = self.forwardDecoderStep(
                 decoder_input, decoder_hidden, encoder_outputs, input_tensor, di, decoder_attentions, decoder_outputs, decoded_words,comp_ingrs,focused_ingrs)
             
             if random.random() < sampling_proba:

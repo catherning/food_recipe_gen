@@ -64,10 +64,6 @@ class EncoderRNN(nn.Module):
             encoder_hidden = torch.cat((encoder_hidden[:,0],encoder_hidden[:,1]),2)
         elif self.num_directions==2:
             encoder_hidden = torch.cat((encoder_hidden[0],encoder_hidden[1]),1).unsqueeze(0)
-    
-        # encoder_hidden = F.relu(self.hiddenLayer(encoder_hidden)) # because was size 2-hidden_size
-        # XXX: no relu ?
-        # put hiddenLayer out of encoder, fuse with encoder_fusion
 
         return encoder_outputs, encoder_hidden
 
