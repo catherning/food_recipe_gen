@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
-
-
 import os
 from joblib import dump, load
 import pickle
@@ -12,11 +9,8 @@ sys.path.insert(0, os.getcwd())
 
 from collections import Counter
 import numpy as np
-import seaborn as sn
 import pandas as pd
-import matplotlib.pyplot as plt
 from nltk.stem.lancaster import LancasterStemmer
-from mpl_toolkits.mplot3d import Axes3D
 
 import sklearn
 from sklearn.feature_extraction.text import CountVectorizer
