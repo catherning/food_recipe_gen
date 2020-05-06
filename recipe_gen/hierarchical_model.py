@@ -82,7 +82,7 @@ class HierarchicalSeq2seq(Seq2seq):
         try:
             target_tensor = batch["target_instr"].to(
                 self.device)  # (batch,max_step,max_length) ?
-        except AttributeError:
+        except (AttributeError,KeyError):
             target_tensor = None
 
         decoder_input, sub_decoder_input, decoded_words, sub_decoder_outputs, decoder_attentions = self.initForward(
@@ -145,8 +145,9 @@ class HierarchicalIngrPairingAtt(HierarchicalSeq2seq,Seq2seq):
         try:
             target_tensor = batch["target_instr"].to(
                 self.device)  # (batch,max_step,max_length) ?
-        except AttributeError:
+        except (AttributeError,KeyError):
             target_tensor = None
+
 
         decoder_input, sub_decoder_input, decoded_words, decoder_outputs, decoder_attentions,comp_ingrs,focused_ingrs = self.initForward(
             input_tensor,pairing=True)  # not same init, at least for decoder_input !!!!
@@ -201,7 +202,7 @@ class HierarchicalTitlePairing(HierarchicalIngrPairingAtt,Seq2seqTitlePairing):
         try:
             target_tensor = batch["target_instr"].to(
                 self.device)  # (batch,max_step,max_length) ?
-        except AttributeError:
+        except (AttributeError,KeyError):
             target_tensor = None
 
         decoder_input, sub_decoder_input, decoded_words, decoder_outputs, decoder_attentions,comp_ingrs,focused_ingrs = self.initForward(
@@ -249,10 +250,11 @@ class HierarchicalCuisinePairing(HierarchicalIngrPairingAtt,Seq2seqCuisinePairin
         """
         input_tensor = batch["ingr"].to(self.device)
         try:
-            target_tensor = batch["target_instr"].to(self.device)  
-            # (batch,max_step,max_length)
-        except AttributeError:
+            target_tensor = batch["target_instr"].to(
+                self.device)  # (batch,max_step,max_length) ?
+        except (AttributeError,KeyError):
             target_tensor = None
+
 
         decoder_input, sub_decoder_input, decoded_words, decoder_outputs, decoder_attentions,comp_ingrs,focused_ingrs = self.initForward(
             input_tensor,pairing=True) 

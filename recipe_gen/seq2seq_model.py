@@ -249,8 +249,8 @@ class BaseModel(nn.Module):
         try:
             target_sent = " ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in sample["target_instr"][0] if word.item() != 0])
             self.logger.info("Target: " + target_sent)
-        except TypeError:
-            target_sent = str(["|".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"][0]])
+        except (TypeError,ValueError):
+            target_sent = str([" ".join([self.train_dataset.vocab_tokens.idx2word[word.item()] for word in instr if word.item() != 0]) for instr in sample["target_instr"][0]])
             self.logger.info("Target: " + target_sent)
         except KeyError:
             pass
@@ -264,30 +264,27 @@ class BaseModel(nn.Module):
         self.logger.info("Generated: " + output_sentence)
         
         if self.hierarchical:
-            try:
+            if "Pairing" in self.args.model_name:
                 attentions = att_data["attentions"][:,:,0]
                 comp_ingr_id = att_data["comp_ingrs"][:,:,0]
                 focused_ingrs_id = att_data["focused_ingr"][:,:,0]
-                focused_ingrs = [self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in focused_ingrs_id]
-                comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
-                showPairingAttention(comp_ingr, focused_ingrs, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-            except (AttributeError,KeyError):
-                showSentAttention(input_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-            except TypeError:
-                pass
+                focused_ingrs = [[self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in step] for step in focused_ingrs_id]
+                comp_ingr = [[' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in step[i]]) for i in range(step.shape[0])] for step in comp_ingr_id]
+                showPairingAttention(comp_ingr, focused_ingrs, output_words[0], attentions,self.savepath,name=sample["id"][:3],hierarchical=True)
+            elif "Att" in self.args.model_name:
+                attentions = att_data["attentions"][:,:,0]
+                showSentAttention(input_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3],hierarchical=True)
         
         else:
-            try:
+            if "Pairing" in self.args.model_name:
                 attentions = att_data["attentions"][:,0]
                 comp_ingr_id = att_data["comp_ingrs"][:,0]
                 focused_ingrs_id = att_data["focused_ingr"][:,0]
                 focused_ingrs = [self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in focused_ingrs_id]
                 comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
                 showPairingAttention(comp_ingr, focused_ingrs, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-            except (AttributeError,KeyError):
+            elif "Att" in self.args.model_name:
                 showSentAttention(input_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
-            except TypeError:
-                pass
 
     def evaluateFromText(self, sample):
         self.eval()
@@ -501,7 +498,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
         input_tensor = batch["ingr"].to(self.device)
         try:
             target_tensor = batch["target_instr"].to(self.device)
-        except AttributeError:
+        except (AttributeError,KeyError):
             Warning("Evaluation mode: only taking ingredient list as input")
 
         # Encoder
@@ -563,7 +560,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
 
         try:
             target_tensor = batch["target_instr"].to(self.device)
-        except AttributeError:
+        except (AttributeError,KeyError):
             Warning("Evaluation mode: only taking ingredient list as input")
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
@@ -634,7 +631,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
 
         try:
             target_tensor = batch["target_instr"].to(self.device)
-        except AttributeError:
+        except (AttributeError,KeyError):
             Warning("Evaluation mode: only taking ingredient list as input")
 
         encoder_outputs, encoder_hidden = self.encoder.forward_all(

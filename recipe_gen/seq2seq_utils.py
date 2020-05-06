@@ -312,18 +312,31 @@ def showPlot(train_loss,val_loss,path):
     plt.savefig(os.path.join(path,'loss.png'))
     plt.close(fig)
 
-def showSentAttention(input_sentence, output_words, attentions,path,name=None):
-    b_id =0
-    for i,sent in enumerate(" ".join(output_words).replace('<eos> ', ', ').split(" , ")):
-        len_sent = len(sent.split())
-        showAttention(input_sentence,sent,attentions[b_id:b_id+len_sent],path,name="{}_{}".format(name,i))
-        b_id += len_sent
+def showSentAttention(input_sentence, output_words, attentions,path, name=None, hierarchical=False):
+    if hierarchical:
+        for i,sent in enumerate(output_words):
+            len_sent = len(sent)
+            sent = " ".join(sent)
+            showAttention(input_sentence,sent,attentions[i][:len_sent],path,name="{}_{}".format(name,i))
+    else:
+        b_id =0
+        for i,sent in enumerate(" ".join(output_words).replace('<eos> ', ', ').split(" , ")):
+            len_sent = len(sent.split())
+            showAttention(input_sentence,sent,attentions[b_id:b_id+len_sent],path,name="{}_{}".format(name,i))
+            b_id += len_sent
 
-def showPairingAttention(comp_ingr, focused_ingrs, output_words, attentions,path,name=None):
-    for i,w in enumerate(output_words):
-        if focused_ingrs[i]!="<eos>" and focused_ingrs[i]!="<pad>":
-            w = re.sub('[^a-zA-Z0-9 \n\.]', '', w)
-            showAttention(comp_ingr[i],w,attentions[i].unsqueeze(0),path, title=focused_ingrs[i], name="{}_{}_{}".format(name,i,w))
+def showPairingAttention(comp_ingr, focused_ingrs, output_words, attentions,path,name=None,hierarchical=False):
+    if hierarchical:
+        for j,step in enumerate(output_words):
+            for i,w in enumerate(step):
+                if focused_ingrs[j][i]!="<eos>" and focused_ingrs[j][i]!="<pad>":
+                    w = re.sub('[^a-zA-Z0-9 \n\.]', '', w)
+                    showAttention(comp_ingr[j][i],w,attentions[j][i].unsqueeze(0),path, title=focused_ingrs[j][i], name="{}_{}_{}_{}".format(name,j,i,w))
+    else:
+        for i,w in enumerate(output_words):
+            if focused_ingrs[i]!="<eos>" and focused_ingrs[i]!="<pad>":
+                w = re.sub('[^a-zA-Z0-9 \n\.]', '', w)
+                showAttention(comp_ingr[i],w,attentions[i].unsqueeze(0),path, title=focused_ingrs[i], name="{}_{}_{}".format(name,i,w))
 
 def showAttention(input_sentence, output_words, attentions,path, title = None, name=None):
     # Set up figure with colorbar
