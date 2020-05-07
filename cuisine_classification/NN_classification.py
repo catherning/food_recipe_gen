@@ -549,15 +549,14 @@ class Net(nn.Module):
                                   self.vocab_ingrs, self.vocab_cuisine, type_label="id")
             print("Iter {} : Recipe1m loaded".format(i))
             dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-            print("Classifying...")
-            # , threshold=self.args.proba_threshold)
+            print("Classifying with proba {}...".format(self.args.proba_threshold))
             prob = self.args.proba_threshold
             predictions,_ = self.test(dataloader, dataset_type="classify",threshold=self.args.proba_threshold)
 
             for idx, prediction in predictions.items():
                 data[idx]["cuisine"] = self.vocab_cuisine.idx2word[prediction]
 
-        saving_file = os.path.join(self.args.classify_folder, "recipe1m_{}_cuisine_nn{}_test.pkl".format(self.args.classify_file,str(prob)*bool(prob)))
+        saving_file = os.path.join(self.args.classify_folder, "recipe1m_{}_cuisine_nn{}.pkl".format(self.args.classify_file,str(prob)*bool(prob)))
         with open(saving_file, "wb") as f:
             pickle.dump(data, f)
         LOGGER.info("Saving predictions to "+saving_file)

@@ -7,7 +7,7 @@ import sys
 sys.path.append(os.getcwd())
 
 
-DATA_FOLDER = os.path.join(os.getcwd(),"recipe_1m_analysis", "data","pfe_data") 
+DATA_FOLDER = os.path.join(os.getcwd(),"recipe_1m_analysis", "data") 
 FILE = ["train","test","val"] 
 
 with open(os.path.join(DATA_FOLDER,"vocab_cuisine.pkl"),'rb') as f:
