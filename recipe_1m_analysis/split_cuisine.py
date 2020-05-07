@@ -7,7 +7,7 @@ import sys
 sys.path.append(os.getcwd())
 
 
-DATA_FOLDER = os.path.join(os.getcwd(),"recipe_1m_analysis", "data") 
+DATA_FOLDER = os.path.join(os.getcwd(),"recipe_1m_analysis", "data","pfe_data") 
 FILE = ["train","test","val"] 
 
 with open(os.path.join(DATA_FOLDER,"vocab_cuisine.pkl"),'rb') as f:
@@ -21,11 +21,14 @@ split = {"main": KEEP_CUISINE, "rest" : not_keep}
 def createZeroShotDataset(folder):
     for file in FILE:
       with open(os.path.join(DATA_FOLDER,"recipe1m_{}_cuisine_nn.pkl".format(file)),'rb') as f:
-        data=pickle.load(f)
+        data_nn=pickle.load(f)
+        
+      with open(os.path.join(DATA_FOLDER,"recipe1m_{}_cuisine_log_reg.pkl".format(file)),'rb') as f:
+        data_ml=pickle.load(f)
         
       for k,sp in split.items():
-        new_data = dict(filter(lambda rec: rec[1]["cuisine"] in sp,data.items()))
-        with open(os.path.join(folder, 'recipe1m_{}_nn_{}.pkl'.format(file,k)), 'wb') as f:
+        new_data = dict(filter(lambda rec: rec[1]["cuisine"] in sp and data_ml[rec[0]]["cuisine"]==rec[1]["cuisine"], data_nn.items()))
+        with open(os.path.join(folder, 'recipe1m_{}_{}.pkl'.format(file,k)), 'wb') as f:
             pickle.dump(new_data, f)
 
 createZeroShotDataset(DATA_FOLDER)

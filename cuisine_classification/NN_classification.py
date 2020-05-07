@@ -56,18 +56,15 @@ argparser.register('type', 'bool', str2bool)
 argparser.add_argument('--data-folder', type=str, #default = os.path.join(os.getcwd(),"cuisine_classification","ml_results"),
                        help='Dataset path')
 argparser.add_argument('--file-type', type=str, default="full", choices=["random", "cluster_centroid", "cluster_centroid10000","full"],
-                       help='Type of undersampling. Full is no undersampling. If full then need to fuse, not for the others.')
+                       help='Type of undersampling. Full is no undersampling.')
 argparser.add_argument('--saving-path', type=str, default=os.path.join(os.getcwd(), "cuisine_classification", "results"),
                        help='Saving path')
 argparser.add_argument('--load-folder', type=str,
                        help='Loading best model in folder load-path')
-# TODO: change classify file to each file when running
 argparser.add_argument('--classify-folder', type=str, default=os.path.join(os.getcwd(), "recipe_1m_analysis", "data"),
                        help='The folder where classify-file is.')
 argparser.add_argument('--classify-file', type=str, default="train", choices=["train", "test", "val"],
                        help='The dataset of ingr to classify (train, test or dev)')
-
-
 
 # Model settings
 argparser.add_argument('--embedding-layer', type='bool', nargs='?',
