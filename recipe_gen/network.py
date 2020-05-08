@@ -33,7 +33,7 @@ class EncoderRNN(nn.Module):
         output: (1,batch,hidden * 2)
         hidden
         """
-        output = self.embedding(input_).view(1, self.batch_size, -1)
+        output = self.embedding(input_).unsqueeze(0)
         output, hidden = self.gru(output, hidden)
         return output, hidden
 
@@ -46,8 +46,8 @@ class EncoderRNN(nn.Module):
         encoder_outputs: (max_ingr,batch,hidden*2)
         encoder_hidden: (2 * num_layers ,batch,hidden) -> (num_layers,batch,hidden)
         """
-        #TODO: check, after permute, EOS n'est plus à la fin!?
-        input_tensor=input_tensor[:,torch.randperm(input_tensor.size()[1])]
+        split = (input_tensor == 2).nonzero().split(1,dim=1)[1].min()
+        input_tensor=torch.cat((input_tensor[:,torch.randperm(split)][:,:split],input_tensor[:,split:]),dim=1)
         self.batch_size = batch_size = len(input_tensor)
         encoder_hidden = self.initHidden().to(self.device)
         encoder_outputs = torch.zeros(
@@ -91,7 +91,7 @@ class DecoderRNN(nn.Module):
         hidden (num_layers, N, hidden_size)
         """
         self.batch_size = input.shape[1]
-        output = self.embedding(input).view(1, self.batch_size, -1) #(1,batch,word_embed)
+        output = self.embedding(input)#.view(1, self.batch_size, -1) #(1,batch,word_embed)
         output = F.relu(output)
         
         output, hidden = self.gru(output, hidden)
@@ -111,7 +111,7 @@ class AttnDecoderRNN(DecoderRNN):
         encoder_outputs: (max_ingr,batch,2*hidden)
         """
         self.batch_size = input.shape[1]
-        embedded = self.embedding(input).view(1, self.batch_size, -1)
+        embedded = self.embedding(input)#.view(1, self.batch_size, -1)
         # embedded (1,batch,2*hidden)
 
         output, attn_weights = self.attention(
@@ -235,8 +235,8 @@ class IngrAtt(BaseAttention):
         Input:
         embedded (1,N,word_embed + hidden * 2)
         Q: hidden (1,batch,hidden)
-        K: encoder_outputs (max_ingr,batch,hidden*2)
-        V: encoder_outputs (max_ingr,N,hidden*2)
+        K: encoder_outputs (max_ingr,batch,hidden*2) -> (N, max_ingr, hidden*2)
+        V: encoder_outputs
         
         returns
         output (1,N, word_embed + 2 * hidden)
@@ -244,19 +244,19 @@ class IngrAtt(BaseAttention):
         """
         batch_size = embedded.shape[1]
         hidden_repeat = hidden[0].unsqueeze(1).expand(-1,self.max_ingr,-1)
+        encoder_outputs = encoder_outputs.permute(1,0,2)
         
         query = self.query_layer(hidden_repeat)
-        key = self.key_layer(encoder_outputs.view(batch_size,self.max_ingr,self.hidden_size *2))
+        key = self.key_layer(encoder_outputs)#view(batch_size,self.max_ingr,self.hidden_size *2))
 
         scores = self.attn(torch.tanh(query + key))
         attn_weights = F.softmax(scores.squeeze(2), dim=-1)
         # context = torch.bmm(alphas, value)
         
-        attn_applied = torch.bmm(attn_weights.view(batch_size, 1, self.max_ingr),
-                                 encoder_outputs.view(batch_size, self.max_ingr, 2*self.hidden_size))
+        attn_applied = torch.bmm(attn_weights.unsqueeze(1),
+                                 encoder_outputs)
         output = torch.cat((embedded[0], attn_applied[:, 0]), 1).unsqueeze(0)
         # attn_weights view: (batch,1,max_ingr)
-        # encoder_outputs view: (batch,max_ingr,hidden_size)
 
         return output, attn_weights
 
@@ -309,7 +309,7 @@ class PairingAtt(IngrAtt):
 
         # attn_scores view: (batch,1,top_k)
         # comb_emb (batch,top_k,hidden_size)
-        attn_applied = torch.bmm(attn_scores.view(-1, 1, self.pairings.top_k),
+        attn_applied = torch.bmm(attn_scores.unsqueeze(1),
                                  comp_emb)
 
         output = torch.cat((embedded[0], attn_applied[:, 0]), 1).unsqueeze(0)

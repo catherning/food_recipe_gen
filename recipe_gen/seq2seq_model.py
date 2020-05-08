@@ -36,8 +36,7 @@ class BaseModel(nn.Module):
         self.input_size = input_size = len(self.train_dataset.vocab_ingrs)
         self.output_size = output_size = len(self.train_dataset.vocab_tokens)
         self.hidden_size = args.hidden_size
-        self.hierarchical = True if "Hierarchical" in self.args.model_name else False
-   
+        self.hierarchical = True if "Hierarchical" in self.args.model_name else False   
 
         self.train_dataloader = torch.utils.data.DataLoader(self.train_dataset,
                                                             batch_size=args.batch_size, shuffle=True,
@@ -73,7 +72,7 @@ class BaseModel(nn.Module):
         # Training param
         self.decay_factor = args.decay_factor
         self.learning_rate = args.learning_rate
-        self.criterion = nn.CrossEntropyLoss(reduction="sum",ignore_index=self.train_dataset.PAD_token)
+        self.criterion = nn.CrossEntropyLoss(ignore_index=self.train_dataset.PAD_token)
         
         self.training_losses =[]
         self.val_losses = []
@@ -96,18 +95,15 @@ class BaseModel(nn.Module):
         self.batch_size = batch_size = target_tensor.shape[0]
 
         decoder_outputs, decoded_words, _ = self.forward(batch, iter=iter)
-
+        # TODO: check everywhere if change view, get correct data (use permute(dim)!!!!)
+        
         if self.hierarchical:
-            aligned_outputs = decoder_outputs.view(
-                batch_size*self.max_length*self.max_step, self.output_size)
-            aligned_target = target_tensor.view(batch_size*self.max_length*self.max_step)
+            aligned_outputs = decoder_outputs.permute(0,3,1,2)
         else:
-            aligned_outputs = decoder_outputs.view(
-                batch_size*self.max_length, self.output_size)
-            aligned_target = target_tensor.view(batch_size*self.max_length)
+            aligned_outputs = decoder_outputs.permute(0,2,1)
         
         loss = self.criterion(
-            aligned_outputs, aligned_target)/batch_size
+            aligned_outputs, target_tensor)#/batch_size
 
         return loss, decoded_words
 
@@ -119,9 +115,6 @@ class BaseModel(nn.Module):
         train_losses = self.training_losses
         val_losses = self.val_losses
 
-        # def lmbda(epoch): return 0.95
-        # scheduler_list = [torch.optim.lr_scheduler.MultiplicativeLR(
-        #     optim, lr_lambda=lmbda) for optim in self.optim_list]
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,factor=0.6,patience=5,verbose=True)
         
         for ep in range(self.args.begin_epoch, self.args.epoch+1):
@@ -132,16 +125,12 @@ class BaseModel(nn.Module):
                 
                 if iter % self.args.update_step==0:
                     self.optimizer.zero_grad()
-                    # for optim in self.optim_list:
-                    #     optim.zero_grad()
 
                 loss, decoded_words = self.train_iter(batch, iter)
                 loss.backward()
                 
                 if iter % self.args.update_step==0:
                     self.optimizer.step()
-                    # for optim in self.optim_list:
-                    #     optim.step()
 
                 print_loss_total += loss.detach()
                 plot_loss_total += loss.detach()
@@ -173,7 +162,7 @@ class BaseModel(nn.Module):
             torch.save({
                 'epoch': ep,
                 'model_state_dict': self.state_dict(),
-                'optimizer_state_dict':  self.optimizer.state_dict(), #[optim.state_dict() for optim in self.optim_list],
+                'optimizer_state_dict':  self.optimizer.state_dict(),
                 'best_loss': best_loss,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
@@ -188,8 +177,6 @@ class BaseModel(nn.Module):
                 self.best_epochs = self.best_epochs[:5]
 
             scheduler.step(val_loss)
-            # for scheduler in scheduler_list:
-            #     scheduler.step()
 
         self.logger.info("5 best epochs: {}".format(self.best_epochs))
         showPlot(train_losses, val_losses, self.savepath)
@@ -231,7 +218,7 @@ class BaseModel(nn.Module):
                         self.logger.info(batch["id"][i]+" "+' '.join(ex))
                     except TypeError:
                         self.logger.info(
-                            batch["id"][i]+" "+"|".join([' '.join(sent) for sent in ex]))
+                            batch["id"][i]+" "+" | ".join([' '.join(sent) for sent in ex]))
 
                 print_loss_total += loss.detach()
 
@@ -284,6 +271,7 @@ class BaseModel(nn.Module):
                 comp_ingr = [' '.join([self.vocab_main_ingr.idx2word.get(ingr.item(),'<unk>')[0] for ingr in comp_ingr_id[i]]) for i in range(comp_ingr_id.shape[0])]
                 showPairingAttention(comp_ingr, focused_ingrs, output_words[0], attentions,self.savepath,name=sample["id"][:3])
             elif "Att" in self.args.model_name:
+                attentions = att_data["attentions"][:,0]
                 showSentAttention(input_ingr, output_words[0], attentions,self.savepath,name=sample["id"][:3])
 
     def evaluateFromText(self, sample):
@@ -423,10 +411,9 @@ class Seq2seq(BaseModel):
                     :, 0]
                 if len(idx_end) == self.batch_size:
                     break
-                decoder_input = topi.squeeze().detach().view(
-                    1, -1)  # detach from history as input
+                decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
             else:
-                decoder_input = target_tensor[:, di].view(1, -1)
+                decoder_input = target_tensor[:, di].unsqueeze(0)
 
         return decoder_outputs, decoded_words, {"attentions": decoder_attentions[:di + 1]}
 
@@ -523,10 +510,9 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
                 if len(idx_end) == self.batch_size:
                     break
 
-                decoder_input = topi.squeeze().detach().view(
-                    1, -1)  # detach from history as input
+                decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
             else:
-                decoder_input = target_tensor[:, di].view(1, -1)
+                decoder_input = target_tensor[:, di].unsqueeze(0)
 
         return decoder_outputs, decoded_words, {"attentions": decoder_attentions[:di + 1],
                                                 "comp_ingrs":comp_ingrs[:di+1],
@@ -585,10 +571,9 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
                 if len(idx_end) == self.batch_size:
                     break
 
-                decoder_input = topi.squeeze().detach().view(
-                    1, -1)  # detach from history as input
+                decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
             else:
-                decoder_input = target_tensor[:, di].view(1, -1)
+                decoder_input = target_tensor[:, di].unsqueeze(0)
 
         return decoder_outputs, decoded_words, {"attentions": decoder_attentions[:di + 1],
                                                 "comp_ingrs":comp_ingrs[:di+1],
@@ -657,10 +642,9 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
                 if len(idx_end) == self.batch_size:
                     break
 
-                decoder_input = topi.squeeze().detach().view(
-                    1, -1)  # detach from history as input
+                decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
             else:
-                decoder_input = target_tensor[:, di].view(1, -1)
+                decoder_input = target_tensor[:, di].unsqueeze(0)
 
         return decoder_outputs, decoded_words, {"attentions": decoder_attentions[:di + 1],
                                                 "comp_ingrs":comp_ingrs[:di+1],
