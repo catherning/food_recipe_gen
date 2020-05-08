@@ -95,7 +95,6 @@ class BaseModel(nn.Module):
         self.batch_size = batch_size = target_tensor.shape[0]
 
         decoder_outputs, decoded_words, _ = self.forward(batch, iter=iter)
-        # TODO: check everywhere if change view, get correct data (use permute(dim)!!!!)
         
         if self.hierarchical:
             aligned_outputs = decoder_outputs.permute(0,3,1,2)
