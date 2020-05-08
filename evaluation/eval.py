@@ -179,28 +179,24 @@ def main(args):
     # TODO: analysis by cuisine
     
     # Average for all recipes
-    for k,v in bleu.items():
-        try:
-            LOGGER.info("BLEU{} = {}".format(k,v/NB_RECIPES))
-        except ZeroDivisionError:
-            LOGGER.info("BLEU{} = {}".format(k, 0))
-            
     try:
+        for k,v in bleu.items():
+            LOGGER.info("BLEU{} = {}".format(k,v/NB_RECIPES))
+                
         LOGGER.info("METEOR = {}".format(meteor/NB_RECIPES))
-    except:
-        LOGGER.info("METEOR = {}".format(0))
+        LOGGER.info("NB_INGR_INPUT = {}".format(
+            sum(len(data["ingr"]) for data in processed.values())/NB_RECIPES))
+        LOGGER.info("INGR_MENTIONED_TARGET = {}".format(target_ingr/NB_RECIPES))
+        LOGGER.info("INGR_MENTIONED_GEN = {}".format(gen_ingr/NB_RECIPES))
+        LOGGER.info("ADD_INGR_MENTIONED_GEN = {}".format(
+            added_ingr/NB_RECIPES))
         
-    LOGGER.info("NB_INGR_INPUT = {}".format(
-        sum(len(data["ingr"]) for data in processed.values())/NB_RECIPES))
-    LOGGER.info("INGR_MENTIONED_TARGET = {}".format(target_ingr/NB_RECIPES))
-    LOGGER.info("INGR_MENTIONED_GEN = {}".format(gen_ingr/NB_RECIPES))
-    LOGGER.info("ADD_INGR_MENTIONED_GEN = {}".format(
-        added_ingr/NB_RECIPES))
-    
-    LOGGER.info("STEP_TARGET = {}".format(target_step/NB_RECIPES))
-    LOGGER.info("STEP_GEN = {}".format(gen_step/NB_RECIPES))
-    LOGGER.info("GEN_SCORE = {}".format(gen_score/NB_RECIPES))
-    LOGGER.info("TARGET_SCORE = {}".format(target_score/NB_RECIPES))
+        LOGGER.info("STEP_TARGET = {}".format(target_step/NB_RECIPES))
+        LOGGER.info("STEP_GEN = {}".format(gen_step/NB_RECIPES))
+        LOGGER.info("GEN_SCORE = {}".format(gen_score/NB_RECIPES))
+        LOGGER.info("TARGET_SCORE = {}".format(target_score/NB_RECIPES))
+    except ZeroDivisionError:
+        print("There's no recipes")
 
 
 if __name__ == "__main__":
