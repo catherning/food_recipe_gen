@@ -410,7 +410,7 @@ class Seq2seq(BaseModel):
                     :, 0]
                 if len(idx_end) == self.batch_size:
                     break
-                decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
+                decoder_input = topi.squeeze().detach().view(1,-1)  # detach from history as input
             else:
                 decoder_input = target_tensor[:, di].unsqueeze(0)
 
@@ -509,7 +509,7 @@ class Seq2seqIngrPairingAtt(Seq2seqAtt):
                 if len(idx_end) == self.batch_size:
                     break
 
-                decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
+                decoder_input = topi.squeeze().detach().view(1,-1)  # detach from history as input
             else:
                 decoder_input = target_tensor[:, di].unsqueeze(0)
 
@@ -570,7 +570,7 @@ class Seq2seqTitlePairing(Seq2seqIngrPairingAtt):
                 if len(idx_end) == self.batch_size:
                     break
 
-                decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
+                decoder_input = topi.squeeze().detach().view(1,-1)  # detach from history as input
             else:
                 decoder_input = target_tensor[:, di].unsqueeze(0)
 
@@ -641,7 +641,7 @@ class Seq2seqCuisinePairing(Seq2seqIngrPairingAtt):
                 if len(idx_end) == self.batch_size:
                     break
 
-                decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
+                decoder_input = topi.squeeze().detach().view(1,-1)  # detach from history as input
             else:
                 decoder_input = target_tensor[:, di].unsqueeze(0)
 

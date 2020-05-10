@@ -36,7 +36,7 @@ class PairingData:
 
         self.toPickle(pickle_file)
 
-    def addPairing(self,ingr1,ingr2,score):
+    def addPairing(self,ingr1,ingr2,score,unknown=True):
         try:
             self.pairing_scores[self.pairedIngr[ingr1]][self.pairedIngr[ingr2]] = score
         except KeyError:
@@ -69,8 +69,8 @@ class PairingData:
                     if ingr2 not in self.pairedIngr:
                         self.pairedIngr[ingr2]=self.vocab_ingrs.word2idx[ingr2]
                         
-                    self.addPairing(ingr1,ingr2,row[score_name])
-                    self.addPairing(ingr2,ingr1,row[score_name])
+                    self.addPairing(ingr1,ingr2,row[score_name],unknown)
+                    self.addPairing(ingr2,ingr1,row[score_name],unknown)
                 except (AttributeError):
                     if ingr_norm.normalize_ingredient(row["ingr1"]) is None:
                         error_set.add(row["ingr1"])

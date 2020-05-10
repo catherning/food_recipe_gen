@@ -55,7 +55,7 @@ class HierDecoderRNN(DecoderRNN):
                     :, 0]
                 if len(idx_end) == self.batch_size:
                     break
-                sub_decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
+                sub_decoder_input = topi.squeeze().detach().view(1,-1)  # detach from history as input
             else:
                 sub_decoder_input = target_tensor[:, cur_step, i].unsqueeze(0)
 
@@ -114,7 +114,7 @@ class HierAttnDecoderRNN(HierDecoderRNN):
                     :, 0]
                 if len(idx_end) == self.batch_size:
                     break
-                sub_decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
+                sub_decoder_input = topi.squeeze().detach().view(1,-1)  # detach from history as input
             else:
                 sub_decoder_input = target_tensor[:, cur_step, i].unsqueeze(0)
 
@@ -196,7 +196,7 @@ class HierPairAttnDecoderRNN(HierDecoderRNN):
                     :, 0]
                 if len(idx_end) == self.batch_size:
                     break
-                sub_decoder_input = topi.squeeze().detach().unsqueeze(0)  # detach from history as input
+                sub_decoder_input = topi.squeeze().detach().view(1,-1)  # detach from history as input
             else:
                 sub_decoder_input = target_tensor[:, cur_step, di].unsqueeze(0)
 
