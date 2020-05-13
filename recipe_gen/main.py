@@ -212,6 +212,11 @@ def main():
             model.training_losses = checkpoint['train_losses']
         except KeyError:
             model.training_losses = checkpoint['loss_list']
+        try:
+            model.val_losses = checkpoint['val_losses']
+        except KeyError:
+            pass
+            
         try:   
             model.best_loss = checkpoint['best_loss']
         except KeyError:
