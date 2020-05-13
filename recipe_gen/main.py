@@ -207,7 +207,7 @@ def main():
             [optim.load_state_dict(checkpoint['optimizer_state_dict'][i])
             for i, optim in enumerate(model.optim_list)]
         
-        args.begin_epoch = checkpoint['epoch']
+        args.begin_epoch = checkpoint['epoch']+1
         try:
             model.training_losses = checkpoint['train_losses']
         except KeyError:
@@ -222,7 +222,7 @@ def main():
         except KeyError:
             pass
         print("Model loaded for resuming training.")
-        showPlot(model.training_losses, model.training_losses, model.savepath)
+        showPlot(model.training_losses, model.val_losses, model.savepath)
 
     if args.load:
         path = os.path.join(
