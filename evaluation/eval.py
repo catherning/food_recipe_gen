@@ -59,7 +59,7 @@ def processOutput(args):
                 # TODO: check if punction with/without space is oks
                 # TODO: opt => direct can calculate the metrics instead of looping again
                 try:
-                    processed[output[0]] = {"ref": list(itertools.chain.from_iterable(ref[output[0]]["tokenized"])),
+                    processed[output[0]] = {"ref": ref[output[0]]["tokenized"],
                                             "gen": output[1:-1],
                                             "ingr": [ingr.name for ingr in ref[output[0]]["ingredients"]],
                                             "ref_step":len(ref[output[0]]["instructions"])}
@@ -130,12 +130,14 @@ def main(args):
     pairing = loadPairing()
 
     bleu = {i: 0 for i in range(1, 5)}
+    sent_bleu = {i: 0 for i in range(1, 5)}
     bleu_w = {1: (1, 0, 0, 0),
               2: (0.5, 0.5, 0, 0),
               3: (0.33, 0.33, 0.33, 0),
               4: (0.25, 0.25, 0.25, 0.25)}
 
     meteor = 0
+    sent_meteor = 0
     rouge = 0
     # TODO: calc ROUGE
     target_ingr = 0
@@ -147,15 +149,39 @@ def main(args):
     gen_mentioned_score = 0
     target_score = 0
     for data in processed.values():
-        for k, v in bleu.items():
-            v += sentence_bleu(data["ref"], data["gen"], weights=bleu_w[k])
+        recipe_joined = " ".join(list(itertools.chain.from_iterable(data["ref"])))
+        if "Hierarchical" in args.model_name:
+            t_bleu = {i: 0 for i in range(1, 5)}
+            gen_recipe = " ".join(data["gen"]).split(" | ")
+            for i,sent in enumerate(data["ref"]):
+                # Skip or keep recipes where nb steps > max_step in hierar ?
+                try:
+                    sent_str = " ".join(sent)
+                    for k in t_bleu.keys():
+                        t_bleu[k] += sentence_bleu(sent_str, gen_recipe[i], weights=bleu_w[k])                
+                except IndexError:
+                    break
+            for k in sent_bleu.keys():
+                sent_bleu[k]+= t_bleu[k]/data["ref_step"]
+        else:
+            for k, v in bleu.items():
+                v += sentence_bleu(data["ref"], data["gen"], weights=bleu_w[k])
 
-        meteor += single_meteor_score(
-            " ".join(data["ref"]), " ".join(data["gen"]))
+        
+        if "Hierarchical" in args.model_name:
+            t_meteor = 0
+            for i,sent in enumerate(data["ref"]):
+                try:
+                    t_meteor += single_meteor_score(" ".join(sent),gen_recipe[i])
+                except IndexError:
+                    break
+            sent_meteor+=t_meteor/data["ref_step"]
+        
+        meteor += single_meteor_score(recipe_joined, " ".join(data["gen"]))
 
         for ingr in data["ingr"]:
             # ingr from the input that are mentioned
-            if ingr in data["ref"]:
+            if ingr in recipe_joined:
                 target_ingr += 1
         
         
@@ -184,6 +210,10 @@ def main(args):
             LOGGER.info("BLEU{} = {}".format(k,v/NB_RECIPES))
                 
         LOGGER.info("METEOR = {}".format(meteor/NB_RECIPES))
+        if "Hierarchical" in args.model_name:
+            for k,v in sent_bleu.items():
+                LOGGER.info("HIER BLEU{} = {}".format(k,v/NB_RECIPES))
+            LOGGER.info("HIERARCHICAL METEOR = {}".format(sent_meteor/NB_RECIPES))
         LOGGER.info("NB_INGR_INPUT = {}".format(
             sum(len(data["ingr"]) for data in processed.values())/NB_RECIPES))
         LOGGER.info("INGR_MENTIONED_TARGET = {}".format(target_ingr/NB_RECIPES))
