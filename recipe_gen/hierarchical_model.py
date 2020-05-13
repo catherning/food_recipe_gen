@@ -89,7 +89,7 @@ class HierarchicalSeq2seq(Seq2seq):
             target_tensor = None
 
         decoder_input, sub_decoder_input, decoded_words, sub_decoder_outputs, decoder_attentions = self.initForward(
-            input_tensor)  # not same init, at least for decoder_input !!!!
+            input_tensor)
 
         # encoder_outputs (max_ingr,batch, 2*hidden_size)
         # encoder_hidden (2, batch, hidden_size)
