@@ -296,7 +296,7 @@ class BaseModel(nn.Module):
                 pass
             
             try:
-                batch["cuisine"] = torch.LongTensor([self.train_dataset.vocab_cuisine.word2idx[sample["cuisine"]]])
+                batch["cuisine"] = torch.tensor(self.train_dataset.vocab_cuisine.word2idx[sample["cuisine"]])
             except (KeyError,AttributeError):
                 pass
             

@@ -268,10 +268,10 @@ class HierarchicalCuisinePairing(HierarchicalIngrPairingAtt, Seq2seqCuisinePairi
         encoder_outputs, encoder_hidden = self.encoder.forward_all(
             input_tensor)
 
-        cuisine_tensor = batch["cuisine"].to(self.device)
-        cuisine_encoding = self.cuisine_encoder(cuisine_tensor)
+        cuisine_tensor = batch["cuisine"].to(self.device) # (N)
+        cuisine_encoding = self.cuisine_encoder(cuisine_tensor) # (N,hidden)
         cuisine_encoding = torch.stack(
-            [cuisine_encoding] * self.encoder.gru_layers)
+            [cuisine_encoding] * self.encoder.gru_layers) # => (gru_layers, N, hidden)
 
         decoder_hidden = torch.cat(
             (encoder_hidden, cuisine_encoding), dim=2)
