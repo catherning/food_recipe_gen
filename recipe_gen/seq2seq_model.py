@@ -225,6 +225,7 @@ class BaseModel(nn.Module):
             self.logger.info("Eval loss = {}".format(print_loss_avg))
 
     def evalSample(self,sample):
+        self.logger.info("Eval for id {}".format(sample["id"]))
         for k in ["ingr"]+["target_instr"]*("target_instr" in sample)+["title"]*("title" in sample)+["cuisine"]*("cuisine" in sample):
             sample[k] = sample[k].unsqueeze(0)
         _, output_words, att_data = self.forward(sample)
