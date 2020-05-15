@@ -201,26 +201,13 @@ def main():
             checkpoint = torch.load(os.path.join(path, newest_file),map_location='cuda:0')
         model.load_state_dict(checkpoint['model_state_dict'])
         
-        try:
-            model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        except AttributeError:
-            [optim.load_state_dict(checkpoint['optimizer_state_dict'][i])
-            for i, optim in enumerate(model.optim_list)]
+        model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         
         args.begin_epoch = checkpoint['epoch']+1
-        try:
-            model.training_losses = checkpoint['train_losses']
-        except KeyError:
-            model.training_losses = checkpoint['loss_list']
-        try:
-            model.val_losses = checkpoint['val_losses']
-        except KeyError:
-            pass
-            
-        try:   
-            model.best_loss = checkpoint['best_loss']
-        except KeyError:
-            pass
+        model.training_losses = checkpoint['train_losses']
+        model.val_losses = checkpoint['val_losses']
+        model.best_loss = checkpoint['best_loss']
+
         print("Model loaded for resuming training.")
         showPlot(model.training_losses, model.val_losses, model.savepath)
 
@@ -237,17 +224,11 @@ def main():
 
     model.to(args.device)
 
-    try:
-        for state in model.optimizer.state.values():
-                for k, v in state.items():
-                    if torch.is_tensor(v):
-                        state[k] = v.to(args.device)
-    except AttributeError:
-        for optim in model.optim_list:
-            for state in optim.state.values():
-                for k, v in state.items():
-                    if torch.is_tensor(v):
-                        state[k] = v.to(args.device)
+    for state in model.optimizer.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.to(args.device)
+
 
     if args.train_mode:
         print("Begin training.")
