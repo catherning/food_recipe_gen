@@ -354,7 +354,7 @@ def showAttention(input_sentence, output_words, attentions,path, title = None, n
     ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
     
     if title:
-        plt.title("Focused ingredient : {}".format(title), y=1)
+        plt.title("Focused ingredient : {}".format(title), y=-2)
 
     plt.savefig(os.path.join(path,'attention_{}.png'.format(name)))
     plt.close(fig)

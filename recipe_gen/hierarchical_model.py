@@ -129,7 +129,7 @@ class HierarchicalIngrAtt(HierarchicalSeq2seq):
         self.optimizer = optim.Adam(self.parameters(), lr=args.learning_rate)
 
 
-class HierarchicalIngrPairingAtt(HierarchicalSeq2seq, Seq2seq):
+class HierarchicalIngrPairingAtt(HierarchicalSeq2seq, Seq2seqIngrPairingAtt):
     def __init__(self, args):
         super().__init__(args)
         self.decoder = HierPairAttnDecoderRNN(args, self.output_size, self.train_dataset.vocab_tokens.idx2word,
