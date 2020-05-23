@@ -165,6 +165,7 @@ class BaseModel(nn.Module):
                 'best_loss': best_loss,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
+                'best_epochs':self.best_epochs
             }, os.path.join(self.savepath, "train_model_{}_{}.tar".format(datetime.now().strftime('%m-%d-%H-%M'), ep)))
 
             if val_loss < best_loss:

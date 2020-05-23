@@ -207,7 +207,11 @@ def main():
         model.training_losses = checkpoint['train_losses']
         model.val_losses = checkpoint['val_losses']
         model.best_loss = checkpoint['best_loss']
-
+        try:
+            model.best_epochs = checkpoint['best_epochs']
+        except KeyError:
+            pass
+        
         print("Model loaded for resuming training.")
         showPlot(model.training_losses, model.val_losses, model.savepath)
 
