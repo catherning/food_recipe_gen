@@ -38,9 +38,9 @@ class PairingData:
 
     def addPairing(self,ingr1,ingr2,score,unknown=True):
         try:
-            self.pairing_scores[self.pairedIngr[ingr1]][self.pairedIngr[ingr2]] = score
+            self.pairing_scores[self.pairedIngr[ingr1]][self.pairedIngr[ingr2]] = (score,unknown)
         except KeyError:
-            self.pairing_scores[self.pairedIngr[ingr1]] = {self.pairedIngr[ingr2]:score}
+            self.pairing_scores[self.pairedIngr[ingr1]] = {self.pairedIngr[ingr2]:(score,unknown)}
 
     def trimDict(self):
         for v in self.pairing_scores.values():
@@ -71,15 +71,16 @@ class PairingData:
                         
                     self.addPairing(ingr1,ingr2,row[score_name],unknown)
                     self.addPairing(ingr2,ingr1,row[score_name],unknown)
-                except (AttributeError):
+                except (AttributeError,KeyError):
                     if ingr_norm.normalize_ingredient(row["ingr1"]) is None:
                         error_set.add(row["ingr1"])
                     if ingr_norm.normalize_ingredient(row["ingr2"]) is None:
                         error_set.add(row["ingr2"])
                     count_error += 1
                     continue
-                except KeyError as e:
-                    print(e,row["ingr1"],row["ingr2"])
+                # except KeyError as e:
+                #     pass
+                    #print(e,row["ingr1"],row["ingr2"])
         print(error_set)
 
 
@@ -92,9 +93,10 @@ class PairingData:
         returns [16,129], [0.0189,0.0022]
         """
         try:
-            return list(self.pairing_scores[ingr_id.item()].keys()), list(self.pairing_scores[ingr_id.item()].values())
+            temp = self.pairing_scores[ingr_id.item()].values()
+            return list(self.pairing_scores[ingr_id.item()].keys()), [el[0] for el in temp],[el[1] for el in temp]
         except KeyError:
-            return [],[]
+            return [],[],[]
         
 
     def __len__(self):

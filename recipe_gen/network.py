@@ -283,6 +283,7 @@ class PairingAtt(IngrAtt):
         self.unk_token = unk_token
         self.key_layer = nn.Linear(
             args.ingr_embed, self.hidden_size, bias=False)
+        self.unk_temp = args.unk_temp
 
     def forward(self, embedded, hidden, ingr_id, encoder_embedding):
         """
@@ -300,9 +301,9 @@ class PairingAtt(IngrAtt):
         comp_ingr_id = torch.ones(
             batch_size, self.pairings.top_k, dtype=torch.long, device=device)*self.unk_token
 
-        for i, (comp_ingr, score_list) in enumerate(map(self.pairings.bestPairingsFromIngr, ingr_id)):
+        for i, (comp_ingr, score_list,unknown_list) in enumerate(map(self.pairings.bestPairingsFromIngr, ingr_id)):
             comp_ingr_id[i, :len(comp_ingr)] = torch.LongTensor(comp_ingr)
-            scores[i, :len(score_list)] = torch.FloatTensor(score_list)
+            scores[i, :len(score_list)] = torch.FloatTensor(score_list)+torch.FloatTensor(unknown_list)*self.unk_temp
 
         # (N, top_k, ingr_embed)
         comp_emb = encoder_embedding(comp_ingr_id)

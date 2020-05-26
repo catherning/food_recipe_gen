@@ -121,6 +121,7 @@ argparser.add_argument('--bidirectional', type='bool', nargs='?',
                        const=True, default=True,
                        help='Uses nucleus sampling')
 argparser.add_argument('--num-gru-layers', type=int, default=1)
+argparser.add_argument('--unk-temp', type=float, default=0.2)
 
 argparser.add_argument('--hidden-size', type=int, default=128)
 argparser.add_argument('--word-embed', type=int, default=200)
