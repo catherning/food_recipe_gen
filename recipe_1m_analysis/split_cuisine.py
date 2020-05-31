@@ -26,8 +26,12 @@ def createZeroShotDataset(folder):
       with open(os.path.join(DATA_FOLDER,"recipe1m_{}_cuisine_log_reg.pkl".format(file)),'rb') as f:
         data_ml=pickle.load(f)
         
+      full_data = dict(filter(lambda rec: data_ml[rec[0]]["cuisine"]==rec[1]["cuisine"], data_nn.items()))
+      with open(os.path.join(folder, 'recipe1m_{}_cuisine.pkl'.format(file)), 'wb') as f:
+        pickle.dump(full_data, f)
+        
       for k,sp in split.items():
-        new_data = dict(filter(lambda rec: rec[1]["cuisine"] in sp and data_ml[rec[0]]["cuisine"]==rec[1]["cuisine"], data_nn.items()))
+        new_data = dict(filter(lambda rec: rec[1]["cuisine"] in sp, full_data.items()))
         with open(os.path.join(folder, 'recipe1m_{}_{}.pkl'.format(file,k)), 'wb') as f:
             pickle.dump(new_data, f)
 
