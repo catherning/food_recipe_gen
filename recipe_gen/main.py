@@ -149,13 +149,13 @@ def init_logging(args):
         args.saving_path, args.model_name, datetime.now().strftime('%m-%d-%H-%M'))
     if not os.path.isdir(saving_path):
         pathlib.Path(saving_path).mkdir(parents=True, exist_ok=True)
-        print('...created ' + saving_path)
 
     logfile = logging.FileHandler(os.path.join(saving_path, 'log.txt'), 'w')
 
     logfile.setFormatter(fmt)
     args.logger.addHandler(logfile)
     args.logger.handlers = args.logger.handlers[:2]
+    args.logger.info('Folder = ' + saving_path)
 
 
 def init_seed(args):

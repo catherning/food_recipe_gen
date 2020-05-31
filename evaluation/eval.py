@@ -54,7 +54,7 @@ def processOutput(args):
             for line in f:
                 output = line.split("[")[1].split()
                 # improve, an arg name could have len 10 like the ex id
-                if output[0] in args.__dict__ or output[0]=="Dataset":
+                if output[0] in args.__dict__ or output[0] in ("Dataset","Folder"):
                     continue
                 # TODO: check if punction with/without space is oks
                 # TODO: opt => direct can calculate the metrics instead of looping again
