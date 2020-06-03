@@ -214,7 +214,10 @@ def main():
             pass
         
         print("Model loaded for resuming training.")
-        showPlot(model.training_losses, model.val_losses, model.savepath)
+        try:
+            showPlot(model.training_losses, model.val_losses, model.savepath)
+        except ValueError as e:
+            print(e)
 
     if args.load:
         path = os.path.join(
