@@ -155,7 +155,6 @@ def init_logging(args):
     logfile.setFormatter(fmt)
     args.logger.addHandler(logfile)
     args.logger.handlers = args.logger.handlers[:2]
-    args.logger.info('Folder = ' + saving_path)
 
 
 def init_seed(args):

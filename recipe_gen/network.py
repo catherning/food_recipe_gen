@@ -321,7 +321,6 @@ class PairingAtt(IngrAtt):
         if scores.sum() == 0:
             return None, attn_weights, comp_ingr_id
 
-        # TODO: try with emphazing unknown pairings
         attn_scores = F.normalize((attn_weights * scores), 1)
 
         # attn_scores view: (batch,1,top_k)
