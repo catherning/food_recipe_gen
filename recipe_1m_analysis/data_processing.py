@@ -142,6 +142,10 @@ def genTokVoc(counter_toks):
     print("Total token vocabulary size: {}".format(len(vocab_toks)))
 
 def cleanCounterIngr(counter_ingrs):
+    """
+    Clean the ingredients (remove plurals, cluster similar ingredients) and update the counter as a consequence 
+    """
+    
     # manually add missing entries for better clustering
     base_words = ['peppers', 'tomato', 'spinach_leaves', 'turkey_breast', 'lettuce_leaf',
                 'chicken_thighs', 'milk_powder', 'bread_crumbs', 'onion_flakes',
@@ -170,6 +174,7 @@ def cleanCounterIngr(counter_ingrs):
     return counter_ingrs, cluster_ingrs
 
 def genIngrVoc(counter_ingrs):
+    """Generate the vocabulary of ingredients from the raw counter of ingredients in the full dataset"""
     counter_ingrs, cluster_ingrs = cleanCounterIngr(counter_ingrs)
 
     ## Ingredient vocab
@@ -195,9 +200,14 @@ def genIngrVoc(counter_ingrs):
     return vocab_ingrs, counter_ingrs
 
 def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs):
-    #####
-    # 1. Count words in dataset and clean
-    #####
+    """
+    Count words in dataset and clean
+    In :
+    - args : the arguments in the command line
+    - dets :
+    Out:
+    - The ingredients Vocabulary
+    """
 
     ingrs_file = os.path.join(args.save_path, 'allingrs_count.pkl')
     instrs_file = os.path.join(args.save_path, 'allwords_count.pkl')
@@ -208,6 +218,7 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
             counter_ingrs = pickle.load(f)
         with open(instrs_file, 'rb') as f:
             counter_toks = pickle.load(f)
+        # TODO: si on est dans cette boucle, on ne peut pas retourner vocab_ingrs ?
 
     else:
         if not os.path.exists(args.save_path):
@@ -304,6 +315,7 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
         acc_len = raw_instr(instrs, instrs_list, replace_dict_instrs)
 
         # we discard recipes with too many or too few ingredients or instruction words
+        # TODO: to optimise, could separate in two : first discard if instructions are not ok. If ok, preprocess ingredients
         if len(labels) < args.minnumingrs \
                 or len(instrs_list) < args.minnuminstrs \
                 or len(instrs_list) > args.maxnuminstrs \
@@ -349,7 +361,7 @@ def main(args):
     print("Loaded data.")
     print("Found %d recipes in the dataset." % (len(layer1)))
     replace_dict_ingrs = {'and': ['&', "'n"], '': [
-        '%', ',', '.', '#', '[', ']', '!', '?']}
+        '%', ',', '.', '#', '[', ']', '!', '?']} # TODO: not used => to delete or add again?
     replace_dict_instrs = {'and': ['&', "'n"], '': ['#', '[', ']']} #Added dot because keep gen dot. => removed again
 
     idx2ind = {}
