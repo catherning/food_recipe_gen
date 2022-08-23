@@ -16,11 +16,13 @@ import re
 import sys
 from datetime import datetime
 sys.path.insert(0, os.getcwd())
+
+nltk.download('punkt')
  
 from recipe_1m_analysis.utils import Vocabulary
 import recipe_1m_analysis.ingr_normalization as ingr_norm
 
-# TODO: clean all this mess
+# TODO: clean code, optimize: Create a full preprocessed dataset and save it. Reload it and filter it with the main function paramaters to create the train, test, val datasets
 
 def get_instruction(instruction, replace_dict, instruction_mode=True):
     instruction = instruction.lower()
@@ -282,6 +284,17 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
 
 
 def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs, vocab_ingrs):
+    """_summary_
+
+    Args:
+        args (_type_): _description_
+        dets (_type_): _description_
+        idx2ind (_type_): _description_
+        layer1 (_type_): _description_
+        replace_dict_ingrs (_type_): _description_
+        replace_dict_instrs (_type_): _description_
+        vocab_ingrs (Vocabulary): _description_
+    """
     ######
     # 2. Tokenize and build dataset based on vocabularies.
     ######
@@ -296,6 +309,7 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
         instrs_list = []
         ingrs_list = []
 
+        # TODO: optimize / refactor : some things done twice in this function and clean counter
         # retrieve pre-detected ingredients for this entry
         det_ingrs = dets[idx2ind[entry['id']]]['ingredients']
         valid = dets[idx2ind[entry['id']]]['valid']

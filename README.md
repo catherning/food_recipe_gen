@@ -46,6 +46,7 @@ The ingredients are those detected in the det_ingrs.json file, crossed with the 
 run_data_processing.bat calls data_processing, which uses ingr_normalization
 
 #### Parameters
+Only --recipe1m_path is necessary
 --threshold_ingrs : minimum ingr count threshold
 --minnuminstrs : min number of instructions (sentences)
 --maxnuminstr : max number of instructions (sentences)
