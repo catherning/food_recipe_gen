@@ -3,8 +3,6 @@
 
 # https://github.com/facebookresearch/inversecooking/blob/master/src/build_vocab.py
 
-
-import nltk
 import pickle
 import argparse
 from collections import Counter
@@ -15,6 +13,7 @@ import numpy as np
 import re
 import sys
 from datetime import datetime
+import nltk
 sys.path.insert(0, os.getcwd())
 
 nltk.download('punkt')
@@ -24,7 +23,19 @@ import recipe_1m_analysis.ingr_normalization as ingr_norm
 
 # TODO: clean code, optimize: Create a full preprocessed dataset and save it. Reload it and filter it with the main function paramaters to create the train, test, val datasets
 
-def get_instruction(instruction, replace_dict, instruction_mode=True):
+def get_instruction(instruction, replace_dict):
+    """Clean one instruction in a recipe :
+    - All in lowercase
+    - Replaces words with those in the replace_dict (only small words and some special characters)
+    Called by `data_processing.raw_instr`. TODO: could merge get_instruction into raw_instr
+
+    Args:
+        instruction (str): The instruction sentence
+        replace_dict (dict): The dictionary in the form {replacing_word:[words_to_be_replaced_by]}
+
+    Returns:
+        str: The cleaned instruction
+    """
     instruction = instruction.lower()
 
     for rep, char_list in replace_dict.items():
@@ -32,13 +43,28 @@ def get_instruction(instruction, replace_dict, instruction_mode=True):
             if c_ in instruction:
                 instruction = instruction.replace(c_, rep)
         instruction = instruction.strip()
+        
     # remove sentences starting with "1.", "2.", ... from the targets
-    if len(instruction) > 0 and instruction[0].isdigit() and instruction_mode:
+    if len(instruction) > 0 and instruction[0].isdigit():
         instruction = ''
     return instruction
 
 
 def remove_plurals(counter_ingrs, ingr_clusters):
+    """Put ingredients that are mentioned in plurals in the ingredient list with the singular form. 
+    Update the counter_ingrs and ingr_clusters given as parameter accordingly.
+    
+    Example : Input :
+    counter_ingrs = {"carot":3,"carots":2}
+    ingr_clusters = 
+
+    Args:
+        counter_ingrs (_type_): _description_
+        ingr_clusters (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     del_ingrs = []
 
     for k, v in counter_ingrs.items():
@@ -385,7 +411,7 @@ def main(args):
     #####
     # 1. Count words in dataset and clean
     #####
-    args.save_path = os.path.join(args.save_path,datetime.now().strftime('%m-%d-%H-%M'))
+    args.save_path = os.path.join(args.save_path,datetime.now().strftime('%m-%d-%H-%M')) # Saves all created files in a new dated folder
     if args.forcegen_all:
         vocab_ingrs = clean_count(
             args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs)

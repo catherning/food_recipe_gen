@@ -7,6 +7,13 @@ Git of the project for the Food recipe generation with computational creativity
 - Make an extensive analysis of the datasets, and predict the cuisine country origin (French, Japanese, ...) based on the ingredients
 - Make a comparison of the different ML models used for the two goals above
 
+## Installation
+
+Apart from the packages in the requirements.txt file, also need NLTK
+`sudo apt-get install python-nltk` on a unix environment
+
+(Using conda env, but installing packages with pip, tested with python 3.6)
+
 ## Datasets used
 
 ### Recipe1M
@@ -35,6 +42,8 @@ We only need the textual info from the dataset: the det_ingrs.json (Ingredient d
 ## Steps 
 
 ### Data processing
+
+``
 
 run_data_processing.bat to process the Recipe1M dataset
 1. Clean and count the words, including the ingredients in the dataset
