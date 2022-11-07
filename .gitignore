@@ -134,3 +134,6 @@ recipe_gen/mt_data_processing.py
 ml_results/
 KitcheNette_master/data/main_pairing_prediction_pfe.csv
 foodrecipe_env/
+.vs/food_recipe_gen/v15/.suo
+.vs/VSWorkspaceState.json
+.vs/slnx.sqlite

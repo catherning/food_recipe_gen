@@ -17,7 +17,7 @@ units = re.compile(
     r'^(cubes?|cups?|c(a?ns?)?|[tT]|bulbs?|sprigs?|glass(es)?|dice|blocks?|an?|l|fl(uid)?\.?|ears?|lea(f|ves)|jars?|cartons?|strips?|heads?|wedges?|envelopes?|pints?|stalks?|sticks?|pinch(es)?|qts?|quarts?|handful|weight|bottles?|grinds?|tb\.?|lbs?\.?|oz\.?|mls?|g|containers?|tablespoons?|teaspoons?|dash(es)?|pounds?|pinch|box(es)?|cans?|(milli)?lit[er]{2}s?|pkg\.?|pack(et)s?|packages?|whole|bars?|bags?|tbsps?\.?|tbs\.?|ts|tsps?\.?|ounces?|dash|pieces?|slices?|bunch(es)?|sticks?|fl\.?|gallons?|squares?|knobs?|grams?|kgs?|tub(es)?|kilograms?|tins?|%|drizzles?|splash(es)?|chunks?|inch(es)?)$')
 number = re.compile(r'((\d+)?\.\d+|(\d+(/\d+)?-)?\d+(/\d+)?)')
 # TODO: add "whole" to blacklist ?????
-# added cloth, to blacklist
+# added cloth to blacklist
 blacklist = {'','-',';','c.','.','of', 'and', '&amp;', 'or', 'some', 'many', 'few', 'couple', 'as', 'needed', 'plus', 'more', 'to', 'serve',
              'taste', 'x', 'in', 'cook', 'with', 'at', 'room', 'temperature', 'only', 'cover', 'length',
              'into', 'if', 'then', 'out', 'preferably', 'well', 'good', 'better', 'best', 'about', 'all-purpose', 'all',
@@ -99,6 +99,14 @@ def lemmatize(word):
 
 
 def normalize_ingredient(raw_name):
+    """Normalizes the raw ingredient : returns an Ingredient type giving info about the quantity (number and unit) and lemmatize the ingredient itself
+
+    Args:
+        raw_name (str): Raw ingredient name
+
+    Returns:
+        Ingredient: Processed ingredient
+    """
     num, unit, adjectives = 0, None, set()
     name = None
     plural = False

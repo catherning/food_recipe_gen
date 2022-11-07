@@ -23,7 +23,7 @@ import recipe_1m_analysis.ingr_normalization as ingr_norm
 
 # TODO: clean code, optimize: Create a full preprocessed dataset and save it. Reload it and filter it with the main function paramaters to create the train, test, val datasets
 
-def get_instruction(instruction, replace_dict):
+def clean_instruction(instruction, replace_dict):
     """Clean one instruction in a recipe :
     - All in lowercase
     - Replaces words with those in the replace_dict (only small words and some special characters)
@@ -45,7 +45,7 @@ def get_instruction(instruction, replace_dict):
         instruction = instruction.strip()
         
     # remove sentences starting with "1.", "2.", ... from the targets
-    if len(instruction) > 0 and instruction[0].isdigit():
+    if len(instruction) > 0 and re.match(r"\d+\.",instruction) and len(instruction)<4:
         instruction = ''
     return instruction
 
@@ -94,6 +94,14 @@ def remove_plurals(counter_ingrs, ingr_clusters):
 
 
 def cluster_ingredients(counter_ingrs):
+    """_summary_
+
+    Args:
+        counter_ingrs (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     new_counter = dict()
     new_ingr_cluster = dict()
 
@@ -133,26 +141,54 @@ def cluster_ingredients(counter_ingrs):
     return new_counter, new_ingr_cluster
 
 
-def update_counter(list_, counter_toks, istrain=False):
-    for sentence in list_:
+def update_counters(title, instrs_list, ingrs_list, counter_toks, counter_ingrs):
+    """Updates ingr and instr counters with title, list of ingredients and list of instructions
+
+    Args:
+        title (str): Title of the recipe
+        instrs_list (list): List of instructions of the recipe
+        ingrs_list (list): List of ingredients of the recipe
+        counter_toks (counter): Counter of tokens updated with the tokenized title, ingredients and instructions
+        counter_ingrs (counter): Counter of ingredients updated with the tokenized ingredients
+    """
+    for sentence in instrs_list:
         tokens = nltk.tokenize.word_tokenize(sentence)
-        if istrain:
-            counter_toks.update(tokens)
+        counter_toks.update(tokens)
+        
+    counter_toks.update(nltk.tokenize.word_tokenize(title))
+    ingr_str = [ingr.name for ingr in ingrs_list]
+    counter_ingrs.update(ingr_str)
+    counter_toks.update(ingr_str) # add ingr to whole recipe vocab
 
 
-def raw_instr(instrs, instrs_list, replace_dict_instrs):
+def preprocess_instr(instrs, replace_dict_instrs):
+    """Clean the instructions and count the number of words in all the instructions
+
+    Args:
+        instrs (list): List of raw instructions 
+        replace_dict_instrs (dict): Dictionary of symbols to replace in instructions
+
+    Returns:
+        int: Total length of the instructions
+        list: List of cleaned instructions
+    """
+    instrs_list = []
     acc_len = 0
     for instr in instrs:
-        instr = instr['text']
-        instr = get_instruction(instr, replace_dict_instrs)
-        if len(instr) > 0:
-            instrs_list.append(instr)
+        instr_t = instr['text']
+        instr_t = clean_instruction(instr_t, replace_dict_instrs)
+        if len(instr_t) > 0:
+            instrs_list.append(instr_t)
             acc_len += len(instr)
-    return acc_len
+    return acc_len, instrs_list
 
 def genTokVoc(counter_toks):
-    ## Recipe vocab
-    # Create a vocab wrapper and add some special tokens.
+    """Recipe vocab. Create a vocab wrapper and add some special tokens.
+
+    Args:
+        counter_toks (_type_): _description_
+    """
+    ## 
     vocab_toks = Vocabulary()
     vocab_toks.add_word('<pad>')
     vocab_toks.add_word('<sos>')
@@ -228,14 +264,20 @@ def genIngrVoc(counter_ingrs):
     return vocab_ingrs, counter_ingrs
 
 def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_instrs):
+    """Count words in dataset and clean
+
+    Args:
+        args (_type_): The arguments in the command line
+        dets (_type_): The pre-detected and loaded ingredients
+        idx2ind (_type_): _description_
+        layer1 (_type_): _description_
+        replace_dict_ingrs (_type_): _description_
+        replace_dict_instrs (_type_): _description_
+
+    Returns:
+        _type_: The ingredients Vocabulary
     """
-    Count words in dataset and clean
-    In :
-    - args : the arguments in the command line
-    - dets :
-    Out:
-    - The ingredients Vocabulary
-    """
+
 
     ingrs_file = os.path.join(args.save_path, 'allingrs_count.pkl')
     instrs_file = os.path.join(args.save_path, 'allwords_count.pkl')
@@ -255,12 +297,21 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
         counter_toks = Counter()
         counter_ingrs = Counter()
 
-        for i, entry in tqdm(enumerate(layer1)):
-
+        for i,entry in tqdm(enumerate(layer1)):
+            if __debug__:
+                if i==1000:
+                    break
+            
+            if entry['partition'] != 'train':
+                continue
+            
             # get all instructions for this recipe
             instrs = entry['instructions']
+            
+            if len(instrs) < args.minnuminstrs \
+                or len(instrs) >= args.maxnuminstrs :
+                continue
 
-            instrs_list = []
             ingrs_list = []
 
             # retrieve pre-detected ingredients for this entry
@@ -276,26 +327,19 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
                     if det_ingr_undrs is not None:
                         ingrs_list.append(det_ingr_undrs)
 
-            # get raw text for instructions of this entry
-            acc_len = raw_instr(instrs, instrs_list, replace_dict_instrs)
+            # Preprocess (lowercase + replace special symbols) instructions of this entry
+            acc_len, instrs_list = preprocess_instr(instrs, replace_dict_instrs)
 
             # discard recipes with too few or too many ingredients or instruction words
             if len(ingrs_list) < args.minnumingrs \
-                    or len(instrs_list) < args.minnuminstrs \
-                    or len(instrs_list) >= args.maxnuminstrs \
-                    or len(ingrs_list) >= args.maxnumingrs \
-                    or acc_len < args.minnumwords:
+                or len(ingrs_list) >= args.maxnumingrs \
+                or acc_len < args.minnumwords:
                 continue
 
-            # tokenize sentences and update counter
-            update_counter(instrs_list, counter_toks,
-                           istrain=entry['partition'] == 'train')
-            title = nltk.tokenize.word_tokenize(entry['title'].lower())
-            if entry['partition'] == 'train':
-                counter_toks.update(title)
-                ingr_str = [ingr.name for ingr in ingrs_list]
-                counter_ingrs.update(ingr_str)
-                counter_toks.update(ingr_str) # add ingr to whole recipe vocab
+            # Updates ingr and instr counters with title, list of ingredients and list of instructions
+            update_counters(entry['title'].lower(), instrs_list, ingrs_list, counter_toks,
+                        counter_ingrs)
+
 
         genTokVoc(counter_toks)
         vocab_ingrs, counter_ingrs = genIngrVoc(counter_ingrs)
@@ -327,12 +371,11 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
 
     dataset = {'train': {}, 'val': {}, 'test': {}}
 
-    for i, entry in tqdm(enumerate(layer1)):
+    for entry in tqdm(layer1):
 
         # get all instructions for this recipe
         instrs = entry['instructions']
 
-        instrs_list = []
         ingrs_list = []
 
         # TODO: optimize / refactor : some things done twice in this function and clean counter
@@ -352,7 +395,7 @@ def tokenize_dataset(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_di
                         labels.append(label_idx)
 
         # get raw text for instructions of this entry
-        acc_len = raw_instr(instrs, instrs_list, replace_dict_instrs)
+        acc_len, instrs_list = preprocess_instr(instrs, replace_dict_instrs)
 
         # we discard recipes with too many or too few ingredients or instruction words
         # TODO: to optimise, could separate in two : first discard if instructions are not ok. If ok, preprocess ingredients
@@ -404,7 +447,8 @@ def main(args):
         '%', ',', '.', '#', '[', ']', '!', '?']} # TODO: not used => to delete or add again?
     replace_dict_instrs = {'and': ['&', "'n"], '': ['#', '[', ']']} #Added dot because keep gen dot. => removed again
 
-    idx2ind = {}
+    idx2ind = {} # Mapping from the recipe id to the list index of dets
+    #TODO: remove idx2ind and instead transform dets to a dict : {"id":rest of info} 
     for i, entry in enumerate(dets):
         idx2ind[entry['id']] = i
 
@@ -466,3 +510,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     main(args)
+
+
+
+
