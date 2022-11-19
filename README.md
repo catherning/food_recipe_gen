@@ -44,15 +44,11 @@ We only need the textual info from the dataset: the det_ingrs.json (Ingredient d
 ### Data processing
 
 ``
-
-run_data_processing.bat to process the Recipe1M dataset
-1. Clean and count the words, including the ingredients in the dataset
-2. tokenize words in the recipes
-
+You can use the run_data_processing.bat script that calls data_processing.py to process the Recipe1M dataset. It : 
+1. Cleans and counts the words, including the ingredients in the dataset
+2. Tokenizes words in the recipes
 The ingredients are those detected in the det_ingrs.json file, crossed with the main layer1.json 
 
-
-run_data_processing.bat calls data_processing, which uses ingr_normalization
 
 #### Parameters
 Only --recipe1m_path is necessary
@@ -65,7 +61,7 @@ Only --recipe1m_path is necessary
 --forcegen : Force the generation of the vocabulary files, even if they exist in the target folder
 TODO: --forcegen-all : seems redundant with forcegen
 
-TODO: générer automatiquement la docu comme pour Sicore
+TODO: générer automatiquement la docu
 
 #### Created files
 - allingrs_count.pkl: Counter of the ingredients of the preprocessed dataset (filtered out the recipes with too few/many ingredients/instructions) 
@@ -80,3 +76,23 @@ Structure : [
 'ingredients': ingrs_list, 
 'title': title}
 ]
+
+### Predict ingredient pairing
+Use the KitcheNette model to predict the ingredient pairing score of all ingredient combinations in the dataset generated at the previous step
+
+### Recipe generation
+The main.py file is the main file for training the models. It can resumes training from a saved model.
+The different kinds of model are:
+- Seq2seq: baseline Seq2Seq with an RNN encoder and decoder. The optimizer is Adam with the Cross entropy loss
+- Seq2seqAtt: Seq2Seq with a classic attention mechanism
+- Seq2seqIngrAtt: Seq2Seq with the Ingredient attention mechanism 
+- Seq2seqIngrPairingAtt: Seq2Seq with the Ingredient attention mechanism which includes the score of ingredient pairing
+- Seq2seqTitlePairing: Ingredient pairing attention mechanism and includes the title of the recipe as input
+- Seq2seqCuisinePairing: Includes the cuisine of the recipe as input
+- Seq2seqTrans: Uses a Transformer decoder model
+- HierarchicalSeq2seq: Hierarchical Seq2seq baseline
+- HierarchicalAtt
+- HierarchicalIngrAtt
+- HierarchicalIngrPairingAtt
+- HierarchicalTitlePairing
+- HierarchicalCuisinePairing

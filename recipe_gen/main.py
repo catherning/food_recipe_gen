@@ -14,8 +14,8 @@ import cProfile
 
 sys.path.insert(0, os.getcwd())
 
-from recipe_1m_analysis.utils import Vocabulary
-from recipe_gen.pairing_utils import PairingData
+# from recipe_1m_analysis.utils import Vocabulary
+# from recipe_gen.pairing_utils import PairingData
 from recipe_gen.seq2seq_utils import FOLDER_PATH,DATA_FILES, showPlot
 
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"

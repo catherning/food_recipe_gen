@@ -51,15 +51,15 @@ def clean_instruction(instruction, replace_dict):
 
 
 def remove_plurals(counter_ingrs, ingr_clusters):
-    """Put ingredients that are mentioned in plurals in the ingredient list with the singular form. 
-    Update the counter_ingrs and ingr_clusters given as parameter accordingly.
+    """Puts ingredients that are mentioned in plurals in the ingredient list with the singular form. The singular form must already be in 'counter_ingrs'
+    Updates the counter_ingrs and ingr_clusters given as parameters accordingly.
     
-    Example : Input :
-    counter_ingrs = {"carot":3,"carots":2}
-    ingr_clusters = 
+    Example : Input 
+    counter_ingrs = {"carot":3,"carots":2} becomes {"carot":5}
+    ingr_clusters = {"carot":["carot","diced_carot"]} becomes {"carot":["carot","diced_carot","carots]}
 
     Args:
-        counter_ingrs (_type_): _description_
+        counter_ingrs (_type_): The counter of clustered ingredients
         ingr_clusters (_type_): _description_
 
     Returns:
@@ -73,15 +73,14 @@ def remove_plurals(counter_ingrs, ingr_clusters):
             del_ingrs.append(k)
             continue
 
-        gotit = 0
         if k[-2:] == 'es':
             if k[:-2] in counter_ingrs.keys():
                 counter_ingrs[k[:-2]] += v
                 ingr_clusters[k[:-2]].extend(ingr_clusters[k])
                 del_ingrs.append(k)
-                gotit = 1
+                continue
 
-        if k[-1] == 's' and gotit == 0:
+        elif k[-1] == 's' :
             if k[:-1] in counter_ingrs.keys():
                 counter_ingrs[k[:-1]] += v
                 ingr_clusters[k[:-1]].extend(ingr_clusters[k])
@@ -90,17 +89,22 @@ def remove_plurals(counter_ingrs, ingr_clusters):
     for item in del_ingrs:
         del counter_ingrs[item]
         del ingr_clusters[item]
-    return counter_ingrs, ingr_clusters
 
 
 def cluster_ingredients(counter_ingrs):
-    """_summary_
+    """Clusters the similar ingredients that are from the same basic ingredient. 'new_counter' has updated the counter of the basic ingredient accordingly. 
+    new_ingr_cluster lists the different ingredients that are a variation on the basic ingredient. new_ingr_cluster's keys are the basic ingredients. 
+    The value is the list of variation ingredients. 
+    
+    Example: new_ingr_cluster = { "pimento":["pimento","diced_pimento], "vinegar" : ["vinegar","balsamic_vinegar","white_wine_vinegar"]}
 
     Args:
-        counter_ingrs (_type_): _description_
+        counter_ingrs (_type_): Counter of ingredients
 
     Returns:
-        _type_: _description_
+        counter: Updated counter
+        dict: Ingredients cluster
+        
     """
     new_counter = dict()
     new_ingr_cluster = dict()
@@ -119,7 +123,7 @@ def cluster_ingredients(counter_ingrs):
         gotit = 0
         for w in lw:
             if w in counter_ingrs.keys():
-                # check if its parts are
+                # check which part is the basic ingredient: it is the basic ingredient when the part is already in 'counter_ingrs'
                 parts = w.split('_')
                 if len(parts) > 0:
                     if parts[0] in counter_ingrs.keys():
@@ -179,14 +183,18 @@ def preprocess_instr(instrs, replace_dict_instrs):
         instr_t = clean_instruction(instr_t, replace_dict_instrs)
         if len(instr_t) > 0:
             instrs_list.append(instr_t)
-            acc_len += len(instr)
+            acc_len += len(instr_t)
     return acc_len, instrs_list
 
 def genTokVoc(counter_toks):
-    """Recipe vocab. Create a vocab wrapper and add some special tokens.
+    """Creates a vocab wrapper from the counter of tokens if the frequency of the tokens is above the threshold_words threshold and adds some special tokens.
+    Saves the vocabulary in a "recipe1m_vocab_toks" pickle file.
 
     Args:
-        counter_toks (_type_): _description_
+        counter_toks (Counter): Counter of tokens
+        
+    Returns:
+        vocab : the created vocabulary
     """
     ## 
     vocab_toks = Vocabulary()
@@ -204,10 +212,13 @@ def genTokVoc(counter_toks):
     with open(os.path.join(args.save_path, args.suff+'recipe1m_vocab_toks.pkl'), 'wb') as f:
         pickle.dump(vocab_toks, f)
     print("Total token vocabulary size: {}".format(len(vocab_toks)))
+    return vocab_toks
 
 def cleanCounterIngr(counter_ingrs):
-    """
-    Clean the ingredients (remove plurals, cluster similar ingredients) and update the counter as a consequence 
+    """Cleans the ingredients (remove plurals, cluster similar ingredients) and updates the counter as a consequence
+
+    Returns:
+        counter: _description_
     """
     
     # manually add missing entries for better clustering
@@ -233,7 +244,7 @@ def cleanCounterIngr(counter_ingrs):
             counter_ingrs[base_word] = 1
 
     counter_ingrs, cluster_ingrs = cluster_ingredients(counter_ingrs)
-    counter_ingrs, cluster_ingrs = remove_plurals(counter_ingrs, cluster_ingrs)
+    remove_plurals(counter_ingrs, cluster_ingrs)
 
     return counter_ingrs, cluster_ingrs
 
@@ -297,9 +308,13 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
         counter_toks = Counter()
         counter_ingrs = Counter()
 
-        for i,entry in tqdm(enumerate(layer1)):
+        if __debug__:
+            i=0
+        
+        for entry in tqdm(layer1):
             if __debug__:
-                if i==1000:
+                if i==20000:
+                    print("Debug mode: stop processing the file")
                     break
             
             if entry['partition'] != 'train':
@@ -335,7 +350,8 @@ def clean_count(args, dets, idx2ind, layer1, replace_dict_ingrs, replace_dict_in
                 or len(ingrs_list) >= args.maxnumingrs \
                 or acc_len < args.minnumwords:
                 continue
-
+            
+            if __debug__: i+=1
             # Updates ingr and instr counters with title, list of ingredients and list of instructions
             update_counters(entry['title'].lower(), instrs_list, ingrs_list, counter_toks,
                         counter_ingrs)
@@ -502,7 +518,7 @@ if __name__ == '__main__':
                         help='min number of ingredients')
 
     parser.add_argument('--minnumwords', type=int, default=20,
-                        help='minimum number of characters in recipe')
+                        help='minimum number of total words in recipe instructions')
 
     parser.add_argument('--forcegen', dest='forcegen', action='store_true')
     parser.add_argument('--forcegen-all', dest='forcegen_all', action='store_true')

@@ -254,7 +254,7 @@ class IngrAtt(BaseAttention):
         output (1,N, word_embed + 2 * hidden)
         attn_weights (N, max_ingr)
         """
-        batch_size = embedded.shape[1]
+        # batch_size = embedded.shape[1]
         hidden_repeat = hidden[0].unsqueeze(1).expand(-1, self.max_ingr, -1)
         encoder_outputs = encoder_outputs.permute(1, 0, 2)
 
